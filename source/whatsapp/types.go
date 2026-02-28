@@ -37,6 +37,16 @@ type SyncResult struct {
 	Errors          int
 }
 
+type SendInput struct {
+	ChatJID string
+	Text    string
+}
+
+type SendResult struct {
+	MessageID string
+	Timestamp time.Time
+}
+
 type ListOptions struct {
 	ChatJID string
 	After   string // YYYY-MM-DD
