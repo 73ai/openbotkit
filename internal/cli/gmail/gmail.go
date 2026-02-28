@@ -14,4 +14,6 @@ func init() {
 	Cmd.AddCommand(syncCmd)
 	Cmd.AddCommand(emailsCmd)
 	Cmd.AddCommand(attachmentsCmd)
+	Cmd.AddCommand(sendCmd)
+	Cmd.AddCommand(draftsCmd)
 }
