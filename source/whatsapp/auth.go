@@ -58,6 +58,10 @@ h1{font-size:1.5rem;font-weight:600;margin-bottom:.5rem}
       </ol>
     </div>
   </div>
+  <div id="linking" style="display:none">
+    <p class="loading" style="font-size:1.1rem;font-weight:500">Linking your device, please wait...</p>
+    <p class="subtitle" style="margin-top:.75rem;margin-bottom:0">This usually takes 10–15 seconds.</p>
+  </div>
   <div id="done" style="display:none">
     <div class="success-icon">&#10003;</div>
     <p class="success-msg">WhatsApp linked successfully!</p>
@@ -66,9 +70,10 @@ h1{font-size:1.5rem;font-weight:600;margin-bottom:.5rem}
 </div>
 <script>
 var qrEl=document.getElementById("qr"),statusEl=document.getElementById("status"),
-    mainEl=document.getElementById("main"),doneEl=document.getElementById("done"),qrCode=null,hasQR=false;
+    mainEl=document.getElementById("main"),linkingEl=document.getElementById("linking"),doneEl=document.getElementById("done"),qrCode=null,hasQR=false;
 function poll(){fetch("/api/qr").then(function(r){return r.json()}).then(function(d){
-  if(d.authenticated){mainEl.style.display="none";doneEl.style.display="block";return}
+  if(d.authenticated){mainEl.style.display="none";linkingEl.style.display="none";doneEl.style.display="block";return}
+  if(d.linking){mainEl.style.display="none";linkingEl.style.display="block";setTimeout(poll,2000);return}
   if(d.qr){hasQR=true;statusEl.textContent="QR code ready — scan it now";statusEl.className="";
     if(!qrCode){qrCode=new QRCode(qrEl,{text:d.qr,width:220,height:220,correctLevel:QRCode.CorrectLevel.L})}
     else{qrCode.clear();qrCode.makeCode(d.qr)}}
@@ -84,6 +89,7 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 
 	var mu sync.Mutex
 	var currentQR string
+	linking := false
 	authenticated := false
 
 	qrChan := make(chan string, 5)
@@ -94,8 +100,9 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 			currentQR = qr
 			mu.Unlock()
 		}
+		// QR handshake done; phone still needs time to finish device linking.
 		mu.Lock()
-		authenticated = true
+		linking = true
 		mu.Unlock()
 	}()
 
@@ -110,6 +117,7 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 		mu.Lock()
 		resp := map[string]any{
 			"qr":            currentQR,
+			"linking":       linking,
 			"authenticated": authenticated,
 		}
 		mu.Unlock()
@@ -140,6 +148,13 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 	// WhatsApp needs ~10-15s after QR scan to complete device linking.
 	fmt.Println("Completing device linking, please wait...")
 	time.Sleep(15 * time.Second)
+
+	mu.Lock()
+	authenticated = true
+	mu.Unlock()
+
+	// Give the browser a moment to poll and see the success state.
+	time.Sleep(3 * time.Second)
 	server.Shutdown(context.Background())
 
 	select {
