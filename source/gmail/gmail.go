@@ -40,6 +40,70 @@ func (g *Gmail) Status(ctx context.Context, db *store.DB) (*source.Status, error
 	}, nil
 }
 
+func (g *Gmail) resolveAccount(ctx context.Context, account string) (string, error) {
+	accounts, err := g.cfg.Provider.Accounts(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list accounts: %w", err)
+	}
+	if len(accounts) == 0 {
+		return "", fmt.Errorf("no authenticated accounts; run 'obk auth google login' first")
+	}
+
+	if account != "" {
+		for _, a := range accounts {
+			if a == account {
+				return account, nil
+			}
+		}
+		return "", fmt.Errorf("account %q not authenticated", account)
+	}
+
+	if len(accounts) == 1 {
+		return accounts[0], nil
+	}
+	return "", fmt.Errorf("multiple accounts found; specify one with --account")
+}
+
+func (g *Gmail) Send(ctx context.Context, input ComposeInput) (*SendResult, error) {
+	account, err := g.resolveAccount(ctx, input.Account)
+	if err != nil {
+		return nil, err
+	}
+	input.Account = account
+
+	httpClient, err := g.cfg.Provider.Client(ctx, account, []string{gapi.GmailComposeScope})
+	if err != nil {
+		return nil, fmt.Errorf("get client for %s: %w", account, err)
+	}
+
+	srv, err := newGmailService(ctx, httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return SendEmail(srv, input, NewRateLimiter())
+}
+
+func (g *Gmail) CreateDraft(ctx context.Context, input ComposeInput) (*DraftResult, error) {
+	account, err := g.resolveAccount(ctx, input.Account)
+	if err != nil {
+		return nil, err
+	}
+	input.Account = account
+
+	httpClient, err := g.cfg.Provider.Client(ctx, account, []string{gapi.GmailComposeScope})
+	if err != nil {
+		return nil, fmt.Errorf("get client for %s: %w", account, err)
+	}
+
+	srv, err := newGmailService(ctx, httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return CreateDraft(srv, input, NewRateLimiter())
+}
+
 func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*SyncResult, error) {
 	if err := Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate schema: %w", err)
