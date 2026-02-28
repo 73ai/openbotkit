@@ -75,7 +75,7 @@ func parseTranscript(path string) ([]parsedMessage, error) {
 
 	var messages []parsedMessage
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 100*1024*1024)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
