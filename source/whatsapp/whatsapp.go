@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/priyanshujain/openbotkit/source"
 	"github.com/priyanshujain/openbotkit/store"
@@ -74,7 +75,13 @@ func (w *WhatsApp) Logout(ctx context.Context) error {
 		return fmt.Errorf("connect: %w", err)
 	}
 
-	return client.WM().Logout(ctx)
+	if err := client.WM().Logout(ctx); err != nil {
+		return err
+	}
+
+	// Give WhatsApp time to process the unlink before disconnecting.
+	time.Sleep(3 * time.Second)
+	return nil
 }
 
 func init() {
