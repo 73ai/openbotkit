@@ -9,7 +9,12 @@ import (
 )
 
 type Config struct {
-	Gmail *GmailConfig `yaml:"gmail,omitempty"`
+	Gmail    *GmailConfig    `yaml:"gmail,omitempty"`
+	WhatsApp *WhatsAppConfig `yaml:"whatsapp,omitempty"`
+}
+
+type WhatsAppConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
 }
 
 type GmailConfig struct {
@@ -65,6 +70,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		WhatsApp: &WhatsAppConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -80,6 +90,12 @@ func (c *Config) applyDefaults() {
 	if c.Gmail.CredentialsFile == "" {
 		c.Gmail.CredentialsFile = filepath.Join(SourceDir("gmail"), "credentials.json")
 	}
+	if c.WhatsApp == nil {
+		c.WhatsApp = &WhatsAppConfig{}
+	}
+	if c.WhatsApp.Storage.Driver == "" {
+		c.WhatsApp.Storage.Driver = "sqlite"
+	}
 }
 
 func (c *Config) GmailDataDSN() string {
@@ -91,4 +107,15 @@ func (c *Config) GmailDataDSN() string {
 
 func (c *Config) GmailTokenDBPath() string {
 	return filepath.Join(SourceDir("gmail"), "tokens.db")
+}
+
+func (c *Config) WhatsAppDataDSN() string {
+	if c.WhatsApp.Storage.DSN != "" {
+		return c.WhatsApp.Storage.DSN
+	}
+	return filepath.Join(SourceDir("whatsapp"), "data.db")
+}
+
+func (c *Config) WhatsAppSessionDBPath() string {
+	return filepath.Join(SourceDir("whatsapp"), "session.db")
 }
