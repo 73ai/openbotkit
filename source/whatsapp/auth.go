@@ -136,8 +136,10 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 
 	connectErr := client.ConnectWithQR(ctx, qrChan)
 
-	// Keep serving briefly so the browser can poll and see the authenticated state.
-	time.Sleep(5 * time.Second)
+	// Keep the client connected so the phone can finish the initial key exchange.
+	// WhatsApp needs ~10-15s after QR scan to complete device linking.
+	fmt.Println("Completing device linking, please wait...")
+	time.Sleep(15 * time.Second)
 	server.Shutdown(context.Background())
 
 	select {
