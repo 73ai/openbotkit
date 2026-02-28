@@ -9,6 +9,7 @@ import (
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/source"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
+	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
 )
@@ -22,12 +23,16 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		// Register Gmail source.
 		g := gmailsrc.New(gmailsrc.Config{
 			CredentialsFile: cfg.Gmail.CredentialsFile,
 			TokenDBPath:     cfg.GmailTokenDBPath(),
 		})
 		source.Register(g)
+
+		wa := wasrc.New(wasrc.Config{
+			SessionDBPath: cfg.WhatsAppSessionDBPath(),
+		})
+		source.Register(wa)
 
 		ctx := context.Background()
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -45,6 +50,15 @@ var statusCmd = &cobra.Command{
 				})
 				if db != nil {
 					gmailsrc.Migrate(db)
+				}
+			case "whatsapp":
+				dsn := cfg.WhatsAppDataDSN()
+				db, _ = store.Open(store.Config{
+					Driver: cfg.WhatsApp.Storage.Driver,
+					DSN:    dsn,
+				})
+				if db != nil {
+					wasrc.Migrate(db)
 				}
 			}
 
