@@ -4,8 +4,10 @@ go 1.25.0
 
 require (
 	github.com/lib/pq v1.11.2
+	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/riverqueue/river v0.31.0
 	github.com/riverqueue/river/riverdriver/riversqlite v0.31.0
+	github.com/riverqueue/river/rivertype v0.31.0
 	github.com/spf13/cobra v1.9.1
 	go.mau.fi/whatsmeow v0.0.0-20260227112304-c9652e4448a2
 	golang.org/x/oauth2 v0.35.0
@@ -47,7 +49,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/riverqueue/river/riverdriver v0.31.0 // indirect
 	github.com/riverqueue/river/rivershared v0.31.0 // indirect
-	github.com/riverqueue/river/rivertype v0.31.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
