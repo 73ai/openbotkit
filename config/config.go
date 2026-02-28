@@ -9,9 +9,25 @@ import (
 )
 
 type Config struct {
-	Gmail    *GmailConfig    `yaml:"gmail,omitempty"`
-	WhatsApp *WhatsAppConfig `yaml:"whatsapp,omitempty"`
-	Memory   *MemoryConfig   `yaml:"memory,omitempty"`
+	Providers *ProvidersConfig `yaml:"providers,omitempty"`
+	Gmail     *GmailConfig    `yaml:"gmail,omitempty"`
+	WhatsApp  *WhatsAppConfig `yaml:"whatsapp,omitempty"`
+	Memory    *MemoryConfig   `yaml:"memory,omitempty"`
+	Daemon    *DaemonConfig   `yaml:"daemon,omitempty"`
+}
+
+type ProvidersConfig struct {
+	Google *GoogleProviderConfig `yaml:"google,omitempty"`
+}
+
+type GoogleProviderConfig struct {
+	CredentialsFile string `yaml:"credentials_file,omitempty"`
+}
+
+type DaemonConfig struct {
+	Mode            string        `yaml:"mode,omitempty"`              // "standalone" or "worker"
+	GmailSyncPeriod string        `yaml:"gmail_sync_period,omitempty"` // default "15m"
+	JobsStorage     StorageConfig `yaml:"jobs_storage,omitempty"`
 }
 
 type WhatsAppConfig struct {
@@ -112,6 +128,15 @@ func (c *Config) applyDefaults() {
 	if c.Memory.Storage.Driver == "" {
 		c.Memory.Storage.Driver = "sqlite"
 	}
+	if c.Daemon == nil {
+		c.Daemon = &DaemonConfig{}
+	}
+	if c.Daemon.Mode == "" {
+		c.Daemon.Mode = "standalone"
+	}
+	if c.Daemon.GmailSyncPeriod == "" {
+		c.Daemon.GmailSyncPeriod = "15m"
+	}
 }
 
 func (c *Config) GmailDataDSN() string {
@@ -119,10 +144,6 @@ func (c *Config) GmailDataDSN() string {
 		return c.Gmail.Storage.DSN
 	}
 	return filepath.Join(SourceDir("gmail"), "data.db")
-}
-
-func (c *Config) GmailTokenDBPath() string {
-	return filepath.Join(SourceDir("gmail"), "tokens.db")
 }
 
 func (c *Config) WhatsAppDataDSN() string {
@@ -142,3 +163,28 @@ func (c *Config) MemoryDataDSN() string {
 	}
 	return filepath.Join(SourceDir("memory"), "data.db")
 }
+
+func (c *Config) JobsDBDSN() string {
+	if c.Daemon.JobsStorage.DSN != "" {
+		return c.Daemon.JobsStorage.DSN
+	}
+	return JobsDBPath()
+}
+
+// GoogleCredentialsFile returns the credentials file path, checking the new
+// providers config first, falling back to the legacy gmail config.
+func (c *Config) GoogleCredentialsFile() string {
+	if c.Providers != nil && c.Providers.Google != nil && c.Providers.Google.CredentialsFile != "" {
+		return c.Providers.Google.CredentialsFile
+	}
+	if c.Gmail != nil && c.Gmail.CredentialsFile != "" {
+		return c.Gmail.CredentialsFile
+	}
+	return filepath.Join(ProviderDir("google"), "credentials.json")
+}
+
+// GoogleTokenDBPath always points to the new provider location.
+func (c *Config) GoogleTokenDBPath() string {
+	return filepath.Join(ProviderDir("google"), "tokens.db")
+}
+
