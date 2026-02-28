@@ -9,8 +9,17 @@ import (
 )
 
 type Config struct {
-	Gmail    *GmailConfig    `yaml:"gmail,omitempty"`
-	WhatsApp *WhatsAppConfig `yaml:"whatsapp,omitempty"`
+	Providers *ProvidersConfig `yaml:"providers,omitempty"`
+	Gmail     *GmailConfig    `yaml:"gmail,omitempty"`
+	WhatsApp  *WhatsAppConfig `yaml:"whatsapp,omitempty"`
+}
+
+type ProvidersConfig struct {
+	Google *GoogleProviderConfig `yaml:"google,omitempty"`
+}
+
+type GoogleProviderConfig struct {
+	CredentialsFile string `yaml:"credentials_file,omitempty"`
 }
 
 type WhatsAppConfig struct {
@@ -118,4 +127,27 @@ func (c *Config) WhatsAppDataDSN() string {
 
 func (c *Config) WhatsAppSessionDBPath() string {
 	return filepath.Join(SourceDir("whatsapp"), "session.db")
+}
+
+// GoogleCredentialsFile returns the credentials file path, checking the new
+// providers config first, falling back to the legacy gmail config.
+func (c *Config) GoogleCredentialsFile() string {
+	if c.Providers != nil && c.Providers.Google != nil && c.Providers.Google.CredentialsFile != "" {
+		return c.Providers.Google.CredentialsFile
+	}
+	if c.Gmail != nil && c.Gmail.CredentialsFile != "" {
+		return c.Gmail.CredentialsFile
+	}
+	return filepath.Join(ProviderDir("google"), "credentials.json")
+}
+
+// GoogleTokenDBPath always points to the new provider location.
+func (c *Config) GoogleTokenDBPath() string {
+	return filepath.Join(ProviderDir("google"), "tokens.db")
+}
+
+// IsLegacyFormat returns true if the config uses the old gmail-level credentials
+// and hasn't been migrated to the providers structure yet.
+func (c *Config) IsLegacyFormat() bool {
+	return c.Gmail != nil && c.Providers == nil
 }
