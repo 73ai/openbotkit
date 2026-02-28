@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// SaveAttachments saves all attachments from an email to disk.
-// Files are stored under baseDir/<account>/<message-id>/.
+// SaveAttachments writes attachments to baseDir/<account>/<message-id>/.
 func SaveAttachments(email *Email, baseDir string) error {
 	if len(email.Attachments) == 0 {
 		return nil
@@ -28,7 +27,6 @@ func SaveAttachments(email *Email, baseDir string) error {
 		safeFilename := sanitizePath(filepath.Base(att.Filename))
 		savePath := filepath.Join(dir, safeFilename)
 
-		// Avoid overwriting if file exists.
 		if _, err := os.Stat(savePath); err == nil {
 			ext := filepath.Ext(safeFilename)
 			base := strings.TrimSuffix(safeFilename, ext)

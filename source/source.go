@@ -9,7 +9,6 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-// Status represents the current state of a data source.
 type Status struct {
 	Connected    bool
 	Accounts     []string
@@ -17,26 +16,22 @@ type Status struct {
 	LastSyncedAt *time.Time
 }
 
-// Source is the minimal interface that all data sources implement.
 type Source interface {
 	Name() string
 	Status(ctx context.Context, db *store.DB) (*Status, error)
 }
 
-// registry holds all registered sources.
 var (
 	registryMu sync.RWMutex
 	registry   = map[string]Source{}
 )
 
-// Register adds a source to the global registry.
 func Register(s Source) {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	registry[s.Name()] = s
 }
 
-// Get returns a registered source by name.
 func Get(name string) (Source, error) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
@@ -47,7 +42,6 @@ func Get(name string) (Source, error) {
 	return s, nil
 }
 
-// All returns all registered sources.
 func All() []Source {
 	registryMu.RLock()
 	defer registryMu.RUnlock()

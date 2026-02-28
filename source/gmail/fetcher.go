@@ -11,13 +11,11 @@ import (
 	gapi "google.golang.org/api/gmail/v1"
 )
 
-// NewRateLimiter returns a rate limiter for Gmail API calls.
-// 15 requests/sec stays well within the 250 quota-units/sec budget.
+// 15 req/s stays well within the 250 quota-units/sec Gmail API budget.
 func NewRateLimiter() *rate.Limiter {
 	return rate.NewLimiter(rate.Limit(15), 1)
 }
 
-// buildQuery composes a Gmail search query string from a FetchQuery.
 func buildQuery(q FetchQuery) string {
 	if q.Query != "" {
 		return q.Query
@@ -35,7 +33,6 @@ func buildQuery(q FetchQuery) string {
 	return s
 }
 
-// SearchIDs returns message IDs matching a FetchQuery.
 func SearchIDs(srv *gapi.Service, query FetchQuery, limiter *rate.Limiter) ([]string, error) {
 	var ids []string
 	qStr := buildQuery(query)
@@ -62,7 +59,6 @@ func SearchIDs(srv *gapi.Service, query FetchQuery, limiter *rate.Limiter) ([]st
 	return ids, nil
 }
 
-// FetchEmail retrieves a full message and parses headers, body, and attachments.
 func FetchEmail(srv *gapi.Service, accountEmail string, msgID string, limiter *rate.Limiter) (*Email, error) {
 	limiter.Wait(context.Background())
 	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()

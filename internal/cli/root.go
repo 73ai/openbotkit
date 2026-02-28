@@ -8,8 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is set at build time via -ldflags.
-var Version = "dev"
+var Version = "dev" // set via -ldflags
 
 var rootCmd = &cobra.Command{
 	Use:   "obk",
@@ -30,7 +29,6 @@ func init() {
 	rootCmd.AddCommand(gmail.Cmd)
 }
 
-// Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

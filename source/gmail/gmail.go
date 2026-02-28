@@ -9,22 +9,18 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-// Gmail is a data source that connects to Gmail accounts.
 type Gmail struct {
 	cfg Config
 }
 
-// New creates a new Gmail source with the given configuration.
 func New(cfg Config) *Gmail {
 	return &Gmail{cfg: cfg}
 }
 
-// Name returns the source name.
 func (g *Gmail) Name() string {
 	return "gmail"
 }
 
-// Status returns the current state of the Gmail source.
 func (g *Gmail) Status(ctx context.Context, db *store.DB) (*source.Status, error) {
 	tokenStore, err := NewTokenStore(g.cfg.TokenDBPath)
 	if err != nil {
@@ -48,7 +44,6 @@ func (g *Gmail) Status(ctx context.Context, db *store.DB) (*source.Status, error
 	}, nil
 }
 
-// Login performs OAuth2 authentication for the given email account.
 func (g *Gmail) Login(ctx context.Context, email string) error {
 	tokenStore, err := NewTokenStore(g.cfg.TokenDBPath)
 	if err != nil {
@@ -59,7 +54,6 @@ func (g *Gmail) Login(ctx context.Context, email string) error {
 	return Login(ctx, g.cfg.CredentialsFile, email, tokenStore)
 }
 
-// Sync fetches emails from Gmail and stores them in the database.
 func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*SyncResult, error) {
 	if err := Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate schema: %w", err)
@@ -79,7 +73,6 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 		return nil, fmt.Errorf("no authenticated accounts; run 'obk gmail auth login' first")
 	}
 
-	// Filter to single account if specified.
 	if opts.Account != "" {
 		found := false
 		for _, a := range accounts {

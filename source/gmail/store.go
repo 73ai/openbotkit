@@ -9,7 +9,6 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-// EmailExists checks if an email with the given message ID and account exists.
 func EmailExists(db *store.DB, messageID, account string) (bool, error) {
 	var count int
 	err := db.QueryRow(
@@ -22,7 +21,6 @@ func EmailExists(db *store.DB, messageID, account string) (bool, error) {
 	return count > 0, nil
 }
 
-// SaveEmail inserts an email and its attachments into the database.
 func SaveEmail(db *store.DB, email *Email) (int64, error) {
 	res, err := db.Exec(
 		db.Rebind(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, subject, date, body, html_body)
@@ -31,7 +29,6 @@ func SaveEmail(db *store.DB, email *Email) (int64, error) {
 		email.Subject, email.Date, email.Body, email.HTMLBody,
 	)
 	if err != nil {
-		// Check if it's a uniqueness violation (already exists).
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "duplicate key") {
 			var id int64
 			err2 := db.QueryRow(
@@ -64,7 +61,6 @@ func SaveEmail(db *store.DB, email *Email) (int64, error) {
 	return id, nil
 }
 
-// ListEmails queries stored emails with optional filters.
 func ListEmails(db *store.DB, opts ListOptions) ([]Email, error) {
 	var conditions []string
 	var args []any
@@ -124,7 +120,6 @@ func ListEmails(db *store.DB, opts ListOptions) ([]Email, error) {
 	return emails, rows.Err()
 }
 
-// GetEmail retrieves a single email by message ID.
 func GetEmail(db *store.DB, messageID string) (*Email, error) {
 	var e Email
 	var id int64
@@ -137,7 +132,6 @@ func GetEmail(db *store.DB, messageID string) (*Email, error) {
 		return nil, fmt.Errorf("get email: %w", err)
 	}
 
-	// Load attachments.
 	rows, err := db.Query(
 		db.Rebind(`SELECT filename, mime_type, saved_path FROM gmail_attachments WHERE email_id = ?`),
 		id,
@@ -158,7 +152,6 @@ func GetEmail(db *store.DB, messageID string) (*Email, error) {
 	return &e, rows.Err()
 }
 
-// SearchEmails performs a text search across subject and body.
 func SearchEmails(db *store.DB, query string, limit int) ([]Email, error) {
 	if limit <= 0 {
 		limit = 50
@@ -189,7 +182,6 @@ func SearchEmails(db *store.DB, query string, limit int) ([]Email, error) {
 	return emails, rows.Err()
 }
 
-// CountEmails returns the total number of stored emails, optionally filtered by account.
 func CountEmails(db *store.DB, account string) (int64, error) {
 	query := "SELECT COUNT(*) FROM gmail_emails"
 	var args []any
@@ -203,7 +195,6 @@ func CountEmails(db *store.DB, account string) (int64, error) {
 	return count, err
 }
 
-// LastSyncTime returns the most recent fetched_at time from gmail_emails.
 func LastSyncTime(db *store.DB) (*time.Time, error) {
 	var raw sql.NullString
 	err := db.QueryRow("SELECT MAX(fetched_at) FROM gmail_emails").Scan(&raw)
@@ -226,7 +217,6 @@ func LastSyncTime(db *store.DB) (*time.Time, error) {
 	return nil, nil
 }
 
-// AttachmentRow holds attachment metadata from a query.
 type AttachmentRow struct {
 	EmailMessageID string
 	Filename       string
@@ -234,7 +224,6 @@ type AttachmentRow struct {
 	SavedPath      string
 }
 
-// ListAttachments returns attachment metadata, optionally filtered by email message ID.
 func ListAttachments(db *store.DB, emailMessageID string) ([]AttachmentRow, error) {
 	query := `SELECT e.message_id, a.filename, a.mime_type, a.saved_path
 		FROM gmail_attachments a

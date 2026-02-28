@@ -13,7 +13,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-// authenticate creates an authenticated Gmail service for a single account.
 func authenticate(ctx context.Context, credFile string, email string, tokenStore *TokenStore) (*gapi.Service, error) {
 	b, err := os.ReadFile(credFile)
 	if err != nil {
@@ -27,7 +26,6 @@ func authenticate(ctx context.Context, credFile string, email string, tokenStore
 
 	tok, err := tokenStore.LoadFullToken(email)
 	if err != nil {
-		// No stored token — run the OAuth callback flow.
 		oauthCfg.RedirectURL = "http://localhost:8085/callback"
 		tok, err = getTokenViaCallback(oauthCfg)
 		if err != nil {
@@ -53,8 +51,6 @@ func authenticate(ctx context.Context, credFile string, email string, tokenStore
 	return srv, nil
 }
 
-// Login performs the OAuth2 login flow for a single email account.
-// This is the public API for CLI and library use.
 func Login(ctx context.Context, credFile string, email string, tokenStore *TokenStore) error {
 	b, err := os.ReadFile(credFile)
 	if err != nil {

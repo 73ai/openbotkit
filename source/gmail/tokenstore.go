@@ -11,11 +11,12 @@ import (
 )
 
 // TokenStore persists OAuth tokens in a local SQLite database.
+// Always uses SQLite regardless of the data store driver, since
+// tokens are machine-specific secrets.
 type TokenStore struct {
 	db *sql.DB
 }
 
-// NewTokenStore opens (or creates) the token database and runs migrations.
 func NewTokenStore(dbPath string) (*TokenStore, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -48,7 +49,6 @@ func (ts *TokenStore) migrate() error {
 	return err
 }
 
-// SaveRefreshToken upserts a refresh token for the given email.
 func (ts *TokenStore) SaveRefreshToken(email, refreshToken string) error {
 	_, err := ts.db.Exec(`
 		INSERT INTO refresh_tokens (email, refresh_token, updated_at)
@@ -60,7 +60,6 @@ func (ts *TokenStore) SaveRefreshToken(email, refreshToken string) error {
 	return err
 }
 
-// LoadRefreshToken retrieves the refresh token for the given email.
 func (ts *TokenStore) LoadRefreshToken(email string) (string, error) {
 	var refreshToken string
 	err := ts.db.QueryRow(`SELECT refresh_token FROM refresh_tokens WHERE email = ?`, email).Scan(&refreshToken)
@@ -70,7 +69,6 @@ func (ts *TokenStore) LoadRefreshToken(email string) (string, error) {
 	return refreshToken, nil
 }
 
-// SaveAccessToken upserts an access token for the given email.
 func (ts *TokenStore) SaveAccessToken(email string, tok *oauth2.Token) error {
 	_, err := ts.db.Exec(`
 		INSERT INTO access_tokens (email, access_token, token_type, expiry, updated_at)
@@ -84,7 +82,6 @@ func (ts *TokenStore) SaveAccessToken(email string, tok *oauth2.Token) error {
 	return err
 }
 
-// LoadAccessToken retrieves the access token for the given email.
 func (ts *TokenStore) LoadAccessToken(email string) (*oauth2.Token, error) {
 	var accessToken, tokenType string
 	var expiry time.Time
@@ -100,7 +97,8 @@ func (ts *TokenStore) LoadAccessToken(email string) (*oauth2.Token, error) {
 	}, nil
 }
 
-// LoadFullToken combines refresh and access tokens into a single oauth2.Token.
+// LoadFullToken combines refresh + access tokens into one oauth2.Token.
+// Returns an expired token (refresh-only) if no access token is stored yet.
 func (ts *TokenStore) LoadFullToken(email string) (*oauth2.Token, error) {
 	refreshToken, err := ts.LoadRefreshToken(email)
 	if err != nil {
@@ -118,7 +116,6 @@ func (ts *TokenStore) LoadFullToken(email string) (*oauth2.Token, error) {
 	return tok, nil
 }
 
-// ListAccounts returns all email addresses that have stored tokens.
 func (ts *TokenStore) ListAccounts() ([]string, error) {
 	rows, err := ts.db.Query(`SELECT email FROM refresh_tokens ORDER BY email`)
 	if err != nil {
@@ -137,7 +134,6 @@ func (ts *TokenStore) ListAccounts() ([]string, error) {
 	return accounts, rows.Err()
 }
 
-// DeleteToken removes all tokens for the given email.
 func (ts *TokenStore) DeleteToken(email string) error {
 	if _, err := ts.db.Exec(`DELETE FROM refresh_tokens WHERE email = ?`, email); err != nil {
 		return err
@@ -146,14 +142,12 @@ func (ts *TokenStore) DeleteToken(email string) error {
 	return err
 }
 
-// HasToken checks if a refresh token exists for the given email.
 func (ts *TokenStore) HasToken(email string) bool {
 	var count int
-	ts.db.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE email = ?`, email).Scan(&count)
-	return count > 0
+	err := ts.db.QueryRow(`SELECT COUNT(*) FROM refresh_tokens WHERE email = ?`, email).Scan(&count)
+	return err == nil && count > 0
 }
 
-// TokenExpiry returns the expiry time of the access token for the given email.
 func (ts *TokenStore) TokenExpiry(email string) (*time.Time, error) {
 	var expiry time.Time
 	err := ts.db.QueryRow(`SELECT expiry FROM access_tokens WHERE email = ?`, email).Scan(&expiry)
@@ -166,12 +160,12 @@ func (ts *TokenStore) TokenExpiry(email string) (*time.Time, error) {
 	return &expiry, nil
 }
 
-// Close closes the database connection.
 func (ts *TokenStore) Close() error {
 	return ts.db.Close()
 }
 
-// dbTokenSource wraps an oauth2.TokenSource and persists refreshed tokens.
+// dbTokenSource wraps an oauth2.TokenSource and persists refreshed tokens
+// back to the database on every refresh.
 type dbTokenSource struct {
 	email   string
 	store   *TokenStore

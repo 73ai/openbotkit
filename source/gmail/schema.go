@@ -2,7 +2,6 @@ package gmail
 
 import "github.com/priyanshujain/openbotkit/store"
 
-// schemaSQLite is the DDL for Gmail tables in SQLite.
 const schemaSQLite = `
 CREATE TABLE IF NOT EXISTS gmail_emails (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +30,6 @@ CREATE INDEX IF NOT EXISTS idx_gmail_emails_date ON gmail_emails(date);
 CREATE INDEX IF NOT EXISTS idx_gmail_emails_from ON gmail_emails(from_addr);
 `
 
-// schemaPostgres is the DDL for Gmail tables in Postgres.
 const schemaPostgres = `
 CREATE TABLE IF NOT EXISTS gmail_emails (
 	id BIGSERIAL PRIMARY KEY,
@@ -60,7 +58,6 @@ CREATE INDEX IF NOT EXISTS idx_gmail_emails_date ON gmail_emails(date);
 CREATE INDEX IF NOT EXISTS idx_gmail_emails_from ON gmail_emails(from_addr);
 `
 
-// Migrate creates the Gmail schema in the database.
 func Migrate(db *store.DB) error {
 	schema := schemaSQLite
 	if db.IsPostgres() {
