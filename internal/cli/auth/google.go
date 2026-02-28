@@ -8,7 +8,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/charmbracelet/huh"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/tty"
 	"github.com/priyanshujain/openbotkit/provider/google"
 	"github.com/spf13/cobra"
 )
@@ -137,10 +139,204 @@ var googleStatusCmd = &cobra.Command{
 	},
 }
 
-// googleInteractiveRun is a placeholder for the TUI flow (Phase 7).
-// For now it shows status.
+// scopeChoices defines the available scope options for interactive selection.
+type scopeChoice struct {
+	Label string
+	Scope string
+}
+
+var availableScopeChoices = []scopeChoice{
+	{Label: "Gmail (read)", Scope: "https://www.googleapis.com/auth/gmail.readonly"},
+	{Label: "Gmail (read + write)", Scope: "https://www.googleapis.com/auth/gmail.modify"},
+	{Label: "Calendar (read)", Scope: "https://www.googleapis.com/auth/calendar.readonly"},
+	{Label: "Calendar (read + write)", Scope: "https://www.googleapis.com/auth/calendar"},
+}
+
 func googleInteractiveRun(cmd *cobra.Command, args []string) error {
-	return googleStatusCmd.RunE(cmd, args)
+	if err := tty.RequireInteractive("obk auth google login --scopes gmail.readonly"); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	if err := config.EnsureProviderDir("google"); err != nil {
+		return fmt.Errorf("create provider dir: %w", err)
+	}
+
+	gp := google.New(google.Config{
+		CredentialsFile: cfg.GoogleCredentialsFile(),
+		TokenDBPath:     cfg.GoogleTokenDBPath(),
+	})
+
+	ctx := context.Background()
+	accounts, _ := gp.Accounts(ctx)
+
+	if len(accounts) == 0 {
+		return googleInteractiveNewAccount(ctx, gp)
+	}
+
+	return googleInteractiveManage(ctx, gp, accounts)
+}
+
+func googleInteractiveNewAccount(ctx context.Context, gp *google.Google) error {
+	fmt.Println("\n  No Google accounts connected.\n")
+
+	var selectedScopes []string
+	options := make([]huh.Option[string], len(availableScopeChoices))
+	for i, sc := range availableScopeChoices {
+		options[i] = huh.NewOption(sc.Label, sc.Scope)
+	}
+
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Select access to enable").
+				Options(options...).
+				Value(&selectedScopes),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if len(selectedScopes) == 0 {
+		fmt.Println("No scopes selected.")
+		return nil
+	}
+
+	email, err := gp.GrantScopes(ctx, "", selectedScopes)
+	if err != nil {
+		return fmt.Errorf("auth failed: %w", err)
+	}
+
+	fmt.Printf("\n  Authenticated as %s\n", email)
+	for _, s := range selectedScopes {
+		fmt.Printf("  ✓ %s enabled\n", scopeLabel(s))
+	}
+	return nil
+}
+
+func googleInteractiveManage(ctx context.Context, gp *google.Google, accounts []string) error {
+	fmt.Println("\n  Google accounts:")
+	for _, a := range accounts {
+		scopes, _ := gp.GrantedScopes(ctx, a)
+		fmt.Printf("    %s\n", a)
+		for _, s := range scopes {
+			fmt.Printf("      ✓ %s\n", scopeLabel(s))
+		}
+	}
+	fmt.Println()
+
+	choices := make([]huh.Option[string], 0, len(accounts)+1)
+	for _, a := range accounts {
+		choices = append(choices, huh.NewOption("Manage access for "+a, a))
+	}
+	choices = append(choices, huh.NewOption("Add a new account", "__new__"))
+
+	var action string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("What would you like to do?").
+				Options(choices...).
+				Value(&action),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if action == "__new__" {
+		return googleInteractiveNewAccount(ctx, gp)
+	}
+
+	// Manage existing account scopes.
+	existing, _ := gp.GrantedScopes(ctx, action)
+	grantedSet := make(map[string]bool, len(existing))
+	for _, s := range existing {
+		grantedSet[s] = true
+	}
+
+	var selectedScopes []string
+	options := make([]huh.Option[string], len(availableScopeChoices))
+	for i, sc := range availableScopeChoices {
+		label := sc.Label
+		if grantedSet[sc.Scope] {
+			label += " ✓ granted"
+		}
+		opt := huh.NewOption(label, sc.Scope)
+		if grantedSet[sc.Scope] {
+			opt = opt.Selected(true)
+		}
+		options[i] = opt
+	}
+
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Manage access for "+action).
+				Options(options...).
+				Value(&selectedScopes),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	// Determine what to add and what to remove.
+	newSet := make(map[string]bool, len(selectedScopes))
+	for _, s := range selectedScopes {
+		newSet[s] = true
+	}
+
+	var toAdd, toRemove []string
+	for _, s := range selectedScopes {
+		if !grantedSet[s] {
+			toAdd = append(toAdd, s)
+		}
+	}
+	for _, s := range existing {
+		if !newSet[s] {
+			toRemove = append(toRemove, s)
+		}
+	}
+
+	if len(toAdd) > 0 {
+		_, err := gp.GrantScopes(ctx, action, toAdd)
+		if err != nil {
+			return fmt.Errorf("grant scopes: %w", err)
+		}
+		for _, s := range toAdd {
+			fmt.Printf("  ✓ %s added for %s\n", scopeLabel(s), action)
+		}
+	}
+
+	if len(toRemove) > 0 {
+		if err := gp.RevokeScopes(ctx, action, toRemove); err != nil {
+			return fmt.Errorf("revoke scopes: %w", err)
+		}
+		for _, s := range toRemove {
+			fmt.Printf("  ✗ %s removed for %s\n", scopeLabel(s), action)
+		}
+	}
+
+	if len(toAdd) == 0 && len(toRemove) == 0 {
+		fmt.Println("  No changes.")
+	}
+
+	return nil
+}
+
+func scopeLabel(scope string) string {
+	for _, sc := range availableScopeChoices {
+		if sc.Scope == scope {
+			return sc.Label
+		}
+	}
+	return scope
 }
 
 func init() {
