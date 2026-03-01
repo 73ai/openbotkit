@@ -43,6 +43,7 @@ func TestQREndpointReturnsJSON(t *testing.T) {
 	var mu sync.Mutex
 	currentQR := "test-qr-code-data"
 	linking := false
+	syncing := false
 	authenticated := false
 
 	mux := http.NewServeMux()
@@ -51,6 +52,7 @@ func TestQREndpointReturnsJSON(t *testing.T) {
 		resp := map[string]any{
 			"qr":            currentQR,
 			"linking":       linking,
+			"syncing":       syncing,
 			"authenticated": authenticated,
 		}
 		mu.Unlock()
@@ -76,6 +78,9 @@ func TestQREndpointReturnsJSON(t *testing.T) {
 	if resp["linking"] != false {
 		t.Fatalf("expected linking=false, got %v", resp["linking"])
 	}
+	if resp["syncing"] != false {
+		t.Fatalf("expected syncing=false, got %v", resp["syncing"])
+	}
 	if resp["authenticated"] != false {
 		t.Fatalf("expected authenticated=false, got %v", resp["authenticated"])
 	}
@@ -85,6 +90,7 @@ func TestQREndpointAuthenticated(t *testing.T) {
 	var mu sync.Mutex
 	currentQR := ""
 	linking := false
+	syncing := false
 	authenticated := true
 
 	mux := http.NewServeMux()
@@ -93,6 +99,7 @@ func TestQREndpointAuthenticated(t *testing.T) {
 		resp := map[string]any{
 			"qr":            currentQR,
 			"linking":       linking,
+			"syncing":       syncing,
 			"authenticated": authenticated,
 		}
 		mu.Unlock()
@@ -114,6 +121,9 @@ func TestQREndpointAuthenticated(t *testing.T) {
 	if resp["linking"] != false {
 		t.Fatalf("expected linking=false when authenticated, got %v", resp["linking"])
 	}
+	if resp["syncing"] != false {
+		t.Fatalf("expected syncing=false when authenticated, got %v", resp["syncing"])
+	}
 	if resp["qr"] != "" {
 		t.Fatalf("expected empty qr when authenticated, got %v", resp["qr"])
 	}
@@ -123,6 +133,7 @@ func TestQREndpointLinking(t *testing.T) {
 	var mu sync.Mutex
 	currentQR := ""
 	linking := true
+	syncing := false
 	authenticated := false
 
 	mux := http.NewServeMux()
@@ -131,6 +142,7 @@ func TestQREndpointLinking(t *testing.T) {
 		resp := map[string]any{
 			"qr":            currentQR,
 			"linking":       linking,
+			"syncing":       syncing,
 			"authenticated": authenticated,
 		}
 		mu.Unlock()
@@ -148,6 +160,9 @@ func TestQREndpointLinking(t *testing.T) {
 	}
 	if resp["linking"] != true {
 		t.Fatalf("expected linking=true, got %v", resp["linking"])
+	}
+	if resp["syncing"] != false {
+		t.Fatalf("expected syncing=false during linking, got %v", resp["syncing"])
 	}
 	if resp["authenticated"] != false {
 		t.Fatalf("expected authenticated=false during linking, got %v", resp["authenticated"])
