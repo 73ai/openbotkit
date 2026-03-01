@@ -82,6 +82,33 @@ poll();
 </script>
 </body></html>`
 
+// waitForHistorySync blocks until either the quiet period elapses after the
+// last sync signal, or maxWait is reached. This lets the phone finish its
+// initial history sync before we declare authentication complete.
+func waitForHistorySync(syncSignal <-chan struct{}, maxWait, quietPeriod time.Duration) {
+	deadline := time.After(maxWait)
+	quietTimer := time.NewTimer(quietPeriod)
+	defer quietTimer.Stop()
+
+	select {
+	case <-syncSignal:
+		quietTimer.Reset(quietPeriod)
+	case <-deadline:
+		return
+	}
+
+	for {
+		select {
+		case <-syncSignal:
+			quietTimer.Reset(quietPeriod)
+		case <-quietTimer.C:
+			return
+		case <-deadline:
+			return
+		}
+	}
+}
+
 func ServeQR(ctx context.Context, client *Client, addr string) error {
 	if addr == "" {
 		addr = ":8085"
