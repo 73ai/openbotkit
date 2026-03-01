@@ -2,6 +2,7 @@ package gmail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/priyanshujain/openbotkit/source"
 	"github.com/priyanshujain/openbotkit/store"
 	gapi "google.golang.org/api/gmail/v1"
+	"golang.org/x/time/rate"
 )
 
 type Gmail struct {
@@ -104,6 +106,46 @@ func (g *Gmail) CreateDraft(ctx context.Context, input ComposeInput) (*DraftResu
 	return CreateDraft(srv, input, NewRateLimiter())
 }
 
+// fullSearch performs a date-based search and captures the current historyId.
+func fullSearch(srv *gapi.Service, opts SyncOptions, limiter *rate.Limiter) ([]string, uint64, error) {
+	query := FetchQuery{After: opts.After}
+	ids, err := SearchIDs(srv, query, limiter)
+	if err != nil {
+		return nil, 0, err
+	}
+	historyID, err := GetProfile(srv, limiter)
+	if err != nil {
+		return ids, 0, err
+	}
+	return ids, historyID, nil
+}
+
+// resolveMessageIDs decides whether to use incremental history or full search.
+func resolveMessageIDs(db *store.DB, srv *gapi.Service, account string, opts SyncOptions, limiter *rate.Limiter) ([]string, uint64, error) {
+	if opts.Full {
+		return fullSearch(srv, opts, limiter)
+	}
+
+	state, err := GetSyncState(db, account)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get sync state: %w", err)
+	}
+
+	if state == nil {
+		return fullSearch(srv, opts, limiter)
+	}
+
+	ids, newHistoryID, err := FetchHistoryIDs(srv, state.HistoryID, limiter)
+	if err != nil {
+		if errors.Is(err, errHistoryExpired) {
+			log.Printf("History expired for %s, falling back to full search", account)
+			return fullSearch(srv, opts, limiter)
+		}
+		return nil, 0, err
+	}
+	return ids, newHistoryID, nil
+}
+
 func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*SyncResult, error) {
 	if err := Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate schema: %w", err)
@@ -158,10 +200,9 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 			continue
 		}
 
-		query := FetchQuery{After: opts.After}
-		msgIDs, err := SearchIDs(srv, query, limiter)
+		msgIDs, newHistoryID, err := resolveMessageIDs(db, srv, email, opts, limiter)
 		if err != nil {
-			log.Printf("Error searching %s: %v", email, err)
+			log.Printf("Error resolving messages for %s: %v", email, err)
 			result.Errors++
 			continue
 		}
@@ -169,17 +210,15 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 		fmt.Printf("Found %d messages for %s\n", len(msgIDs), email)
 
 		for _, id := range msgIDs {
-			if !opts.Full {
-				exists, err := EmailExists(db, id, email)
-				if err != nil {
-					log.Printf("Error checking email %s: %v", id, err)
-					result.Errors++
-					continue
-				}
-				if exists {
-					result.Skipped++
-					continue
-				}
+			exists, err := EmailExists(db, id, email)
+			if err != nil {
+				log.Printf("Error checking email %s: %v", id, err)
+				result.Errors++
+				continue
+			}
+			if exists {
+				result.Skipped++
+				continue
 			}
 
 			fetched, err := FetchEmail(srv, email, id, limiter)
@@ -202,6 +241,12 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 			}
 
 			result.Fetched++
+		}
+
+		if newHistoryID > 0 {
+			if err := SaveSyncState(db, email, newHistoryID); err != nil {
+				log.Printf("Error saving sync state for %s: %v", email, err)
+			}
 		}
 	}
 
