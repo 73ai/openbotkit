@@ -123,6 +123,7 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 	var mu sync.Mutex
 	var currentQR string
 	linking := false
+	syncing := false
 	authenticated := false
 
 	qrChan := make(chan string, 5)
@@ -151,6 +152,7 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 		resp := map[string]any{
 			"qr":            currentQR,
 			"linking":       linking,
+			"syncing":       syncing,
 			"authenticated": authenticated,
 		}
 		mu.Unlock()
