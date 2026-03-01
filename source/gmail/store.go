@@ -224,6 +224,34 @@ type AttachmentRow struct {
 	SavedPath      string
 }
 
+func GetSyncState(db *store.DB, account string) (*SyncState, error) {
+	var s SyncState
+	err := db.QueryRow(
+		db.Rebind("SELECT account, history_id, updated_at FROM gmail_sync_state WHERE account = ?"),
+		account,
+	).Scan(&s.Account, &s.HistoryID, &s.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get sync state: %w", err)
+	}
+	return &s, nil
+}
+
+func SaveSyncState(db *store.DB, account string, historyID uint64) error {
+	_, err := db.Exec(
+		db.Rebind(`INSERT INTO gmail_sync_state (account, history_id, updated_at)
+		 VALUES (?, ?, CURRENT_TIMESTAMP)
+		 ON CONFLICT (account) DO UPDATE SET history_id = ?, updated_at = CURRENT_TIMESTAMP`),
+		account, historyID, historyID,
+	)
+	if err != nil {
+		return fmt.Errorf("save sync state: %w", err)
+	}
+	return nil
+}
+
 func ListAttachments(db *store.DB, emailMessageID string) ([]AttachmentRow, error) {
 	query := `SELECT e.message_id, a.filename, a.mime_type, a.saved_path
 		FROM gmail_attachments a
