@@ -87,3 +87,9 @@ type DraftResult struct {
 	MessageID string
 	ThreadID  string
 }
+
+type SyncState struct {
+	Account   string
+	HistoryID uint64
+	UpdatedAt time.Time
+}
