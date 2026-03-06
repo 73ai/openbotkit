@@ -67,8 +67,8 @@ obk status
 
 ```mermaid
 flowchart LR
-    You --> Claude["Claude Code"]
-    Claude --> Skills
+    You --> Agent["AI Agent"]
+    Agent --> Skills
     Skills --> sqlite3
     Skills --> obk["obk CLI"]
     obk --> Gmail
