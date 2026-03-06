@@ -23,6 +23,11 @@ type GmailSyncWorker struct {
 }
 
 func (w *GmailSyncWorker) Work(ctx context.Context, job *river.Job[GmailSyncArgs]) error {
+	if !w.Cfg.Gmail.Enabled {
+		log.Println("gmail: not enabled, skipping sync")
+		return nil
+	}
+
 	log.Println("starting gmail sync job")
 
 	db, err := store.Open(store.Config{

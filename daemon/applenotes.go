@@ -21,6 +21,11 @@ func runAppleNotesSync(ctx context.Context, cfg *config.Config) <-chan error {
 	go func() {
 		defer close(errCh)
 
+		if !cfg.AppleNotes.Enabled {
+			log.Println("applenotes: not enabled, skipping sync")
+			return
+		}
+
 		if runtime.GOOS != "darwin" {
 			log.Println("applenotes: skipping sync (not macOS)")
 			return

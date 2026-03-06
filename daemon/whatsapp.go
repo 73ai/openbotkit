@@ -17,6 +17,11 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
 	go func() {
 		defer close(errCh)
 
+		if !cfg.WhatsApp.Enabled {
+			log.Println("whatsapp: not enabled, skipping sync")
+			return
+		}
+
 		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
 		if err != nil {
 			log.Printf("whatsapp: failed to create client: %v", err)
