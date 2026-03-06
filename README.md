@@ -23,7 +23,6 @@ OpenBotKit is a meal kit. You get the raw ingredients (data connectors, a sync e
 | **Sync engine** | Background daemon (launchd/systemd) keeps your local data fresh |
 | **CLI** (`obk`) | Search, read, and send across all sources from the terminal |
 | **Assistant scaffolding** | Pre-configured Claude Code setup with skills for natural-language access |
-| **Go library** | Import `openbotkit/source/*` to build your own tools and integrations |
 
 ## Install
 
@@ -74,32 +73,6 @@ From there you can ask things like:
 - *"Find my notes about the Berlin trip"*
 
 Each skill is just a plain text file with SQL patterns and CLI commands. You can read them, change them, or write your own. No magic. See [`assistant/`](assistant/) for setup details.
-
-## Library Usage
-
-`obk` is also a Go library. Import the source packages to build your own tools on top.
-
-```go
-import (
-    "github.com/priyanshujain/openbotkit/source/gmail"
-    "github.com/priyanshujain/openbotkit/store"
-)
-
-db, _ := store.Open(store.SQLiteConfig("gmail.db"))
-gmail.Migrate(db)
-
-g := gmail.New(gmail.Config{
-    CredentialsFile: "credentials.json",
-    TokenDBPath:     "tokens.db",
-})
-
-result, _ := g.Sync(ctx, db, gmail.SyncOptions{Full: false})
-
-emails, _ := gmail.ListEmails(db, gmail.ListOptions{
-    From:  "someone@example.com",
-    Limit: 10,
-})
-```
 
 ## Configuration
 
