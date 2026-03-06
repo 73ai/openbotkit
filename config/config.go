@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Providers *ProvidersConfig `yaml:"providers,omitempty"`
-	Gmail     *GmailConfig    `yaml:"gmail,omitempty"`
-	WhatsApp  *WhatsAppConfig `yaml:"whatsapp,omitempty"`
-	Memory    *MemoryConfig   `yaml:"memory,omitempty"`
-	Daemon    *DaemonConfig   `yaml:"daemon,omitempty"`
+	Providers  *ProvidersConfig  `yaml:"providers,omitempty"`
+	Gmail      *GmailConfig      `yaml:"gmail,omitempty"`
+	WhatsApp   *WhatsAppConfig   `yaml:"whatsapp,omitempty"`
+	Memory     *MemoryConfig     `yaml:"memory,omitempty"`
+	AppleNotes *AppleNotesConfig `yaml:"applenotes,omitempty"`
+	Daemon     *DaemonConfig     `yaml:"daemon,omitempty"`
 }
 
 type ProvidersConfig struct {
@@ -40,6 +41,10 @@ type GmailConfig struct {
 }
 
 type MemoryConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
+type AppleNotesConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
 }
 
@@ -100,6 +105,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		AppleNotes: &AppleNotesConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -126,6 +136,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Memory.Storage.Driver == "" {
 		c.Memory.Storage.Driver = "sqlite"
+	}
+	if c.AppleNotes == nil {
+		c.AppleNotes = &AppleNotesConfig{}
+	}
+	if c.AppleNotes.Storage.Driver == "" {
+		c.AppleNotes.Storage.Driver = "sqlite"
 	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
@@ -158,6 +174,13 @@ func (c *Config) MemoryDataDSN() string {
 		return c.Memory.Storage.DSN
 	}
 	return filepath.Join(SourceDir("memory"), "data.db")
+}
+
+func (c *Config) AppleNotesDataDSN() string {
+	if c.AppleNotes.Storage.DSN != "" {
+		return c.AppleNotes.Storage.DSN
+	}
+	return filepath.Join(SourceDir("applenotes"), "data.db")
 }
 
 func (c *Config) JobsDBDSN() string {
