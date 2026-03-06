@@ -13,11 +13,11 @@ import (
 
 func TestIsSkillEligible(t *testing.T) {
 	tests := []struct {
-		name           string
-		meta           SkillMeta
-		grantedGoogle  map[string]bool
-		whatsappAuthed bool
-		want           bool
+		name          string
+		meta          SkillMeta
+		grantedGoogle map[string]bool
+		sourceAuthed  map[string]bool
+		want          bool
 	}{
 		{
 			name: "no requirements",
@@ -25,16 +25,26 @@ func TestIsSkillEligible(t *testing.T) {
 			want: true,
 		},
 		{
-			name:           "whatsapp required and authed",
-			meta:           SkillMeta{RequiresAuth: "whatsapp"},
-			whatsappAuthed: true,
-			want:           true,
+			name:         "whatsapp required and authed",
+			meta:         SkillMeta{RequiresAuth: "whatsapp"},
+			sourceAuthed: map[string]bool{"whatsapp": true},
+			want:         true,
 		},
 		{
-			name:           "whatsapp required but not authed",
-			meta:           SkillMeta{RequiresAuth: "whatsapp"},
-			whatsappAuthed: false,
-			want:           false,
+			name: "whatsapp required but not authed",
+			meta: SkillMeta{RequiresAuth: "whatsapp"},
+			want: false,
+		},
+		{
+			name:         "applenotes required and linked",
+			meta:         SkillMeta{RequiresAuth: "applenotes"},
+			sourceAuthed: map[string]bool{"applenotes": true},
+			want:         true,
+		},
+		{
+			name: "applenotes required but not linked",
+			meta: SkillMeta{RequiresAuth: "applenotes"},
+			want: false,
 		},
 		{
 			name: "gmail readonly required and granted",
@@ -82,7 +92,11 @@ func TestIsSkillEligible(t *testing.T) {
 			if granted == nil {
 				granted = map[string]bool{}
 			}
-			got := isSkillEligible(tt.meta, granted, tt.whatsappAuthed)
+			authed := tt.sourceAuthed
+			if authed == nil {
+				authed = map[string]bool{}
+			}
+			got := isSkillEligible(tt.meta, granted, authed)
 			if got != tt.want {
 				t.Errorf("isSkillEligible() = %v, want %v", got, tt.want)
 			}
@@ -115,9 +129,7 @@ func TestGWSServiceFromSkillName(t *testing.T) {
 }
 
 func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
-	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	cfg := config.Default()
 
@@ -136,8 +148,12 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	if slices.Contains(result.Installed, "whatsapp-read") {
 		t.Error("whatsapp-read should NOT be installed (no whatsapp auth)")
 	}
+	if slices.Contains(result.Installed, "applenotes-read") {
+		t.Error("applenotes-read should NOT be installed (not linked)")
+	}
 
 	// Verify SKILL.md was written.
+	tmp := config.Dir()
 	content, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-read", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("read memory-read SKILL.md: %v", err)
@@ -158,12 +174,13 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 
 func TestInstallWithGmailReadonly(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	// Create a token store with gmail.readonly scope.
 	providerDir := filepath.Join(tmp, "providers", "google")
-	os.MkdirAll(providerDir, 0700)
+	if err := os.MkdirAll(providerDir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
 	tokenDB := filepath.Join(providerDir, "tokens.db")
 
 	store, err := google.NewTokenStore(tokenDB)
@@ -171,9 +188,11 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 		t.Fatalf("create token store: %v", err)
 	}
 	tok := &oauth2.Token{RefreshToken: "test-refresh", AccessToken: "test-access"}
-	store.SaveToken("user@gmail.com", tok, []string{
+	if err := store.SaveToken("user@gmail.com", tok, []string{
 		"https://www.googleapis.com/auth/gmail.readonly",
-	})
+	}); err != nil {
+		t.Fatalf("save token: %v", err)
+	}
 	store.Close()
 
 	cfg := config.Default()
@@ -196,11 +215,12 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 
 func TestInstallWithGmailModify(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	providerDir := filepath.Join(tmp, "providers", "google")
-	os.MkdirAll(providerDir, 0700)
+	if err := os.MkdirAll(providerDir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
 	tokenDB := filepath.Join(providerDir, "tokens.db")
 
 	store, err := google.NewTokenStore(tokenDB)
@@ -208,9 +228,11 @@ func TestInstallWithGmailModify(t *testing.T) {
 		t.Fatalf("create token store: %v", err)
 	}
 	tok := &oauth2.Token{RefreshToken: "test-refresh", AccessToken: "test-access"}
-	store.SaveToken("user@gmail.com", tok, []string{
+	if err := store.SaveToken("user@gmail.com", tok, []string{
 		"https://www.googleapis.com/auth/gmail.modify",
-	})
+	}); err != nil {
+		t.Fatalf("save token: %v", err)
+	}
 	store.Close()
 
 	cfg := config.Default()
@@ -230,13 +252,16 @@ func TestInstallWithGmailModify(t *testing.T) {
 
 func TestInstallWithWhatsApp(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	// Create a fake WhatsApp session file.
 	waDir := filepath.Join(tmp, "whatsapp")
-	os.MkdirAll(waDir, 0700)
-	os.WriteFile(filepath.Join(waDir, "session.db"), []byte("fake-session-data"), 0600)
+	if err := os.MkdirAll(waDir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(waDir, "session.db"), []byte("fake-session-data"), 0600); err != nil {
+		t.Fatalf("write session: %v", err)
+	}
 
 	cfg := config.Default()
 
@@ -253,16 +278,40 @@ func TestInstallWithWhatsApp(t *testing.T) {
 	}
 }
 
+func TestInstallWithAppleNotes(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmp)
+
+	// Simulate linked Apple Notes.
+	if err := config.LinkSource("applenotes"); err != nil {
+		t.Fatalf("link source: %v", err)
+	}
+
+	cfg := config.Default()
+
+	result, err := Install(cfg)
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	if !slices.Contains(result.Installed, "applenotes-read") {
+		t.Error("applenotes-read should be installed (source linked)")
+	}
+}
+
 func TestInstallRemovesRevokedSkills(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	// First install with WhatsApp auth.
 	waDir := filepath.Join(tmp, "whatsapp")
-	os.MkdirAll(waDir, 0700)
+	if err := os.MkdirAll(waDir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
 	sessionPath := filepath.Join(waDir, "session.db")
-	os.WriteFile(sessionPath, []byte("fake-session-data"), 0600)
+	if err := os.WriteFile(sessionPath, []byte("fake-session-data"), 0600); err != nil {
+		t.Fatalf("write session: %v", err)
+	}
 
 	cfg := config.Default()
 
@@ -298,9 +347,7 @@ func TestInstallRemovesRevokedSkills(t *testing.T) {
 }
 
 func TestInstallIdempotent(t *testing.T) {
-	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	cfg := config.Default()
 

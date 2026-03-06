@@ -8,8 +8,7 @@ import (
 
 func TestManifestRoundTrip(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	original := &Manifest{
 		Skills: map[string]SkillEntry{
@@ -58,9 +57,7 @@ func TestManifestRoundTrip(t *testing.T) {
 }
 
 func TestLoadManifestMissing(t *testing.T) {
-	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	m, err := LoadManifest()
 	if err != nil {
@@ -76,13 +73,16 @@ func TestLoadManifestMissing(t *testing.T) {
 
 func TestLoadManifestEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("OBK_CONFIG_DIR", tmp)
-	defer os.Unsetenv("OBK_CONFIG_DIR")
+	t.Setenv("OBK_CONFIG_DIR", tmp)
 
 	// Write an empty YAML file.
 	dir := filepath.Join(tmp, "skills")
-	os.MkdirAll(dir, 0700)
-	os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte("skills:\n"), 0600)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte("skills:\n"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
 
 	m, err := LoadManifest()
 	if err != nil {
