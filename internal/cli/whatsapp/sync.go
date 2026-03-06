@@ -47,6 +47,10 @@ var syncCmd = &cobra.Command{
 		}
 		defer db.Close()
 
+		if err := config.LinkSource("whatsapp"); err != nil {
+			return fmt.Errorf("link source: %w", err)
+		}
+
 		fmt.Println("Starting WhatsApp sync (Ctrl+C to stop)...")
 
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{Follow: true})

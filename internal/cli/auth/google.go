@@ -53,6 +53,10 @@ var googleLoginCmd = &cobra.Command{
 			return fmt.Errorf("login failed: %w", err)
 		}
 
+		if err := config.LinkSource("gmail"); err != nil {
+			return fmt.Errorf("link source: %w", err)
+		}
+
 		fmt.Printf("Authenticated as %s\n", email)
 		fmt.Printf("Granted: %s\n", strings.Join(scopes, ", "))
 		return nil

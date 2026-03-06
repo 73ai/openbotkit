@@ -32,6 +32,10 @@ var syncCmd = &cobra.Command{
 			return fmt.Errorf("sync failed: %w", err)
 		}
 
+		if err := config.LinkSource("applenotes"); err != nil {
+			return fmt.Errorf("link source: %w", err)
+		}
+
 		fmt.Printf("\nSync complete: %d synced", result.Synced)
 		if result.Skipped > 0 {
 			fmt.Printf(", %d skipped", result.Skipped)

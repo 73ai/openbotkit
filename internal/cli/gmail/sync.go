@@ -62,6 +62,10 @@ var syncCmd = &cobra.Command{
 			return fmt.Errorf("sync failed: %w", err)
 		}
 
+		if err := config.LinkSource("gmail"); err != nil {
+			return fmt.Errorf("link source: %w", err)
+		}
+
 		fmt.Printf("\nSync complete: %d fetched, %d skipped", result.Fetched, result.Skipped)
 		if result.Errors > 0 {
 			fmt.Printf(", %d errors", result.Errors)
