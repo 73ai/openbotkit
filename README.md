@@ -1,16 +1,37 @@
 # OpenBotKit
 
-A toolkit for building AI personal assistants through data source integrations.
+A DIY kit for building your own AI assistant. Runs on your machine, talks to your data, answers to you.
 
-OpenBotKit (`obk`) serves dual purposes: a **CLI tool** for syncing and querying personal data, and a **Go library** that agent developers can import to build AI assistants.
+## Why
 
-## Features
+AI assistants today have a real problem. They get access to your email, messages, and files, then run autonomously in the background. They hallucinate. They act on wrong assumptions. They send things you didn't mean to send. And you can't see what they're doing because the whole thing is a black box running on someone else's servers.
 
-- **Gmail** — Sync, search, read, send emails, and create drafts across multiple accounts
-- **WhatsApp** — Sync messages, search conversations, send messages to contacts and groups
-- **Memory** — Capture and recall past assistant conversations
-- **Background daemon** — Continuous syncing via launchd/systemd
-- **AI assistant integration** — Claude Code skills for natural-language access to all data
+We think the fix is pretty simple: **safety**, **no slop**, and **more control**.
+
+### Safety
+
+The assistant runs through Claude Code. You see every database query, every message it sends, every command it runs. You approve it or you don't. There are no autonomous loops running behind your back. If the assistant wants to email someone or message a contact, you're in the loop before it happens.
+
+Your data syncs into local SQLite databases on your machine. Nothing leaves your device unless you explicitly send it. `obk` connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes on your Mac. No relay server, no cloud middleware, no third-party backend sitting between you and your data.
+
+### No slop
+
+The AI assistant space is full of slop. Bloated agent frameworks. Magic tool-calling you can't inspect. 200-dependency packages that break every other week. "AI-powered" wrappers that add latency and nothing else.
+
+OpenBotKit is a single Go binary. Your data lives in SQLite files you can query yourself with `sqlite3`. Every skill the assistant uses is a plain text file with SQL patterns and CLI commands. You can read the whole thing in 30 seconds. There's no hidden complexity.
+
+### More control
+
+Think of it like a meal kit instead of a pre-made meal. You get the ingredients (data connectors, a sync engine, a local database, a CLI, and assistant scaffolding) and you put it together yourself. You pick which sources to connect. You pick what the assistant can access. You can modify any skill, write new ones, or rip out what you don't need. If you don't like how something works, you change it.
+
+## What's in the kit
+
+| Component | What it does |
+|---|---|
+| **Sources** | Connectors for Gmail, WhatsApp, Apple Notes, and conversation memory |
+| **Sync engine** | Background daemon (launchd/systemd) keeps your local data fresh |
+| **CLI** (`obk`) | Search, read, and send across all sources from the terminal |
+| **Assistant scaffolding** | Pre-configured Claude Code setup with skills for natural-language access |
 
 ## Install
 
@@ -22,216 +43,73 @@ Or build from source:
 
 ```bash
 git clone https://github.com/priyanshujain/openbotkit.git
-cd openbotkit
-go build -o obk .
+cd openbotkit && make install
 ```
 
 ## Quick Start
 
 ```bash
-# Initialize configuration
+# Guided setup: pick your sources, authenticate, run first sync
+obk setup
+
+# Or configure manually:
 obk config init
-
-# --- Gmail ---
-cp credentials.json ~/.obk/gmail/credentials.json
-obk gmail auth login
+obk gmail auth login          # OAuth2 browser flow
 obk gmail sync
-obk gmail emails list
-obk gmail emails search "invoice"
-
-# --- WhatsApp ---
-obk whatsapp auth login    # scan QR code
+obk whatsapp auth login       # scan QR code
 obk whatsapp sync
-obk whatsapp chats list
-obk whatsapp messages search "meeting"
 
-# Check status of all sources
+# Check what's connected
 obk status
 ```
 
-## CLI Commands
+## Building Your Assistant
 
-### General
+The `assistant/` directory is a ready-to-use Claude Code workspace with skills wired to your synced data.
 
-```
-obk version                          # Print version
-obk status                           # All sources: connected?, items, last sync
-
-obk config init                      # Create default config at ~/.obk/config.yaml
-obk config show                      # Print resolved config
-obk config set <key> <value>         # Set a config value
-obk config path                      # Print config directory
+```bash
+ln -s /path/to/openbotkit/assistant ~/assistant
+cd ~/assistant && claude
 ```
 
-### Gmail
+From there you can ask things like:
 
-```
-obk gmail auth login                 # OAuth2 browser flow
-obk gmail auth logout [--account]    # Remove stored tokens
-obk gmail auth status                # Show connected accounts
+- *"Do I have any unread emails from Stripe?"*
+- *"Tell David I'll be 10 minutes late"* (sends via WhatsApp)
+- *"Draft a reply to the invoice email from yesterday"*
+- *"What did we discuss about the API redesign last week?"*
+- *"Find my notes about the Berlin trip"*
 
-obk gmail sync                       # Incremental sync
-    [--account EMAIL]                # Filter to one account
-    [--full]                         # Re-fetch everything
-    [--after DATE]                   # Only emails after this date
-    [--days N]                       # Days to sync (default 7, 0 for all)
-    [--download-attachments]         # Save attachments to disk
+Each skill is just a plain text file with SQL patterns and CLI commands. You can read them, change them, or write your own. No magic. See [`assistant/`](assistant/) for setup details.
 
-obk gmail fetch                      # On-demand fetch from Gmail API
-    --account EMAIL                  # Account email (required)
-    [--after DATE]                   # Fetch emails after date (YYYY/MM/DD)
-    [--before DATE]                  # Fetch emails before date (YYYY/MM/DD)
-    [--query QUERY]                  # Raw Gmail search query
-    [--download-attachments]         # Save attachments to disk
-    [--json]                         # Output as JSON
+## Data directory
 
-obk gmail emails list                # Paginated list of stored emails
-    [--account EMAIL] [--from ADDR]
-    [--subject TEXT] [--after DATE]
-    [--before DATE] [--limit N]
-    [--json]
-
-obk gmail emails get <message-id>    # Full email details
-    [--json]
-
-obk gmail emails search <query>      # Full-text search
-    [--limit N] [--json]
-
-obk gmail send                       # Send an email
-    --to ADDR [--to ADDR ...]        # Recipients (required)
-    --subject TEXT                   # Subject (required)
-    --body TEXT                      # Body (required)
-    [--cc ADDR] [--bcc ADDR]
-    [--account EMAIL]
-
-obk gmail drafts create              # Create a draft email
-    --to ADDR [--to ADDR ...]        # Recipients (required)
-    [--subject TEXT] [--body TEXT]
-    [--cc ADDR] [--bcc ADDR]
-    [--account EMAIL]
-```
-
-### WhatsApp
-
-```
-obk whatsapp auth login              # QR code authentication
-obk whatsapp auth logout             # Remove session
-
-obk whatsapp sync                    # Sync messages
-
-obk whatsapp chats list              # List all synced chats
-    [--json]
-
-obk whatsapp messages list           # List stored messages
-    [--chat JID]                     # Filter by chat
-    [--after DATE] [--before DATE]
-    [--limit N] [--json]
-
-obk whatsapp messages search <query> # Full-text search
-    [--limit N] [--json]
-
-obk whatsapp messages send           # Send a message
-    --to JID                         # Recipient JID (required)
-    --text MESSAGE                   # Message text (required)
-```
-
-### Memory
-
-```
-obk memory capture                   # Capture conversation from stdin (JSON)
-```
-
-### Daemon & Service
-
-```
-obk daemon                           # Run background daemon
-    [--mode standalone|worker]       # Daemon mode (default: standalone)
-
-obk service install                  # Install as system service (launchd/systemd)
-obk service uninstall                # Uninstall system service
-obk service status                   # Check service status
-```
-
-## AI Assistant
-
-OpenBotKit includes a pre-configured Claude Code assistant setup in the `assistant/` directory. Copy it to use as your personal assistant with natural-language access to your data.
-
-Available skills:
-- **email-read** — Search emails, check inbox, find messages
-- **email-send** — Send emails and create drafts
-- **whatsapp-read** — Search WhatsApp messages and chats
-- **whatsapp-send** — Send WhatsApp messages to contacts and groups
-- **memory-read** — Recall past conversations and discussion history
-
-See `assistant/` for setup instructions.
-
-## Library Usage
-
-```go
-import (
-    "github.com/priyanshujain/openbotkit/source/gmail"
-    "github.com/priyanshujain/openbotkit/store"
-)
-
-// Open database
-db, _ := store.Open(store.SQLiteConfig("gmail.db"))
-gmail.Migrate(db)
-
-// Create Gmail source
-g := gmail.New(gmail.Config{
-    CredentialsFile: "credentials.json",
-    TokenDBPath:     "tokens.db",
-})
-
-// Sync emails
-result, _ := g.Sync(ctx, db, gmail.SyncOptions{Full: false})
-
-// Query stored emails
-emails, _ := gmail.ListEmails(db, gmail.ListOptions{
-    From:  "someone@example.com",
-    Limit: 10,
-})
-```
-
-## Configuration
-
-Config lives at `~/.obk/config.yaml` (override with `OBK_CONFIG_DIR`):
-
-```yaml
-gmail:
-  credentials_file: ~/.obk/gmail/credentials.json
-  download_attachments: false
-  storage:
-    driver: sqlite    # or "postgres"
-    dsn: ""           # postgres DSN; sqlite path auto-derived
-
-whatsapp:
-  storage:
-    driver: sqlite
-
-memory:
-  storage:
-    driver: sqlite
-```
-
-## Data Directory
+Config and all synced data live under `~/.obk/` (override with `OBK_CONFIG_DIR`). Run `obk config show` to see your current configuration.
 
 ```
 ~/.obk/
 ├── config.yaml
 ├── gmail/
-│   ├── credentials.json    # Google OAuth client creds (user provides)
-│   ├── tokens.db           # OAuth tokens (always local SQLite)
-│   ├── data.db             # Email data (when using SQLite)
+│   ├── credentials.json    # Google OAuth client creds
+│   ├── tokens.db           # OAuth tokens
+│   ├── data.db             # Synced emails
 │   └── attachments/        # Downloaded attachments
 ├── whatsapp/
-│   ├── session.db          # WhatsApp session data
-│   └── data.db             # Message data
+│   ├── session.db          # WhatsApp session
+│   └── data.db             # Synced messages
+├── applenotes/
+│   └── data.db             # Synced notes
 └── memory/
     └── data.db             # Conversation history
 ```
 
 ## Prerequisites
 
+- macOS (OpenBotKit is built with macOS as the primary target)
 - Go 1.25+
-- Gmail API credentials ([Google Cloud Console](https://console.cloud.google.com/apis/credentials))
+- Gmail requires API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- WhatsApp requires scanning a QR code to link your phone
+
+## License
+
+MIT
