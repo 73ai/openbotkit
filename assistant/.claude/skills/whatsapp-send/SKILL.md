@@ -7,7 +7,7 @@ allowed-tools: Bash(obk *), Bash(sqlite3 *)
 ## Command
 
 ```bash
-obk whatsapp messages send --to <jid> --text <message>
+obk whatsapp messages send --to <jid> --text "<message>"
 ```
 
 ## Finding the recipient
@@ -26,6 +26,13 @@ JID formats:
 - Individual: `<phone>@s.whatsapp.net` (e.g. `919876543210@s.whatsapp.net`)
 - Group: `<id>@g.us`
 
+## Confirmation rules
+
+- If the user's intent is clear and only ONE contact matches → send immediately, no need to confirm
+- If MULTIPLE contacts match → show the matches and ask the user to pick
+- If NO contacts match → tell the user and ask for clarification
+- Only confirm content if the user's message is ambiguous
+
 ## Example
 
 ```bash
@@ -40,5 +47,3 @@ obk whatsapp messages send --to "120363001234567890@g.us" --text "Hey everyone"
 
 - Requires an authenticated WhatsApp session (`obk whatsapp auth login`)
 - The sent message is saved to the local database automatically
-- If multiple contacts match, show the matches and ask the user to clarify
-- Always confirm the recipient and content with the user before sending
