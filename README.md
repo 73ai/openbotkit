@@ -4,15 +4,15 @@ A DIY kit for building your own AI assistant. Runs on your machine, talks to you
 
 ## Why
 
-Most AI assistants are meals — pre-cooked, opinionated, served through someone else's kitchen. You eat what you're given. Your data passes through their servers. Their defaults become your constraints. When something breaks or doesn't fit, you can't open the hood.
+Most AI assistants are meals. Pre-cooked, opinionated, served through someone else's kitchen. You eat what you're given. Your data passes through their servers. Their defaults become your constraints. When something breaks or doesn't fit, you can't open the hood.
 
-OpenBotKit is a meal kit. You get the raw ingredients — data connectors, a sync engine, a local database, a CLI, and assistant scaffolding — and you assemble the assistant yourself. You decide which data sources to connect. You decide what the assistant can see and do. You control the recipe.
+OpenBotKit is a meal kit. You get the raw ingredients (data connectors, a sync engine, a local database, a CLI, and assistant scaffolding) and you put the assistant together yourself. You pick which data sources to connect. You pick what the assistant can see and do. You control the recipe.
 
 ### What this means in practice
 
 - **Your data stays on your machine.** Emails, messages, and notes sync into local SQLite databases under `~/.obk/`. Nothing leaves your device unless you explicitly send it.
-- **No intermediary.** `obk` connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes on your Mac. There is no relay server, no cloud sync layer, no third-party backend.
-- **You see every action.** The assistant runs through Claude Code. Every database query, every message sent, every command executed — you see it and can approve it. No autonomous loops running behind your back.
+- **No intermediary.** `obk` connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes on your Mac. No relay server, no cloud sync layer, no third-party backend.
+- **You see every action.** The assistant runs through Claude Code. Every database query, every message sent, every command executed, you see it and can approve it. No autonomous loops running behind your back.
 - **You own the code.** It's a Go binary and a set of SQLite files. Fork it, extend it, rip out what you don't need.
 
 ## What's in the kit
@@ -41,7 +41,7 @@ cd openbotkit && make install
 ## Quick Start
 
 ```bash
-# Guided setup — pick your sources, authenticate, run first sync
+# Guided setup: pick your sources, authenticate, run first sync
 obk setup
 
 # Or configure manually:
@@ -57,7 +57,7 @@ obk status
 
 ## Building Your Assistant
 
-OpenBotKit ships an `assistant/` directory — a ready-to-use Claude Code workspace with skills wired to your synced data.
+OpenBotKit ships an `assistant/` directory, a ready-to-use Claude Code workspace with skills wired to your synced data.
 
 ```bash
 # Symlink outside the repo (avoids loading dev-only CLAUDE.md)
@@ -73,11 +73,11 @@ From there you can ask things like:
 - *"What did we discuss about the API redesign last week?"*
 - *"Find my notes about the Berlin trip"*
 
-Each skill is a plain text file containing SQL patterns and CLI commands. Readable, auditable, modifiable. No magic. See [`assistant/`](assistant/) for setup details.
+Each skill is just a plain text file with SQL patterns and CLI commands. You can read them, change them, or write your own. No magic. See [`assistant/`](assistant/) for setup details.
 
 ## Library Usage
 
-OpenBotKit is also a Go library. Import the source packages to build your own tools.
+`obk` is also a Go library. Import the source packages to build your own tools on top.
 
 ```go
 import (
@@ -266,7 +266,7 @@ obk service status                   # Check service status
 
 - Go 1.25+
 - Gmail requires API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-- WhatsApp requires scanning a QR code (links your phone)
+- WhatsApp requires scanning a QR code to link your phone
 - Apple Notes requires macOS (uses AppleScript, no special permissions needed)
 
 ## License
