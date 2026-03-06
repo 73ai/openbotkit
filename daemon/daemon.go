@@ -12,14 +12,13 @@ import (
 )
 
 type Daemon struct {
-	cfg    *config.Config
-	mode   Mode
-	river  *river.Client[*sql.Tx]
+	cfg   *config.Config
+	river *river.Client[*sql.Tx]
 	jobsDB *sql.DB
 }
 
-func New(cfg *config.Config, mode Mode) *Daemon {
-	return &Daemon{cfg: cfg, mode: mode}
+func New(cfg *config.Config) *Daemon {
+	return &Daemon{cfg: cfg}
 }
 
 func (d *Daemon) Run(ctx context.Context) error {
@@ -27,9 +26,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return fmt.Errorf("ensure config dir: %w", err)
 	}
 
-	log.Printf("starting daemon in %s mode", d.mode)
+	lock, err := acquireLock()
+	if err != nil {
+		return err
+	}
+	defer releaseLock(lock)
 
-	client, db, err := newRiverClient(ctx, d.cfg, d.mode)
+	log.Println("starting daemon")
+
+	client, db, err := newRiverClient(ctx, d.cfg)
 	if err != nil {
 		return fmt.Errorf("init river: %w", err)
 	}

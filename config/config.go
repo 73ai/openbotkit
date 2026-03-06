@@ -25,7 +25,6 @@ type GoogleProviderConfig struct {
 }
 
 type DaemonConfig struct {
-	Mode            string        `yaml:"mode,omitempty"`              // "standalone" or "worker"
 	GmailSyncPeriod string        `yaml:"gmail_sync_period,omitempty"` // default "15m"
 	JobsStorage     StorageConfig `yaml:"jobs_storage,omitempty"`
 }
@@ -130,9 +129,6 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
-	}
-	if c.Daemon.Mode == "" {
-		c.Daemon.Mode = "standalone"
 	}
 	if c.Daemon.GmailSyncPeriod == "" {
 		c.Daemon.GmailSyncPeriod = "15m"

@@ -20,6 +20,7 @@ const (
 	<array>
 		<string>%s</string>
 		<string>daemon</string>
+		<string>run</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
