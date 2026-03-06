@@ -248,14 +248,19 @@ func setupGWS(cfg *config.Config, services []string) error {
 		fmt.Println("  Install gws (requires Node.js):")
 		fmt.Println("    npm install -g @googleworkspace/cli")
 		fmt.Println("\n  Waiting for gws to be installed... (run the command above in another tab)")
+		fmt.Println("  Press Ctrl+C to cancel.")
 
-		for {
+		const maxAttempts = 60 // 5 minutes
+		for attempt := range maxAttempts {
 			time.Sleep(5 * time.Second)
 			gwsPath, err = exec.LookPath("gws")
 			if err == nil {
 				break
 			}
 			fmt.Println("  Checking... not found")
+			if attempt == maxAttempts-1 {
+				return fmt.Errorf("gws not found after %d attempts — install it and re-run obk setup", maxAttempts)
+			}
 		}
 		fmt.Printf("  Checking... found gws at %s\n", gwsPath)
 	} else {
@@ -264,7 +269,11 @@ func setupGWS(cfg *config.Config, services []string) error {
 
 	// Share credentials with gws.
 	credPath := cfg.GoogleCredentialsFile()
-	gwsCredDir := filepath.Join(os.Getenv("HOME"), ".config", "gws")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("get home directory: %w", err)
+	}
+	gwsCredDir := filepath.Join(home, ".config", "gws")
 	gwsCredPath := filepath.Join(gwsCredDir, "client_secret.json")
 
 	if err := os.MkdirAll(gwsCredDir, 0700); err != nil {
