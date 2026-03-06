@@ -105,10 +105,10 @@ Config and all synced data live under `~/.obk/` (override with `OBK_CONFIG_DIR`)
 
 ## Prerequisites
 
+- macOS (OpenBotKit is built with macOS as the primary target)
 - Go 1.25+
 - Gmail requires API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 - WhatsApp requires scanning a QR code to link your phone
-- Apple Notes requires macOS (uses AppleScript, no special permissions needed)
 
 ## License
 
