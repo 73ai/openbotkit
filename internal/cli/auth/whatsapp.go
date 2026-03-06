@@ -36,6 +36,10 @@ var whatsappLoginCmd = &cobra.Command{
 			return fmt.Errorf("login failed: %w", err)
 		}
 
+		if err := config.LinkSource("whatsapp"); err != nil {
+			return fmt.Errorf("link source: %w", err)
+		}
+
 		fmt.Println("\nSuccessfully authenticated WhatsApp")
 		return nil
 	},
@@ -57,6 +61,10 @@ var whatsappLogoutCmd = &cobra.Command{
 		ctx := context.Background()
 		if err := w.Logout(ctx); err != nil {
 			return fmt.Errorf("logout failed: %w", err)
+		}
+
+		if err := config.UnlinkSource("whatsapp"); err != nil {
+			return fmt.Errorf("unlink source: %w", err)
 		}
 
 		fmt.Println("Logged out of WhatsApp")

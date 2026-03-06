@@ -48,14 +48,18 @@ func (d *Daemon) Run(ctx context.Context) error {
 	log.Println("river job queue started")
 
 	waErrCh := runWhatsAppSync(ctx, d.cfg)
+	anErrCh := runAppleNotesSync(ctx, d.cfg)
 
 	// Block until context is cancelled (signal received).
 	<-ctx.Done()
 	log.Println("shutting down daemon")
 
-	// Drain WhatsApp errors.
+	// Drain sync errors.
 	if err := <-waErrCh; err != nil {
 		log.Printf("whatsapp error during shutdown: %v", err)
+	}
+	if err := <-anErrCh; err != nil {
+		log.Printf("applenotes error during shutdown: %v", err)
 	}
 
 	if err := d.river.Stop(context.Background()); err != nil {

@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/internal/tty"
 	"github.com/priyanshujain/openbotkit/provider/google"
+	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 
@@ -25,14 +28,18 @@ var setupCmd = &cobra.Command{
 
 		// Step 1: Source selection.
 		var sources []string
+		sourceOptions := []huh.Option[string]{
+			huh.NewOption("Gmail", "gmail"),
+			huh.NewOption("WhatsApp", "whatsapp"),
+		}
+		if runtime.GOOS == "darwin" {
+			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
+		}
 		err := huh.NewForm(
 			huh.NewGroup(
 				huh.NewMultiSelect[string]().
 					Title("Which sources would you like to set up?").
-					Options(
-						huh.NewOption("Gmail", "gmail"),
-						huh.NewOption("WhatsApp", "whatsapp"),
-					).
+					Options(sourceOptions...).
 					Value(&sources),
 			),
 		).Run()
@@ -64,6 +71,14 @@ var setupCmd = &cobra.Command{
 			}
 		}
 
+		for _, s := range sources {
+			if s == "applenotes" {
+				if err := setupAppleNotes(cfg); err != nil {
+					return err
+				}
+			}
+		}
+
 		if err := cfg.Save(); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
@@ -76,6 +91,8 @@ var setupCmd = &cobra.Command{
 				fmt.Println("    - Run: obk gmail sync")
 			case "whatsapp":
 				fmt.Println("    - Run: obk auth whatsapp login")
+			case "applenotes":
+				fmt.Println("    - Apple Notes is ready (synced during setup)")
 			}
 		}
 		return nil
@@ -176,6 +193,36 @@ func setupGoogle(cfg *config.Config) error {
 	}
 
 	fmt.Printf("  Sync window: %s days\n", syncDays)
+	return nil
+}
+
+func setupAppleNotes(cfg *config.Config) error {
+	if err := config.EnsureSourceDir("applenotes"); err != nil {
+		return fmt.Errorf("create applenotes dir: %w", err)
+	}
+
+	fmt.Println("\n  Setting up Apple Notes...")
+	fmt.Println("  Running initial sync (this may take a few seconds)...")
+
+	db, err := store.Open(store.Config{
+		Driver: cfg.AppleNotes.Storage.Driver,
+		DSN:    cfg.AppleNotesDataDSN(),
+	})
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	result, err := ansrc.Sync(db, ansrc.SyncOptions{})
+	if err != nil {
+		return fmt.Errorf("apple notes sync: %w", err)
+	}
+
+	if err := config.LinkSource("applenotes"); err != nil {
+		return fmt.Errorf("link source: %w", err)
+	}
+
+	fmt.Printf("  Synced %d notes\n", result.Synced)
 	return nil
 }
 

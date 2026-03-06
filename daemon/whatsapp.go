@@ -17,6 +17,11 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
 	go func() {
 		defer close(errCh)
 
+		if !config.IsSourceLinked("whatsapp") {
+			log.Println("whatsapp: not linked, skipping sync")
+			return
+		}
+
 		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
 		if err != nil {
 			log.Printf("whatsapp: failed to create client: %v", err)
