@@ -14,7 +14,7 @@ import (
 	"github.com/priyanshujain/openbotkit/daemon/jobs"
 )
 
-func newRiverClient(ctx context.Context, cfg *config.Config, mode Mode) (*river.Client[*sql.Tx], *sql.DB, error) {
+func newRiverClient(ctx context.Context, cfg *config.Config) (*river.Client[*sql.Tx], *sql.DB, error) {
 	dsn := cfg.JobsDBDSN()
 
 	db, err := sql.Open("sqlite", dsn)
@@ -39,20 +39,17 @@ func newRiverClient(ctx context.Context, cfg *config.Config, mode Mode) (*river.
 	river.AddWorker(workers, &jobs.GmailSyncWorker{Cfg: cfg})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
 
+	period, err := time.ParseDuration(cfg.Daemon.GmailSyncPeriod)
+	if err != nil {
+		period = 15 * time.Minute
+	}
+
 	riverCfg := &river.Config{
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 5},
 		},
 		Workers: workers,
-	}
-
-	if mode == ModeStandalone {
-		period, err := time.ParseDuration(cfg.Daemon.GmailSyncPeriod)
-		if err != nil {
-			period = 15 * time.Minute
-		}
-
-		riverCfg.PeriodicJobs = []*river.PeriodicJob{
+		PeriodicJobs: []*river.PeriodicJob{
 			river.NewPeriodicJob(
 				river.PeriodicInterval(period),
 				func() (river.JobArgs, *river.InsertOpts) {
@@ -60,7 +57,7 @@ func newRiverClient(ctx context.Context, cfg *config.Config, mode Mode) (*river.
 				},
 				&river.PeriodicJobOpts{RunOnStart: true},
 			),
-		}
+		},
 	}
 
 	client, err := river.NewClient(driver, riverCfg)
