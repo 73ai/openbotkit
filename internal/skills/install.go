@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
 )
 

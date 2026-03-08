@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"golang.org/x/oauth2"
 )
 
