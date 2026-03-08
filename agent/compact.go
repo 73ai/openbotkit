@@ -15,7 +15,14 @@ func (a *Agent) compactHistory() {
 	if len(a.history) <= a.maxHistory {
 		return
 	}
-	removed := len(a.history) - keepMessages
+	keep := keepMessages
+	if keep > len(a.history) {
+		keep = len(a.history)
+	}
+	removed := len(a.history) - keep
+	if removed <= 0 {
+		return
+	}
 	summary := provider.NewTextMessage(provider.RoleUser,
 		fmt.Sprintf("[Earlier conversation: %d messages removed]", removed))
 	a.history = append([]provider.Message{summary}, a.history[removed:]...)
