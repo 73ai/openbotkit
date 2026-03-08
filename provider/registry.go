@@ -62,7 +62,7 @@ func NewRegistry(models *config.ModelsConfig) (*Registry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create provider %q: %w", name, err)
 		}
-		r.providers[name] = p
+		r.providers[name] = NewResilientProvider(p)
 	}
 
 	return r, nil
