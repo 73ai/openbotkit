@@ -27,6 +27,10 @@ var daemonRunCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		if err := cfg.RequireSetup(); err != nil {
+			return err
+		}
+
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 

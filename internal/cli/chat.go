@@ -29,8 +29,8 @@ var chatCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		if cfg.Models == nil || cfg.Models.Default == "" {
-			return fmt.Errorf("no model configured — add models.default to ~/.obk/config.yaml (e.g. models:\n  default: anthropic/claude-sonnet-4-6)")
+		if err := cfg.RequireSetup(); err != nil {
+			return err
 		}
 
 		registry, err := provider.NewRegistry(cfg.Models)
