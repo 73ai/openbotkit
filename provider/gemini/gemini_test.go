@@ -155,7 +155,7 @@ func TestGeminiIntegration(t *testing.T) {
 		MaxTokens: 32,
 	})
 	if err != nil {
-		t.Skipf("Chat: %v (key may be invalid)", err)
+		t.Fatalf("Chat: %v", err)
 	}
 	if resp.StopReason != provider.StopEndTurn {
 		t.Errorf("StopReason = %q", resp.StopReason)
