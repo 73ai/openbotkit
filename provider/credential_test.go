@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -31,6 +33,47 @@ func TestParseCredentialRef(t *testing.T) {
 				t.Errorf("account = %q, want %q", account, tt.account)
 			}
 		})
+	}
+}
+
+func TestFileCredentialStoreLoad(t *testing.T) {
+	dir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", dir)
+	defer os.Setenv("HOME", origHome)
+
+	err := storeToFile("obk", "test-provider", "secret-key-123")
+	if err != nil {
+		t.Fatalf("storeToFile: %v", err)
+	}
+
+	// Verify file exists with correct permissions.
+	path := filepath.Join(dir, ".obk", "secrets", "obk-test-provider")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat secret file: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("file permissions = %o, want 0600", perm)
+	}
+
+	// Load it back.
+	val, err := loadFromFile("obk", "test-provider")
+	if err != nil {
+		t.Fatalf("loadFromFile: %v", err)
+	}
+	if val != "secret-key-123" {
+		t.Errorf("loaded value = %q, want %q", val, "secret-key-123")
+	}
+}
+
+func TestFileCredentialLoad_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	_, err := loadFromFile("obk", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing credential")
 	}
 }
 
