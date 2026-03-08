@@ -64,7 +64,7 @@ func WithHTTPClient(c *http.Client) Option {
 }
 
 // WithVertexAI configures the provider to use Google Vertex AI instead of the direct Anthropic API.
-// Requires Google Application Default Credentials (run: gcloud auth application-default login).
+// Uses Google Application Default Credentials unless a custom TokenSource is provided via WithTokenSource.
 func WithVertexAI(project, region string) Option {
 	return func(a *Anthropic) {
 		a.vertexProject = project
@@ -72,17 +72,24 @@ func WithVertexAI(project, region string) Option {
 	}
 }
 
+// WithTokenSource sets a custom OAuth2 token source for Vertex AI authentication.
+func WithTokenSource(ts oauth2.TokenSource) Option {
+	return func(a *Anthropic) { a.tokenSource = ts }
+}
+
 func (a *Anthropic) isVertexAI() bool {
 	return a.vertexProject != ""
 }
 
 func (a *Anthropic) vertexToken(ctx context.Context) (string, error) {
-	var initErr error
-	a.tokenOnce.Do(func() {
-		a.tokenSource, initErr = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
-	})
-	if initErr != nil {
-		return "", fmt.Errorf("get google credentials: %w", initErr)
+	if a.tokenSource == nil {
+		var initErr error
+		a.tokenOnce.Do(func() {
+			a.tokenSource, initErr = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
+		})
+		if initErr != nil {
+			return "", fmt.Errorf("get google credentials: %w", initErr)
+		}
 	}
 	token, err := a.tokenSource.Token()
 	if err != nil {
