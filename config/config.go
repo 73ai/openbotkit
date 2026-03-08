@@ -82,6 +82,14 @@ type StorageConfig struct {
 	DSN    string `yaml:"dsn,omitempty"`
 }
 
+// RequireSetup returns an error if LLM models have not been configured.
+func (c *Config) RequireSetup() error {
+	if c.Models == nil || c.Models.Default == "" {
+		return fmt.Errorf("setup not complete — please run 'obk setup' and configure LLM models before using this command")
+	}
+	return nil
+}
+
 func Load() (*Config, error) {
 	return LoadFrom(FilePath())
 }
