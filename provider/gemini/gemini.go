@@ -14,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
 )
 
@@ -94,10 +95,14 @@ func New(apiKey string, opts ...Option) *Gemini {
 }
 
 func init() {
-	provider.RegisterFactory("gemini", func(apiKey, baseURL string) provider.Provider {
+	provider.RegisterFactory("gemini", func(cfg config.ModelProviderConfig, apiKey string) provider.Provider {
 		var opts []Option
-		if baseURL != "" {
-			opts = append(opts, WithBaseURL(baseURL))
+		if cfg.BaseURL != "" {
+			opts = append(opts, WithBaseURL(cfg.BaseURL))
+		}
+		if cfg.AuthMethod == "vertex_ai" {
+			opts = append(opts, WithVertexAI(cfg.VertexProject, cfg.VertexRegion))
+			opts = append(opts, WithTokenSource(provider.GcloudTokenSource(cfg.VertexAccount)))
 		}
 		return New(apiKey, opts...)
 	})

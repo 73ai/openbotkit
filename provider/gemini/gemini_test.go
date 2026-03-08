@@ -7,11 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
-	"strings"
 	"testing"
-
-	"golang.org/x/oauth2"
 
 	"github.com/priyanshujain/openbotkit/provider"
 )
@@ -169,23 +165,6 @@ func TestGeminiIntegration(t *testing.T) {
 	}
 }
 
-// gcloudTokenSource gets OAuth2 tokens from gcloud CLI for a specific account.
-type gcloudTokenSource struct {
-	account string
-}
-
-func (g *gcloudTokenSource) Token() (*oauth2.Token, error) {
-	args := []string{"auth", "print-access-token"}
-	if g.account != "" {
-		args = append(args, "--account="+g.account)
-	}
-	out, err := exec.Command("gcloud", args...).Output()
-	if err != nil {
-		return nil, fmt.Errorf("gcloud auth print-access-token: %w", err)
-	}
-	return &oauth2.Token{AccessToken: strings.TrimSpace(string(out))}, nil
-}
-
 func TestGeminiVertexAIIntegration(t *testing.T) {
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if project == "" {
@@ -197,7 +176,7 @@ func TestGeminiVertexAIIntegration(t *testing.T) {
 	}
 	account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
 
-	p := New("", WithVertexAI(project, region), WithTokenSource(&gcloudTokenSource{account: account}))
+	p := New("", WithVertexAI(project, region), WithTokenSource(provider.GcloudTokenSource(account)))
 	resp, err := p.Chat(context.Background(), provider.ChatRequest{
 		Model:     "gemini-2.0-flash",
 		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'hello' and nothing else.")},

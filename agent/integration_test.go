@@ -3,14 +3,10 @@ package agent_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/oauth2"
 
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
@@ -25,23 +21,6 @@ type providerTestCase struct {
 	name     string
 	provider provider.Provider
 	model    string
-}
-
-// gcloudTokenSource gets OAuth2 tokens from gcloud CLI for a specific account.
-type gcloudTokenSource struct {
-	account string
-}
-
-func (g *gcloudTokenSource) Token() (*oauth2.Token, error) {
-	args := []string{"auth", "print-access-token"}
-	if g.account != "" {
-		args = append(args, "--account="+g.account)
-	}
-	out, err := exec.Command("gcloud", args...).Output()
-	if err != nil {
-		return nil, fmt.Errorf("gcloud auth print-access-token: %w", err)
-	}
-	return &oauth2.Token{AccessToken: strings.TrimSpace(string(out))}, nil
 }
 
 // availableProviders returns provider instances for all API keys that are set.
@@ -68,7 +47,7 @@ func availableProviders(t *testing.T) []providerTestCase {
 		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
 		providers = append(providers, providerTestCase{
 			name:     "anthropic-vertex",
-			provider: anthropic.New("", anthropic.WithVertexAI(project, region), anthropic.WithTokenSource(&gcloudTokenSource{account: account})),
+			provider: anthropic.New("", anthropic.WithVertexAI(project, region), anthropic.WithTokenSource(provider.GcloudTokenSource(account))),
 			model:    model,
 		})
 	}
@@ -94,7 +73,7 @@ func availableProviders(t *testing.T) []providerTestCase {
 		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
 		providers = append(providers, providerTestCase{
 			name:     "gemini-vertex",
-			provider: gemini.New("", gemini.WithVertexAI(project, region), gemini.WithTokenSource(&gcloudTokenSource{account: account})),
+			provider: gemini.New("", gemini.WithVertexAI(project, region), gemini.WithTokenSource(provider.GcloudTokenSource(account))),
 			model:    "gemini-2.0-flash",
 		})
 	}

@@ -36,6 +36,7 @@ var setupCmd = &cobra.Command{
 		// Step 1: Source selection.
 		var sources []string
 		sourceOptions := []huh.Option[string]{
+			huh.NewOption("LLM Models (for obk chat)", "models"),
 			huh.NewOption("Gmail", "gmail"),
 			huh.NewOption("WhatsApp", "whatsapp"),
 			huh.NewOption("Google Calendar", "calendar"),
@@ -96,8 +97,13 @@ var setupCmd = &cobra.Command{
 		}
 
 		for _, s := range sources {
-			if s == "applenotes" {
+			switch s {
+			case "applenotes":
 				if err := setupAppleNotes(cfg); err != nil {
+					return err
+				}
+			case "models":
+				if err := setupModels(cfg); err != nil {
 					return err
 				}
 			}
