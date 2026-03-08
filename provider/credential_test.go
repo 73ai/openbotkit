@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestParseKeychainRef(t *testing.T) {
+func TestParseCredentialRef(t *testing.T) {
 	tests := []struct {
 		ref     string
 		service string
@@ -20,7 +20,7 @@ func TestParseKeychainRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
-			service, account, err := parseKeychainRef(tt.ref)
+			service, account, err := parseCredentialRef(tt.ref)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
 			}
