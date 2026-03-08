@@ -14,7 +14,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%s daemon run
+ExecStart=%s service run
 Restart=on-failure
 RestartSec=5
 
