@@ -46,6 +46,30 @@ func TestCompactHistory_AboveThreshold(t *testing.T) {
 	}
 }
 
+func TestCompactHistory_MaxHistoryBelowKeep(t *testing.T) {
+	// maxHistory=5 < keepMessages=20. When history grows to 11 messages,
+	// compaction should keep all 11 (since keepMessages > len).
+	a := &Agent{maxHistory: 5}
+	for i := range 11 {
+		a.history = append(a.history, provider.NewTextMessage(
+			provider.RoleUser, fmt.Sprintf("msg %d", i)))
+	}
+	a.compactHistory()
+
+	// Should not panic, and should compact to keep + 1 summary.
+	if len(a.history) > 12 {
+		t.Errorf("history len = %d, want <=12", len(a.history))
+	}
+}
+
+func TestCompactHistory_EmptyHistory(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	a.compactHistory() // should not panic
+	if len(a.history) != 0 {
+		t.Errorf("history len = %d, want 0", len(a.history))
+	}
+}
+
 func TestCompactHistory_ExactThreshold(t *testing.T) {
 	a := &Agent{maxHistory: 40}
 	for i := range 40 {
