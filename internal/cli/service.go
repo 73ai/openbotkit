@@ -101,9 +101,70 @@ var serviceStatusCmd = &cobra.Command{
 	},
 }
 
+var serviceStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the obk service",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mgr, err := service.NewManager()
+		if err != nil {
+			return err
+		}
+
+		if err := mgr.Start(); err != nil {
+			return fmt.Errorf("start service: %w", err)
+		}
+
+		fmt.Println("service started")
+		return nil
+	},
+}
+
+var serviceStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop the obk service",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mgr, err := service.NewManager()
+		if err != nil {
+			return err
+		}
+
+		if err := mgr.Stop(); err != nil {
+			return fmt.Errorf("stop service: %w", err)
+		}
+
+		fmt.Println("service stopped")
+		return nil
+	},
+}
+
+var serviceRestartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "Restart the obk service",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mgr, err := service.NewManager()
+		if err != nil {
+			return err
+		}
+
+		if err := mgr.Stop(); err != nil {
+			return fmt.Errorf("stop service: %w", err)
+		}
+
+		if err := mgr.Start(); err != nil {
+			return fmt.Errorf("start service: %w", err)
+		}
+
+		fmt.Println("service restarted")
+		return nil
+	},
+}
+
 func init() {
 	serviceCmd.AddCommand(serviceRunCmd)
 	serviceCmd.AddCommand(serviceInstallCmd)
 	serviceCmd.AddCommand(serviceUninstallCmd)
+	serviceCmd.AddCommand(serviceStartCmd)
+	serviceCmd.AddCommand(serviceStopCmd)
+	serviceCmd.AddCommand(serviceRestartCmd)
 	serviceCmd.AddCommand(serviceStatusCmd)
 }
