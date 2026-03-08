@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os/signal"
-	"syscall"
 
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/platform"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
@@ -25,7 +25,7 @@ var syncCmd = &cobra.Command{
 			return fmt.Errorf("create whatsapp dir: %w", err)
 		}
 
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		ctx, stop := signal.NotifyContext(context.Background(), platform.ShutdownSignals...)
 		defer stop()
 
 		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())

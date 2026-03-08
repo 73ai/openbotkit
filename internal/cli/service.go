@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/daemon"
 	"github.com/priyanshujain/openbotkit/daemon/service"
+	"github.com/priyanshujain/openbotkit/internal/platform"
 )
 
 var serviceCmd = &cobra.Command{
@@ -33,7 +33,7 @@ var serviceRunCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+		ctx, stop := signal.NotifyContext(cmd.Context(), platform.ShutdownSignals...)
 		defer stop()
 
 		d := daemon.New(cfg)
