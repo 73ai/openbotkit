@@ -58,6 +58,20 @@ func (m *systemdManager) Install(cfg *ServiceConfig) error {
 	return nil
 }
 
+func (m *systemdManager) Start() error {
+	if err := exec.Command("systemctl", "--user", "start", "obk").Run(); err != nil {
+		return fmt.Errorf("start service: %w", err)
+	}
+	return nil
+}
+
+func (m *systemdManager) Stop() error {
+	if err := exec.Command("systemctl", "--user", "stop", "obk").Run(); err != nil {
+		return fmt.Errorf("stop service: %w", err)
+	}
+	return nil
+}
+
 func (m *systemdManager) Uninstall() error {
 	_ = exec.Command("systemctl", "--user", "disable", "--now", "obk").Run()
 

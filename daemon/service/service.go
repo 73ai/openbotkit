@@ -59,6 +59,8 @@ func DefaultConfig() (*ServiceConfig, error) {
 type Manager interface {
 	Install(cfg *ServiceConfig) error
 	Uninstall() error
+	Start() error
+	Stop() error
 	Status() (string, error)
 }
 
