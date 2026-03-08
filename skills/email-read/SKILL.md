@@ -10,31 +10,7 @@ Path: `~/.obk/gmail/data.db`
 
 ## Schema
 
-```sql
-gmail_emails (
-  id INTEGER PRIMARY KEY,
-  message_id TEXT NOT NULL,
-  account TEXT NOT NULL,
-  from_addr TEXT,
-  to_addr TEXT,
-  subject TEXT,
-  date DATETIME,
-  body TEXT,
-  html_body TEXT,
-  fetched_at DATETIME,
-  UNIQUE(message_id, account)
-)
-
-gmail_attachments (
-  id INTEGER PRIMARY KEY,
-  email_id INTEGER REFERENCES gmail_emails(id),
-  filename TEXT,
-  mime_type TEXT,
-  saved_path TEXT
-)
-```
-
-Indexes: account, date, from_addr.
+Full database schema: see schema.sql in this skill directory.
 
 ## Query patterns
 
