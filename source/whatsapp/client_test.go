@@ -15,6 +15,7 @@ func TestNewClient_CreatesSessionDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient failed: %v", err)
 	}
+	defer client.Close()
 
 	if client == nil {
 		t.Fatal("client is nil")
