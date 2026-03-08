@@ -82,9 +82,9 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		for _, call := range resp.ToolCalls() {
 			output, err := a.executor.Execute(ctx, call)
 			isError := err != nil
-			content := output
+			content := ScrubCredentials(output)
 			if isError {
-				content = err.Error()
+				content = ScrubCredentials(err.Error())
 			}
 			results = append(results, provider.ContentBlock{
 				Type: provider.ContentToolResult,
