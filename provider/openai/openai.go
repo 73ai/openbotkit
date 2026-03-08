@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
 )
 
@@ -48,10 +49,10 @@ func New(apiKey string, opts ...Option) *OpenAI {
 }
 
 func init() {
-	provider.RegisterFactory("openai", func(apiKey, baseURL string) provider.Provider {
+	provider.RegisterFactory("openai", func(cfg config.ModelProviderConfig, apiKey string) provider.Provider {
 		var opts []Option
-		if baseURL != "" {
-			opts = append(opts, WithBaseURL(baseURL))
+		if cfg.BaseURL != "" {
+			opts = append(opts, WithBaseURL(cfg.BaseURL))
 		}
 		return New(apiKey, opts...)
 	})

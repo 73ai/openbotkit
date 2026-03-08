@@ -14,8 +14,8 @@ var ProviderEnvVars = map[string]string{
 	"gemini":    "GEMINI_API_KEY",
 }
 
-// Factory creates a Provider from an API key and optional base URL.
-type Factory func(apiKey string, baseURL string) Provider
+// Factory creates a Provider from a model provider config and resolved API key.
+type Factory func(cfg config.ModelProviderConfig, apiKey string) Provider
 
 // factories holds registered provider factories.
 var factories = map[string]Factory{}
@@ -80,13 +80,23 @@ func createProvider(name string, cfg config.ModelProviderConfig) (Provider, erro
 		return nil, fmt.Errorf("unknown provider %q (not registered)", name)
 	}
 
-	envVar := ProviderEnvVars[name]
-	apiKey, err := ResolveAPIKey(cfg.APIKeyRef, envVar)
-	if err != nil {
-		return nil, err
+	var apiKey string
+	if cfg.AuthMethod != "vertex_ai" {
+		envVar := ProviderEnvVars[name]
+		var err error
+		apiKey, err = ResolveAPIKey(cfg.APIKeyRef, envVar)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return factory(apiKey, cfg.BaseURL), nil
+	return factory(cfg, apiKey), nil
+}
+
+// GetFactory returns the registered factory for the given provider name.
+func GetFactory(name string) (Factory, bool) {
+	f, ok := factories[name]
+	return f, ok
 }
 
 // ParseModelSpec splits "provider/model" into provider name and model ID.
