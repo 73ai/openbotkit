@@ -24,12 +24,14 @@ type providerTestCase struct {
 }
 
 // availableProviders returns provider instances for all API keys that are set.
+// Each candidate is validated with a quick ping; providers with invalid keys are skipped.
 func availableProviders(t *testing.T) []providerTestCase {
 	t.Helper()
-	var providers []providerTestCase
+
+	var candidates []providerTestCase
 
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		providers = append(providers, providerTestCase{
+		candidates = append(candidates, providerTestCase{
 			name:     "anthropic",
 			provider: anthropic.New(key),
 			model:    "claude-sonnet-4-6",
@@ -45,21 +47,21 @@ func availableProviders(t *testing.T) []providerTestCase {
 			model = "claude-sonnet-4@20250514"
 		}
 		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
-		providers = append(providers, providerTestCase{
+		candidates = append(candidates, providerTestCase{
 			name:     "anthropic-vertex",
 			provider: anthropic.New("", anthropic.WithVertexAI(project, region), anthropic.WithTokenSource(provider.GcloudTokenSource(account))),
 			model:    model,
 		})
 	}
 	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-		providers = append(providers, providerTestCase{
+		candidates = append(candidates, providerTestCase{
 			name:     "openai",
 			provider: openai.New(key),
 			model:    "gpt-4o-mini",
 		})
 	}
 	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
-		providers = append(providers, providerTestCase{
+		candidates = append(candidates, providerTestCase{
 			name:     "gemini",
 			provider: gemini.New(key),
 			model:    "gemini-2.0-flash",
@@ -71,17 +73,42 @@ func availableProviders(t *testing.T) []providerTestCase {
 			region = "us-east5"
 		}
 		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
-		providers = append(providers, providerTestCase{
+		candidates = append(candidates, providerTestCase{
 			name:     "gemini-vertex",
 			provider: gemini.New("", gemini.WithVertexAI(project, region), gemini.WithTokenSource(provider.GcloudTokenSource(account))),
 			model:    "gemini-2.0-flash",
 		})
 	}
 
-	if len(providers) == 0 {
+	if len(candidates) == 0 {
 		t.Skip("no API keys set (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) — skipping integration tests")
 	}
+
+	var providers []providerTestCase
+	for _, tc := range candidates {
+		if err := pingProvider(tc.provider, tc.model); err != nil {
+			t.Logf("skipping %s: %v", tc.name, err)
+			continue
+		}
+		providers = append(providers, tc)
+	}
+
+	if len(providers) == 0 {
+		t.Skip("all provider keys are invalid — skipping integration tests")
+	}
 	return providers
+}
+
+// pingProvider validates a provider with a minimal API call.
+func pingProvider(p provider.Provider, model string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := p.Chat(ctx, provider.ChatRequest{
+		Model:     model,
+		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "hi")},
+		MaxTokens: 5,
+	})
+	return err
 }
 
 // TestIntegration_AgentLoop tests the full agent loop with a real LLM API.
