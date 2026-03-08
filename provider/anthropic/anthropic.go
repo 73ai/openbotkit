@@ -28,6 +28,16 @@ type Anthropic struct {
 // Ensure Anthropic implements Provider at compile time.
 var _ provider.Provider = (*Anthropic)(nil)
 
+func init() {
+	provider.RegisterFactory("anthropic", func(apiKey, baseURL string) provider.Provider {
+		var opts []Option
+		if baseURL != "" {
+			opts = append(opts, WithBaseURL(baseURL))
+		}
+		return New(apiKey, opts...)
+	})
+}
+
 // Option configures the Anthropic provider.
 type Option func(*Anthropic)
 
