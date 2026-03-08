@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/priyanshujain/openbotkit/provider"
@@ -161,6 +162,30 @@ func TestLoop_MultiToolSequence(t *testing.T) {
 	}
 }
 
+// errorExecutor returns an error for specified tools.
+type errorExecutor struct {
+	successes map[string]string
+	errors    map[string]string
+	calls     []provider.ToolCall
+}
+
+func (m *errorExecutor) Execute(_ context.Context, call provider.ToolCall) (string, error) {
+	m.calls = append(m.calls, call)
+	if errMsg, ok := m.errors[call.Name]; ok {
+		return "", fmt.Errorf("%s", errMsg)
+	}
+	if result, ok := m.successes[call.Name]; ok {
+		return result, nil
+	}
+	return "", fmt.Errorf("unknown tool %q", call.Name)
+}
+
+func (m *errorExecutor) ToolSchemas() []provider.Tool {
+	return []provider.Tool{
+		{Name: "bash", Description: "Run a command", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+}
+
 func TestLoop_MaxIterations(t *testing.T) {
 	// Provider always returns tool_use — should stop at max iterations.
 	alwaysToolUse := &provider.ChatResponse{
@@ -186,5 +211,175 @@ func TestLoop_MaxIterations(t *testing.T) {
 	}
 	if got := err.Error(); got != "max iterations (5) reached" {
 		t.Errorf("error = %q", got)
+	}
+}
+
+func TestLoop_ScrubsToolOutput(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+						ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+					}},
+				},
+				StopReason: provider.StopToolUse,
+			},
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{
+		"bash": "TOKEN=sk-secret-key-12345678",
+	}}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(context.Background(), "show env")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// The second request should contain the scrubbed tool result.
+	if len(mp.requests) < 2 {
+		t.Fatalf("expected 2 requests, got %d", len(mp.requests))
+	}
+	msgs := mp.requests[1].Messages
+	// Last message should be the tool result.
+	last := msgs[len(msgs)-1]
+	content := last.Content[0].ToolResult.Content
+	if strings.Contains(content, "sk-secret-key-12345678") {
+		t.Errorf("tool output not scrubbed: %q", content)
+	}
+	if !strings.Contains(content, "****") {
+		t.Errorf("expected redacted content, got: %q", content)
+	}
+}
+
+func TestLoop_ScrubsToolError(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+						ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+					}},
+				},
+				StopReason: provider.StopToolUse,
+			},
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &errorExecutor{
+		errors: map[string]string{"bash": "failed: password=supersecret123"},
+	}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(context.Background(), "try")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	msgs := mp.requests[1].Messages
+	last := msgs[len(msgs)-1]
+	content := last.Content[0].ToolResult.Content
+	if strings.Contains(content, "supersecret123") {
+		t.Errorf("tool error not scrubbed: %q", content)
+	}
+	if !last.Content[0].ToolResult.IsError {
+		t.Error("expected IsError=true")
+	}
+}
+
+func TestLoop_ProviderChatError(t *testing.T) {
+	mp := &mockProvider{responses: nil} // no responses = error on first call
+	exec := &mockExecutor{results: map[string]string{}}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(context.Background(), "hi")
+	if err == nil {
+		t.Fatal("expected error from provider")
+	}
+	if !strings.Contains(err.Error(), "chat (iteration 0)") {
+		t.Errorf("error = %q, expected chat iteration error", err.Error())
+	}
+}
+
+func TestLoop_CompactsHistory(t *testing.T) {
+	// Build a provider that does one tool call per iteration for 15 rounds, then ends.
+	var responses []*provider.ChatResponse
+	for i := range 15 {
+		responses = append(responses, &provider.ChatResponse{
+			Content: []provider.ContentBlock{
+				{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+					ID: fmt.Sprintf("c%d", i), Name: "bash", Input: json.RawMessage(`{}`),
+				}},
+			},
+			StopReason: provider.StopToolUse,
+		})
+	}
+	responses = append(responses, &provider.ChatResponse{
+		Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+		StopReason: provider.StopEndTurn,
+	})
+
+	mp := &mockProvider{responses: responses}
+	exec := &mockExecutor{results: map[string]string{"bash": "ok"}}
+	// Without compaction, history would be 1 user + 15*(assistant+result) + final assistant = 32 messages.
+	// With maxHistory=10, compaction fires repeatedly, keeping history bounded.
+	a := New(mp, "test-model", exec, WithMaxHistory(10), WithMaxIterations(20))
+
+	_, err := a.Run(context.Background(), "go")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// History should have been compacted (not 32 messages).
+	if len(a.history) > 22 {
+		t.Errorf("history not compacted: len=%d, want <=22", len(a.history))
+	}
+}
+
+func TestLoop_RateLimiterContextCancel(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{Content: []provider.ContentBlock{{Type: provider.ContentText, Text: "ok"}}, StopReason: provider.StopEndTurn},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+
+	// Create agent with extremely low rate limit (1/hour).
+	a := New(mp, "test-model", exec, WithRateLimit(1))
+
+	// First call uses burst, should succeed.
+	_, err := a.Run(context.Background(), "first")
+	if err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+
+	// Exhaust remaining burst by calling multiple times.
+	for range 9 {
+		mp.idx = 0
+		mp.requests = nil
+		a.history = nil
+		_, _ = a.Run(context.Background(), "burst")
+	}
+
+	// Now cancel context; should fail on rate limiter.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	mp.idx = 0
+	mp.requests = nil
+	a.history = nil
+	_, err = a.Run(ctx, "should fail")
+	if err == nil {
+		t.Fatal("expected rate limiter error")
+	}
+	if !strings.Contains(err.Error(), "rate limiter") {
+		t.Errorf("error = %q, expected rate limiter error", err.Error())
 	}
 }
