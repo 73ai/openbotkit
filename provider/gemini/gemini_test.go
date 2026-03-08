@@ -7,7 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
+
+	"golang.org/x/oauth2"
 
 	"github.com/priyanshujain/openbotkit/provider"
 )
@@ -149,6 +153,51 @@ func TestGeminiIntegration(t *testing.T) {
 	}
 
 	p := New(apiKey)
+	resp, err := p.Chat(context.Background(), provider.ChatRequest{
+		Model:     "gemini-2.0-flash",
+		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'hello' and nothing else.")},
+		MaxTokens: 32,
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if resp.StopReason != provider.StopEndTurn {
+		t.Errorf("StopReason = %q", resp.StopReason)
+	}
+	if text := resp.TextContent(); text == "" {
+		t.Error("empty response")
+	}
+}
+
+// gcloudTokenSource gets OAuth2 tokens from gcloud CLI for a specific account.
+type gcloudTokenSource struct {
+	account string
+}
+
+func (g *gcloudTokenSource) Token() (*oauth2.Token, error) {
+	args := []string{"auth", "print-access-token"}
+	if g.account != "" {
+		args = append(args, "--account="+g.account)
+	}
+	out, err := exec.Command("gcloud", args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("gcloud auth print-access-token: %w", err)
+	}
+	return &oauth2.Token{AccessToken: strings.TrimSpace(string(out))}, nil
+}
+
+func TestGeminiVertexAIIntegration(t *testing.T) {
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	if project == "" {
+		t.Skip("GOOGLE_CLOUD_PROJECT not set")
+	}
+	region := os.Getenv("GOOGLE_CLOUD_REGION")
+	if region == "" {
+		region = "us-east5"
+	}
+	account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
+
+	p := New("", WithVertexAI(project, region), WithTokenSource(&gcloudTokenSource{account: account}))
 	resp, err := p.Chat(context.Background(), provider.ChatRequest{
 		Model:     "gemini-2.0-flash",
 		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'hello' and nothing else.")},

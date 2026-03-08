@@ -86,6 +86,18 @@ func availableProviders(t *testing.T) []providerTestCase {
 			model:    "gemini-2.0-flash",
 		})
 	}
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+		region := os.Getenv("GOOGLE_CLOUD_REGION")
+		if region == "" {
+			region = "us-east5"
+		}
+		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
+		providers = append(providers, providerTestCase{
+			name:     "gemini-vertex",
+			provider: gemini.New("", gemini.WithVertexAI(project, region), gemini.WithTokenSource(&gcloudTokenSource{account: account})),
+			model:    "gemini-2.0-flash",
+		})
+	}
 
 	if len(providers) == 0 {
 		t.Skip("no API keys set (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) — skipping integration tests")
