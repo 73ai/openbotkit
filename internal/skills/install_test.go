@@ -215,6 +215,15 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Error("memory-read SKILL.md is empty")
 	}
 
+	// Verify schema.sql was written alongside SKILL.md.
+	schemaContent, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-read", "schema.sql"))
+	if err != nil {
+		t.Fatalf("read memory-read schema.sql: %v", err)
+	}
+	if len(schemaContent) == 0 {
+		t.Error("memory-read schema.sql is empty")
+	}
+
 	// Verify manifest was written.
 	m, err := LoadManifest()
 	if err != nil {
