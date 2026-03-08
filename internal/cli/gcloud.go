@@ -18,10 +18,14 @@ func gcloudAccounts() ([]string, error) {
 	return parseLines(string(out)), nil
 }
 
-// gcloudProjects returns GCP projects visible to the active account.
+// gcloudProjects returns GCP projects visible to the given account.
 // Returns an empty slice (not error) if gcloud is not found.
-func gcloudProjects() ([]string, error) {
-	out, err := exec.Command("gcloud", "projects", "list", "--format=value(projectId)").Output()
+func gcloudProjects(account string) ([]string, error) {
+	args := []string{"projects", "list", "--format=value(projectId)"}
+	if account != "" {
+		args = append(args, "--account="+account)
+	}
+	out, err := exec.Command("gcloud", args...).Output()
 	if err != nil {
 		if isExecNotFound(err) {
 			return nil, nil

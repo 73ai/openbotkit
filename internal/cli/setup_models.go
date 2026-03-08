@@ -321,7 +321,7 @@ func configureVertexAI(pcfg *config.ModelProviderConfig, existing config.ModelPr
 	pcfg.VertexAccount = account
 
 	// Project selection.
-	projects, projErr := gcloudProjects()
+	projects, projErr := gcloudProjects(account)
 	if projErr != nil {
 		return fmt.Errorf("list gcloud projects: %w", projErr)
 	}
