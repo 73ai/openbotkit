@@ -15,12 +15,13 @@ type ToolExecutor interface {
 
 // Agent orchestrates the conversation between user, LLM, and tools.
 type Agent struct {
-	provider provider.Provider
-	model    string
-	system   string
-	executor ToolExecutor
-	history  []provider.Message
-	maxIter  int
+	provider   provider.Provider
+	model      string
+	system     string
+	executor   ToolExecutor
+	history    []provider.Message
+	maxIter    int
+	maxHistory int
 }
 
 // Option configures an Agent.
@@ -36,13 +37,19 @@ func WithMaxIterations(n int) Option {
 	return func(a *Agent) { a.maxIter = n }
 }
 
+// WithMaxHistory sets the maximum number of history messages before compaction.
+func WithMaxHistory(n int) Option {
+	return func(a *Agent) { a.maxHistory = n }
+}
+
 // New creates a new Agent.
 func New(p provider.Provider, model string, executor ToolExecutor, opts ...Option) *Agent {
 	a := &Agent{
-		provider: p,
-		model:    model,
-		executor: executor,
-		maxIter:  25,
+		provider:   p,
+		model:      model,
+		executor:   executor,
+		maxIter:    25,
+		maxHistory: defaultMaxHistory,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -56,6 +63,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	a.history = append(a.history, provider.NewTextMessage(provider.RoleUser, input))
 
 	for i := range a.maxIter {
+		a.compactHistory()
 		resp, err := a.provider.Chat(ctx, provider.ChatRequest{
 			Model:     a.model,
 			System:    a.system,
