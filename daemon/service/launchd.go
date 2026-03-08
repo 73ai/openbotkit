@@ -19,7 +19,7 @@ const (
 	<key>ProgramArguments</key>
 	<array>
 		<string>%s</string>
-		<string>daemon</string>
+		<string>service</string>
 		<string>run</string>
 	</array>
 	<key>RunAtLoad</key>
@@ -61,6 +61,32 @@ func (m *launchdManager) Install(cfg *ServiceConfig) error {
 
 	if err := exec.Command("launchctl", "load", path).Run(); err != nil {
 		return fmt.Errorf("launchctl load: %w", err)
+	}
+
+	return nil
+}
+
+func (m *launchdManager) Start() error {
+	path, err := m.plistPath()
+	if err != nil {
+		return err
+	}
+
+	if err := exec.Command("launchctl", "load", path).Run(); err != nil {
+		return fmt.Errorf("launchctl load: %w", err)
+	}
+
+	return nil
+}
+
+func (m *launchdManager) Stop() error {
+	path, err := m.plistPath()
+	if err != nil {
+		return err
+	}
+
+	if err := exec.Command("launchctl", "unload", path).Run(); err != nil {
+		return fmt.Errorf("launchctl unload: %w", err)
 	}
 
 	return nil
