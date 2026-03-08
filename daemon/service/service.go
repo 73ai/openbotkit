@@ -13,6 +13,7 @@ type Platform string
 const (
 	PlatformMacOS   Platform = "macos"
 	PlatformLinux   Platform = "linux"
+	PlatformWindows Platform = "windows"
 	PlatformUnknown Platform = "unknown"
 )
 
@@ -27,6 +28,8 @@ func DetectPlatform() Platform {
 		return PlatformMacOS
 	case "linux":
 		return PlatformLinux
+	case "windows":
+		return PlatformWindows
 	default:
 		return PlatformUnknown
 	}
@@ -70,6 +73,8 @@ func NewManager() (Manager, error) {
 		return &launchdManager{}, nil
 	case PlatformLinux:
 		return &systemdManager{}, nil
+	case PlatformWindows:
+		return &windowsManager{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
