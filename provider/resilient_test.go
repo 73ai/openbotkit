@@ -87,6 +87,83 @@ func TestResilientProvider_MaxRetriesExhausted(t *testing.T) {
 	}
 }
 
+func TestResilientProvider_FirstAttemptSucceeds(t *testing.T) {
+	mock := &mockRetryProvider{errors: nil} // no errors
+	rp := &ResilientProvider{inner: mock, maxRetries: 3, baseDelay: 1 * time.Millisecond}
+
+	resp, err := rp.Chat(context.Background(), ChatRequest{})
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if mock.calls != 1 {
+		t.Errorf("expected 1 call, got %d", mock.calls)
+	}
+}
+
+func TestResilientProvider_NoRetryOnContextWindow(t *testing.T) {
+	mock := &mockRetryProvider{
+		errors: []error{
+			fmt.Errorf("API error (HTTP 400): context length exceeded"),
+		},
+	}
+	rp := &ResilientProvider{inner: mock, maxRetries: 3, baseDelay: 1 * time.Millisecond}
+
+	_, err := rp.Chat(context.Background(), ChatRequest{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if mock.calls != 1 {
+		t.Errorf("expected 1 call (no retry for context window), got %d", mock.calls)
+	}
+}
+
+func TestResilientProvider_RetryableThenNonRetryable(t *testing.T) {
+	mock := &mockRetryProvider{
+		errors: []error{
+			fmt.Errorf("API error (HTTP 429): rate limit"),
+			fmt.Errorf("API error (HTTP 401): unauthorized"),
+		},
+	}
+	rp := &ResilientProvider{inner: mock, maxRetries: 3, baseDelay: 1 * time.Millisecond}
+
+	_, err := rp.Chat(context.Background(), ChatRequest{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if mock.calls != 2 {
+		t.Errorf("expected 2 calls (retry then stop), got %d", mock.calls)
+	}
+}
+
+func TestResilientProvider_ContextCancelDuringBackoff(t *testing.T) {
+	mock := &mockRetryProvider{
+		errors: []error{
+			fmt.Errorf("API error (HTTP 429): rate limit"),
+			fmt.Errorf("API error (HTTP 429): rate limit"), // shouldn't reach
+		},
+	}
+	rp := &ResilientProvider{inner: mock, maxRetries: 3, baseDelay: 5 * time.Second}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel immediately so sleep returns ctx.Err().
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err := rp.Chat(ctx, ChatRequest{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Should have only called once (the initial attempt), then failed during backoff.
+	if mock.calls != 1 {
+		t.Errorf("expected 1 call, got %d", mock.calls)
+	}
+}
+
 func TestResilientProvider_StreamRetry(t *testing.T) {
 	mock := &mockRetryProvider{
 		errors: []error{
