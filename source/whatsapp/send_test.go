@@ -21,6 +21,7 @@ func TestSendText_InvalidJID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
+	defer client.Close()
 
 	_, err = SendText(ctx, client, db, SendInput{
 		ChatJID: "",

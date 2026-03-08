@@ -71,6 +71,14 @@ func TestGcloudProjects_Live(t *testing.T) {
 		t.Skip("gcloud not installed")
 	}
 
+	accounts, err := gcloudAccounts()
+	if err != nil {
+		t.Fatalf("gcloudAccounts: %v", err)
+	}
+	if len(accounts) == 0 {
+		t.Skip("no gcloud accounts configured")
+	}
+
 	projects, err := gcloudProjects("") // empty = use active account
 	if err != nil {
 		t.Fatalf("gcloudProjects: %v", err)

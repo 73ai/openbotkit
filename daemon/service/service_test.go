@@ -17,6 +17,10 @@ func TestDetectPlatform(t *testing.T) {
 		if p != PlatformLinux {
 			t.Errorf("expected PlatformLinux on linux, got %s", p)
 		}
+	case "windows":
+		if p != PlatformWindows {
+			t.Errorf("expected PlatformWindows on windows, got %s", p)
+		}
 	default:
 		if p != PlatformUnknown {
 			t.Errorf("expected PlatformUnknown on %s, got %s", runtime.GOOS, p)
@@ -42,7 +46,7 @@ func TestNewManager(t *testing.T) {
 	mgr, err := NewManager()
 
 	switch runtime.GOOS {
-	case "darwin", "linux":
+	case "darwin", "linux", "windows":
 		if err != nil {
 			t.Fatalf("NewManager failed on %s: %v", runtime.GOOS, err)
 		}

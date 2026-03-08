@@ -273,10 +273,10 @@ func configureAPIKey(pcfg *config.ModelProviderConfig, name string, existing con
 	if apiKey != "" {
 		ref := fmt.Sprintf("keychain:obk/%s", name)
 		if err := provider.KeychainStore(ref, apiKey); err != nil {
-			return fmt.Errorf("store API key in keychain: %w", err)
+			return fmt.Errorf("store API key: %w", err)
 		}
 		pcfg.APIKeyRef = ref
-		fmt.Printf("  API key stored in Keychain as %s\n", ref)
+		fmt.Printf("  API key stored securely as %s\n", ref)
 	}
 	return nil
 }

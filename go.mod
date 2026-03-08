@@ -6,7 +6,6 @@ require (
 	github.com/charmbracelet/huh v0.8.0
 	github.com/lib/pq v1.11.2
 	github.com/mattn/go-isatty v0.0.20
-	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/riverqueue/river v0.31.0
 	github.com/riverqueue/river/riverdriver/riversqlite v0.31.0
 	github.com/riverqueue/river/rivertype v0.31.0

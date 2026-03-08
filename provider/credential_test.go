@@ -1,10 +1,13 @@
 package provider
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
-func TestParseKeychainRef(t *testing.T) {
+func TestParseCredentialRef(t *testing.T) {
 	tests := []struct {
 		ref     string
 		service string
@@ -20,7 +23,7 @@ func TestParseKeychainRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ref, func(t *testing.T) {
-			service, account, err := parseKeychainRef(tt.ref)
+			service, account, err := parseCredentialRef(tt.ref)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
 			}
@@ -31,6 +34,58 @@ func TestParseKeychainRef(t *testing.T) {
 				t.Errorf("account = %q, want %q", account, tt.account)
 			}
 		})
+	}
+}
+
+// setTestHome overrides the home directory to dir for the duration of the test.
+// On Windows os.UserHomeDir reads USERPROFILE; on Unix it reads HOME.
+func setTestHome(t *testing.T, dir string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", dir)
+	} else {
+		t.Setenv("HOME", dir)
+	}
+}
+
+func TestFileCredentialStoreLoad(t *testing.T) {
+	dir := t.TempDir()
+	setTestHome(t, dir)
+
+	err := storeToFile("obk", "test-provider", "secret-key-123")
+	if err != nil {
+		t.Fatalf("storeToFile: %v", err)
+	}
+
+	// Verify file exists with correct permissions (Unix only).
+	path := filepath.Join(dir, ".obk", "secrets", "obk-test-provider")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat secret file: %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0600 {
+			t.Errorf("file permissions = %o, want 0600", perm)
+		}
+	}
+
+	// Load it back.
+	val, err := loadFromFile("obk", "test-provider")
+	if err != nil {
+		t.Fatalf("loadFromFile: %v", err)
+	}
+	if val != "secret-key-123" {
+		t.Errorf("loaded value = %q, want %q", val, "secret-key-123")
+	}
+}
+
+func TestFileCredentialLoad_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	setTestHome(t, dir)
+
+	_, err := loadFromFile("obk", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing credential")
 	}
 }
 

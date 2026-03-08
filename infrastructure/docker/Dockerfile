@@ -1,10 +1,12 @@
 FROM golang:1.25-alpine AS builder
 
+ARG TARGETOS TARGETARCH
+
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /obk .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /obk .
 
 FROM alpine:3.20
 
@@ -16,4 +18,4 @@ USER obk
 WORKDIR /home/obk
 
 ENTRYPOINT ["obk"]
-CMD ["daemon"]
+CMD ["service", "run"]

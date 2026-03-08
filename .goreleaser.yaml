@@ -1,0 +1,16 @@
+builds:
+  - binary: obk
+    env: [CGO_ENABLED=0]
+    ldflags: -s -w -X github.com/priyanshujain/openbotkit/internal/cli.Version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64, riscv64]
+    ignore:
+      - goos: darwin
+        goarch: riscv64
+      - goos: windows
+        goarch: riscv64
+
+archives:
+  - format_overrides:
+      - goos: windows
+        format: zip

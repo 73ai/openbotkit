@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -25,15 +26,17 @@ func TestDaemon_RunAndShutdown(t *testing.T) {
 		errCh <- d.Run(ctx)
 	}()
 
-	// Give the daemon time to start.
-	time.Sleep(500 * time.Millisecond)
+	// Give the daemon time to start. Pure-Go SQLite (modernc) is slower
+	// to initialize on Windows, so we need more than 500ms.
+	time.Sleep(2 * time.Second)
 
 	// Signal shutdown.
 	cancel()
 
 	select {
 	case err := <-errCh:
-		if err != nil {
+		// context.Canceled is expected since we explicitly canceled.
+		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Fatalf("Daemon.Run returned error: %v", err)
 		}
 	case <-time.After(10 * time.Second):
