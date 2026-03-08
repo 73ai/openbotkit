@@ -1,0 +1,264 @@
+package agent_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"golang.org/x/oauth2"
+
+	"github.com/priyanshujain/openbotkit/agent"
+	"github.com/priyanshujain/openbotkit/agent/tools"
+	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/priyanshujain/openbotkit/provider/anthropic"
+	"github.com/priyanshujain/openbotkit/provider/gemini"
+	"github.com/priyanshujain/openbotkit/provider/openai"
+)
+
+// providerTestCase holds a provider instance and model name for table-driven integration tests.
+type providerTestCase struct {
+	name     string
+	provider provider.Provider
+	model    string
+}
+
+// gcloudTokenSource gets OAuth2 tokens from gcloud CLI for a specific account.
+type gcloudTokenSource struct {
+	account string
+}
+
+func (g *gcloudTokenSource) Token() (*oauth2.Token, error) {
+	args := []string{"auth", "print-access-token"}
+	if g.account != "" {
+		args = append(args, "--account="+g.account)
+	}
+	out, err := exec.Command("gcloud", args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("gcloud auth print-access-token: %w", err)
+	}
+	return &oauth2.Token{AccessToken: strings.TrimSpace(string(out))}, nil
+}
+
+// availableProviders returns provider instances for all API keys that are set.
+func availableProviders(t *testing.T) []providerTestCase {
+	t.Helper()
+	var providers []providerTestCase
+
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		providers = append(providers, providerTestCase{
+			name:     "anthropic",
+			provider: anthropic.New(key),
+			model:    "claude-sonnet-4-6",
+		})
+	}
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+		region := os.Getenv("GOOGLE_CLOUD_REGION")
+		if region == "" {
+			region = "us-east5"
+		}
+		model := os.Getenv("VERTEX_CLAUDE_MODEL")
+		if model == "" {
+			model = "claude-sonnet-4@20250514"
+		}
+		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
+		providers = append(providers, providerTestCase{
+			name:     "anthropic-vertex",
+			provider: anthropic.New("", anthropic.WithVertexAI(project, region), anthropic.WithTokenSource(&gcloudTokenSource{account: account})),
+			model:    model,
+		})
+	}
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+		providers = append(providers, providerTestCase{
+			name:     "openai",
+			provider: openai.New(key),
+			model:    "gpt-4o-mini",
+		})
+	}
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		providers = append(providers, providerTestCase{
+			name:     "gemini",
+			provider: gemini.New(key),
+			model:    "gemini-2.0-flash",
+		})
+	}
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+		region := os.Getenv("GOOGLE_CLOUD_REGION")
+		if region == "" {
+			region = "us-east5"
+		}
+		account := os.Getenv("GOOGLE_CLOUD_ACCOUNT")
+		providers = append(providers, providerTestCase{
+			name:     "gemini-vertex",
+			provider: gemini.New("", gemini.WithVertexAI(project, region), gemini.WithTokenSource(&gcloudTokenSource{account: account})),
+			model:    "gemini-2.0-flash",
+		})
+	}
+
+	if len(providers) == 0 {
+		t.Skip("no API keys set (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) — skipping integration tests")
+	}
+	return providers
+}
+
+// TestIntegration_AgentLoop tests the full agent loop with a real LLM API.
+// The agent is given a bash tool, asked to run "echo hello", and should
+// return a response containing the command output.
+func TestIntegration_AgentLoop(t *testing.T) {
+	for _, tc := range availableProviders(t) {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := tools.NewRegistry()
+			reg.Register(tools.NewBashTool(10 * time.Second))
+
+			a := agent.New(tc.provider, tc.model, reg,
+				agent.WithSystem("You are a test assistant. When asked to run a command, use the bash tool. Be concise."),
+				agent.WithMaxIterations(5),
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			result, err := a.Run(ctx, "Please run the command: echo integration-test-ok")
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+
+			if !strings.Contains(result, "integration-test-ok") {
+				t.Errorf("expected response to contain 'integration-test-ok', got: %q", result)
+			}
+		})
+	}
+}
+
+// TestIntegration_ToolUseRoundtrip verifies the provider correctly handles a
+// tool_use → tool_result → text response cycle via the real API.
+func TestIntegration_ToolUseRoundtrip(t *testing.T) {
+	for _, tc := range availableProviders(t) {
+		t.Run(tc.name, func(t *testing.T) {
+			toolSchema := provider.Tool{
+				Name:        "get_weather",
+				Description: "Get the current weather for a city",
+				InputSchema: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"city": {"type": "string", "description": "City name"}
+					},
+					"required": ["city"]
+				}`),
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			// Step 1: Send a message that should trigger tool use.
+			resp1, err := tc.provider.Chat(ctx, provider.ChatRequest{
+				Model:     tc.model,
+				System:    "You have a get_weather tool. Always use it when asked about weather. Be concise.",
+				Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "What's the weather in Tokyo?")},
+				Tools:     []provider.Tool{toolSchema},
+				MaxTokens: 1024,
+			})
+			if err != nil {
+				t.Fatalf("Chat step 1: %v", err)
+			}
+
+			if resp1.StopReason != provider.StopToolUse {
+				t.Fatalf("expected StopToolUse, got %q (text: %q)", resp1.StopReason, resp1.TextContent())
+			}
+
+			calls := resp1.ToolCalls()
+			if len(calls) == 0 {
+				t.Fatal("no tool calls in response")
+			}
+			if calls[0].Name != "get_weather" {
+				t.Fatalf("expected get_weather tool call, got %q", calls[0].Name)
+			}
+
+			// Step 2: Feed back a fake tool result and get the final response.
+			messages := []provider.Message{
+				provider.NewTextMessage(provider.RoleUser, "What's the weather in Tokyo?"),
+				{Role: provider.RoleAssistant, Content: resp1.Content},
+				{
+					Role: provider.RoleUser,
+					Content: []provider.ContentBlock{
+						{
+							Type: provider.ContentToolResult,
+							ToolResult: &provider.ToolResult{
+								ToolUseID: calls[0].ID,
+								Content:   `{"temperature": "22°C", "condition": "Sunny"}`,
+							},
+						},
+					},
+				},
+			}
+
+			resp2, err := tc.provider.Chat(ctx, provider.ChatRequest{
+				Model:     tc.model,
+				System:    "You have a get_weather tool. Be concise.",
+				Messages:  messages,
+				Tools:     []provider.Tool{toolSchema},
+				MaxTokens: 256,
+			})
+			if err != nil {
+				t.Fatalf("Chat step 2: %v", err)
+			}
+
+			if resp2.StopReason != provider.StopEndTurn {
+				t.Fatalf("expected StopEndTurn, got %q", resp2.StopReason)
+			}
+
+			text := resp2.TextContent()
+			if text == "" {
+				t.Fatal("empty text response")
+			}
+
+			lower := strings.ToLower(text)
+			if !strings.Contains(lower, "22") && !strings.Contains(lower, "sunny") {
+				t.Errorf("response doesn't mention weather data: %q", text)
+			}
+		})
+	}
+}
+
+// TestIntegration_Streaming verifies streaming works with the real API.
+func TestIntegration_Streaming(t *testing.T) {
+	for _, tc := range availableProviders(t) {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			ch, err := tc.provider.StreamChat(ctx, provider.ChatRequest{
+				Model:     tc.model,
+				Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'test-stream-ok' and nothing else.")},
+				MaxTokens: 32,
+			})
+			if err != nil {
+				t.Fatalf("StreamChat: %v", err)
+			}
+
+			var text string
+			var gotDone bool
+			for event := range ch {
+				switch event.Type {
+				case provider.EventTextDelta:
+					text += event.Text
+				case provider.EventDone:
+					gotDone = true
+				case provider.EventError:
+					t.Fatalf("stream error: %v", event.Error)
+				}
+			}
+
+			if !gotDone {
+				t.Error("never received Done event")
+			}
+			if !strings.Contains(strings.ToLower(text), "test-stream-ok") {
+				t.Errorf("streamed text = %q, expected to contain 'test-stream-ok'", text)
+			}
+		})
+	}
+}

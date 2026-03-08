@@ -10,7 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	"github.com/spf13/cobra"
 	gapi "google.golang.org/api/gmail/v1"

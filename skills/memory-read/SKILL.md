@@ -10,25 +10,7 @@ Path: `~/.obk/memory/data.db`
 
 ## Schema
 
-```sql
-memory_conversations (
-  id INTEGER PRIMARY KEY,
-  session_id TEXT NOT NULL UNIQUE,
-  cwd TEXT,
-  started_at DATETIME,
-  updated_at DATETIME
-)
-
-memory_messages (
-  id INTEGER PRIMARY KEY,
-  conversation_id INTEGER REFERENCES memory_conversations(id),
-  role TEXT NOT NULL,  -- "user" or "assistant"
-  content TEXT,
-  timestamp DATETIME
-)
-```
-
-Indexes: session_id, conversation_id, role.
+Full database schema: see schema.sql in this skill directory.
 
 ## Query patterns
 

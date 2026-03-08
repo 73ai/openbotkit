@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
 )
 
@@ -106,6 +106,11 @@ func Install(cfg *config.Config) (*InstallResult, error) {
 		return nil, fmt.Errorf("save manifest: %w", err)
 	}
 
+	// Regenerate skill index.
+	if err := GenerateIndex(); err != nil {
+		return nil, fmt.Errorf("generate index: %w", err)
+	}
+
 	return result, nil
 }
 
@@ -126,11 +131,23 @@ func installSkill(name string, entry SkillEntry) error {
 }
 
 func installBuiltinSkill(name, destDir string) error {
-	content, err := fs.ReadFile(embeddedSkills.FS, name+"/SKILL.md")
+	entries, err := fs.ReadDir(embeddedSkills.FS, name)
 	if err != nil {
-		return fmt.Errorf("read embedded skill: %w", err)
+		return fmt.Errorf("read embedded skill dir: %w", err)
 	}
-	return os.WriteFile(filepath.Join(destDir, "SKILL.md"), content, 0600)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		content, err := fs.ReadFile(embeddedSkills.FS, name+"/"+entry.Name())
+		if err != nil {
+			return fmt.Errorf("read embedded file %s: %w", entry.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(destDir, entry.Name()), content, 0600); err != nil {
+			return fmt.Errorf("write file %s: %w", entry.Name(), err)
+		}
+	}
+	return nil
 }
 
 func resolveGoogleScopes(cfg *config.Config) map[string]bool {

@@ -10,31 +10,7 @@ Path: `~/.obk/applenotes/data.db`
 
 ## Schema
 
-```sql
-applenotes_notes (
-  id INTEGER PRIMARY KEY,
-  apple_id TEXT NOT NULL UNIQUE,
-  title TEXT,
-  body TEXT,
-  folder TEXT,
-  folder_id TEXT,
-  account TEXT,
-  password_protected INTEGER DEFAULT 0,
-  created_at DATETIME,
-  modified_at DATETIME,
-  synced_at DATETIME
-)
-
-applenotes_folders (
-  id INTEGER PRIMARY KEY,
-  apple_id TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  parent_apple_id TEXT,
-  account TEXT
-)
-```
-
-Indexes: apple_id, folder, modified_at.
+Full database schema: see schema.sql in this skill directory.
 
 ## Query patterns
 

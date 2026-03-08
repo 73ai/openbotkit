@@ -10,43 +10,7 @@ Path: `~/.obk/whatsapp/data.db`
 
 ## Schema
 
-```sql
-whatsapp_messages (
-  id INTEGER PRIMARY KEY,
-  message_id TEXT NOT NULL,
-  chat_jid TEXT NOT NULL,
-  sender_jid TEXT,
-  sender_name TEXT,
-  text TEXT,
-  timestamp DATETIME,
-  media_type TEXT,
-  media_path TEXT,
-  is_group INTEGER DEFAULT 0,
-  is_from_me INTEGER DEFAULT 0,
-  reply_to_id TEXT,
-  synced_at DATETIME,
-  UNIQUE(message_id, chat_jid)
-)
-
-whatsapp_chats (
-  jid TEXT PRIMARY KEY,
-  name TEXT,
-  is_group INTEGER DEFAULT 0,
-  last_message_at DATETIME
-)
-
-whatsapp_contacts (
-  jid TEXT PRIMARY KEY,
-  phone TEXT,
-  first_name TEXT,
-  full_name TEXT,
-  push_name TEXT,
-  business_name TEXT,
-  updated_at DATETIME
-)
-```
-
-Indexes: chat_jid, timestamp, sender_jid, contacts(phone).
+Full database schema: see schema.sql in this skill directory.
 
 ## Query patterns
 

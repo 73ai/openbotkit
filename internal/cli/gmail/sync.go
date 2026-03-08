@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"

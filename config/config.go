@@ -10,12 +10,27 @@ import (
 
 type Config struct {
 	Providers    *ProvidersConfig    `yaml:"providers,omitempty"`
+	Models       *ModelsConfig       `yaml:"models,omitempty"`
 	Gmail        *GmailConfig        `yaml:"gmail,omitempty"`
 	WhatsApp     *WhatsAppConfig     `yaml:"whatsapp,omitempty"`
 	Memory       *MemoryConfig       `yaml:"memory,omitempty"`
 	AppleNotes   *AppleNotesConfig   `yaml:"applenotes,omitempty"`
 	Daemon       *DaemonConfig       `yaml:"daemon,omitempty"`
 	Integrations *IntegrationsConfig `yaml:"integrations,omitempty"`
+}
+
+// ModelsConfig configures LLM model providers and routing.
+type ModelsConfig struct {
+	Default   string                        `yaml:"default,omitempty"`
+	Complex   string                        `yaml:"complex,omitempty"`
+	Fast      string                        `yaml:"fast,omitempty"`
+	Providers map[string]ModelProviderConfig `yaml:"providers,omitempty"`
+}
+
+// ModelProviderConfig holds settings for a single LLM provider.
+type ModelProviderConfig struct {
+	APIKeyRef string `yaml:"api_key_ref,omitempty"` // e.g. "keychain:obk/anthropic"
+	BaseURL   string `yaml:"base_url,omitempty"`
 }
 
 type IntegrationsConfig struct {

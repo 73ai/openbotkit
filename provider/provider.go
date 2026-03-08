@@ -1,18 +1,10 @@
 package provider
 
-import (
-	"context"
-	"net/http"
-)
+import "context"
 
-// Provider manages authentication credentials and tokens for a cloud service.
-// Sources (Gmail, Calendar, etc.) declare what scopes they need and get
-// an authenticated HTTP client from their provider.
+// Provider is the universal LLM provider interface.
+// All model providers (Anthropic, OpenAI, Gemini, etc.) implement this.
 type Provider interface {
-	Name() string
-	Client(ctx context.Context, account string, scopes []string) (*http.Client, error)
-	GrantScopes(ctx context.Context, account string, scopes []string) (grantedAccount string, err error)
-	GrantedScopes(ctx context.Context, account string) ([]string, error)
-	RevokeScopes(ctx context.Context, account string, scopes []string) error
-	Accounts(ctx context.Context) ([]string, error)
+	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
+	StreamChat(ctx context.Context, req ChatRequest) (<-chan StreamEvent, error)
 }

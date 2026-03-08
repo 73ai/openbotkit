@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/internal/tty"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/spf13/cobra"
 )
 

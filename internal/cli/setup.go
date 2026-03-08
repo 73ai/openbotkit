@@ -14,7 +14,7 @@ import (
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/internal/tty"
-	"github.com/priyanshujain/openbotkit/provider/google"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
