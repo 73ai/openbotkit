@@ -24,21 +24,17 @@ const (
 	vertexAPIVersion = "vertex-2023-10-16"
 )
 
-// Anthropic implements the provider.Provider interface using the Anthropic Messages API.
-// It supports both the direct Anthropic API and Google Vertex AI.
 type Anthropic struct {
 	apiKey  string
 	baseURL string
 	client  *http.Client
 
-	// Vertex AI fields.
 	vertexProject string
 	vertexRegion  string
 	tokenOnce     sync.Once
 	tokenSource   oauth2.TokenSource
 }
 
-// Ensure Anthropic implements Provider at compile time.
 var _ provider.Provider = (*Anthropic)(nil)
 
 func init() {
@@ -55,21 +51,16 @@ func init() {
 	})
 }
 
-// Option configures the Anthropic provider.
 type Option func(*Anthropic)
 
-// WithBaseURL sets a custom API base URL (useful for testing).
 func WithBaseURL(url string) Option {
 	return func(a *Anthropic) { a.baseURL = url }
 }
 
-// WithHTTPClient sets a custom HTTP client.
 func WithHTTPClient(c *http.Client) Option {
 	return func(a *Anthropic) { a.client = c }
 }
 
-// WithVertexAI configures the provider to use Google Vertex AI instead of the direct Anthropic API.
-// Uses Google Application Default Credentials unless a custom TokenSource is provided via WithTokenSource.
 func WithVertexAI(project, region string) Option {
 	return func(a *Anthropic) {
 		a.vertexProject = project
@@ -77,7 +68,6 @@ func WithVertexAI(project, region string) Option {
 	}
 }
 
-// WithTokenSource sets a custom OAuth2 token source for Vertex AI authentication.
 func WithTokenSource(ts oauth2.TokenSource) Option {
 	return func(a *Anthropic) { a.tokenSource = ts }
 }
@@ -103,7 +93,6 @@ func (a *Anthropic) vertexToken(ctx context.Context) (string, error) {
 	return token.AccessToken, nil
 }
 
-// New creates a new Anthropic provider.
 func New(apiKey string, opts ...Option) *Anthropic {
 	a := &Anthropic{
 		apiKey:  apiKey,
@@ -116,7 +105,6 @@ func New(apiKey string, opts ...Option) *Anthropic {
 	return a
 }
 
-// Chat sends a non-streaming chat request.
 func (a *Anthropic) Chat(ctx context.Context, req provider.ChatRequest) (*provider.ChatResponse, error) {
 	body := a.buildRequest(req, false)
 
@@ -138,7 +126,6 @@ func (a *Anthropic) Chat(ctx context.Context, req provider.ChatRequest) (*provid
 	return a.parseResponse(&apiResp), nil
 }
 
-// StreamChat sends a streaming chat request and returns a channel of events.
 func (a *Anthropic) StreamChat(ctx context.Context, req provider.ChatRequest) (<-chan provider.StreamEvent, error) {
 	body := a.buildRequest(req, true)
 
@@ -167,14 +154,12 @@ func (a *Anthropic) buildRequest(req provider.ChatRequest, stream bool) map[stri
 		body["stream"] = true
 	}
 
-	// Convert messages.
 	var msgs []map[string]any
 	for _, m := range req.Messages {
 		msgs = append(msgs, convertMessage(m))
 	}
 	body["messages"] = msgs
 
-	// Convert tools.
 	if len(req.Tools) > 0 {
 		var tools []map[string]any
 		for _, t := range req.Tools {
@@ -416,8 +401,6 @@ func (a *Anthropic) parseSSE(body io.ReadCloser, ch chan<- provider.StreamEvent)
 		}
 	}
 }
-
-// API types for JSON marshaling.
 
 type apiResponse struct {
 	Type       string         `json:"type"`
