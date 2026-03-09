@@ -49,7 +49,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	srv := &http.Server{
 		Addr:              s.addr,
-		Handler:           mux,
+		Handler:           limitBody(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(_ net.Listener) context.Context { return ctx },
 	}
