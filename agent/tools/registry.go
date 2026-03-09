@@ -31,13 +31,20 @@ func (r *Registry) Register(t Tool) {
 	r.tools[t.Name()] = t
 }
 
+const maxOutputBytes = 524288 // 512KB
+
 // Execute implements agent.ToolExecutor.
 func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string, error) {
 	t, ok := r.tools[call.Name]
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", call.Name)
 	}
-	return t.Execute(ctx, call.Input)
+	output, err := t.Execute(ctx, call.Input)
+	if len(output) > maxOutputBytes {
+		output = output[:maxOutputBytes] + fmt.Sprintf(
+			"\n...[output truncated, showing first 512KB of %dKB]", len(output)/1024)
+	}
+	return output, err
 }
 
 // ToolSchemas implements agent.ToolExecutor.
