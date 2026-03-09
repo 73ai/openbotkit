@@ -25,6 +25,10 @@ var deleteCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		if err := config.EnsureSourceDir("user_memory"); err != nil {
+			return fmt.Errorf("ensure user_memory dir: %w", err)
+		}
+
 		db, err := store.Open(store.Config{
 			Driver: cfg.UserMemory.Storage.Driver,
 			DSN:    cfg.UserMemoryDataDSN(),
