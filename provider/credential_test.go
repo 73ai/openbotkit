@@ -1,10 +1,13 @@
 package provider
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 func TestParseCredentialRef(t *testing.T) {
@@ -86,6 +89,48 @@ func TestFileCredentialLoad_NotFound(t *testing.T) {
 	_, err := loadFromFile("obk", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing credential")
+	}
+}
+
+func TestCredentialStore_KeyringSuccess(t *testing.T) {
+	keyring.MockInit()
+
+	err := credentialStore("obk", "test-kr", "keyring-secret")
+	if err != nil {
+		t.Fatalf("credentialStore: %v", err)
+	}
+
+	val, err := credentialLoad("obk", "test-kr")
+	if err != nil {
+		t.Fatalf("credentialLoad: %v", err)
+	}
+	if val != "keyring-secret" {
+		t.Errorf("got %q, want %q", val, "keyring-secret")
+	}
+}
+
+func TestCredentialStore_FallbackToFile(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no keyring"))
+	dir := t.TempDir()
+	setTestHome(t, dir)
+
+	err := credentialStore("obk", "test-fb", "file-secret")
+	if err != nil {
+		t.Fatalf("credentialStore: %v", err)
+	}
+
+	// Verify it was written to file, not keyring.
+	path := filepath.Join(dir, ".obk", "secrets", "obk-test-fb")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected file at %s: %v", path, err)
+	}
+
+	val, err := credentialLoad("obk", "test-fb")
+	if err != nil {
+		t.Fatalf("credentialLoad: %v", err)
+	}
+	if val != "file-secret" {
+		t.Errorf("got %q, want %q", val, "file-secret")
 	}
 }
 
