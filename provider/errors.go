@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// ErrorKind classifies API errors for retry decisions.
 type ErrorKind int
 
 const (
@@ -17,7 +16,6 @@ const (
 	ErrorContextWindow                 // 400 + "context" in message
 )
 
-// APIError represents a classified API error.
 type APIError struct {
 	StatusCode int
 	Kind       ErrorKind
@@ -30,8 +28,6 @@ func (e *APIError) Error() string {
 
 var httpStatusPattern = regexp.MustCompile(`HTTP (\d{3})`)
 
-// ClassifyError extracts HTTP status from error strings and classifies them.
-// Recognizes patterns like "API error (HTTP 429): rate_limit_error: ..."
 func ClassifyError(err error) *APIError {
 	if err == nil {
 		return nil
@@ -40,7 +36,6 @@ func ClassifyError(err error) *APIError {
 	msg := err.Error()
 	apiErr := &APIError{Message: msg}
 
-	// Extract HTTP status code from error message.
 	if m := httpStatusPattern.FindStringSubmatch(msg); len(m) == 2 {
 		apiErr.StatusCode, _ = strconv.Atoi(m[1])
 	}
