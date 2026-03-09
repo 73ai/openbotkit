@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -62,7 +63,7 @@ type MemoryItem struct {
 func (c *Client) MemoryList(category string) ([]MemoryItem, error) {
 	path := "/api/memory"
 	if category != "" {
-		path += "?category=" + category
+		path += "?category=" + url.QueryEscape(category)
 	}
 	var items []MemoryItem
 	if err := c.get(path, &items); err != nil {
@@ -106,11 +107,11 @@ type AppleNoteItem struct {
 }
 
 // AppleNotesPush sends notes to the remote server.
-func (c *Client) AppleNotesPush(notes interface{}) error {
+func (c *Client) AppleNotesPush(notes any) error {
 	return c.post("/api/applenotes/push", notes, nil)
 }
 
-func (c *Client) get(path string, result interface{}) error {
+func (c *Client) get(path string, result any) error {
 	req, err := http.NewRequest("GET", c.baseURL+path, nil)
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func (c *Client) get(path string, result interface{}) error {
 	return c.do(req, result)
 }
 
-func (c *Client) post(path string, body interface{}, result interface{}) error {
+func (c *Client) post(path string, body any, result any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
@@ -139,7 +140,7 @@ func (c *Client) delete(path string) error {
 	return c.do(req, nil)
 }
 
-func (c *Client) do(req *http.Request, result interface{}) error {
+func (c *Client) do(req *http.Request, result any) error {
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
