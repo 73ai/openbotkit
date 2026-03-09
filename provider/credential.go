@@ -8,8 +8,6 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// LoadCredential retrieves an API key from the OS keyring.
-// The ref format is "keychain:<service>/<account>", e.g. "keychain:obk/anthropic".
 func LoadCredential(ref string) (string, error) {
 	service, account, err := parseCredentialRef(ref)
 	if err != nil {
@@ -22,7 +20,6 @@ func LoadCredential(ref string) (string, error) {
 	return val, nil
 }
 
-// StoreCredential saves an API key to the OS keyring.
 func StoreCredential(ref, value string) error {
 	service, account, err := parseCredentialRef(ref)
 	if err != nil {
@@ -34,9 +31,6 @@ func StoreCredential(ref, value string) error {
 	return nil
 }
 
-// ResolveAPIKey resolves an API key from a keyring reference or
-// an environment variable. For headless/CI environments where no
-// keyring is available, set the environment variable directly.
 func ResolveAPIKey(ref, envVar string) (string, error) {
 	if ref != "" && strings.HasPrefix(ref, "keychain:") {
 		key, err := LoadCredential(ref)
