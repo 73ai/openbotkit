@@ -70,16 +70,16 @@ var extractCmd = &cobra.Command{
 			return fmt.Errorf("migrate memory: %w", err)
 		}
 
-		// Create provider router.
-		router, err := buildRouter(cfg)
+		// Create LLM client.
+		llm, err := buildLLM(cfg)
 		if err != nil {
-			return fmt.Errorf("build router: %w", err)
+			return fmt.Errorf("build LLM: %w", err)
 		}
 
 		ctx := context.Background()
 
 		// Extract candidate facts.
-		candidates, err := memory.Extract(ctx, router, messages)
+		candidates, err := memory.Extract(ctx, llm, messages)
 		if err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
@@ -90,7 +90,7 @@ var extractCmd = &cobra.Command{
 		}
 
 		// Reconcile with existing memories.
-		result, err := memory.Reconcile(ctx, memDB, router, candidates)
+		result, err := memory.Reconcile(ctx, memDB, llm, candidates)
 		if err != nil {
 			return fmt.Errorf("reconcile: %w", err)
 		}
@@ -130,12 +130,13 @@ func loadRecentMessages(db *store.DB, lastN int) ([]string, error) {
 	return messages, rows.Err()
 }
 
-func buildRouter(cfg *config.Config) (*provider.Router, error) {
+func buildLLM(cfg *config.Config) (memory.LLM, error) {
 	registry, err := provider.NewRegistry(cfg.Models)
 	if err != nil {
 		return nil, fmt.Errorf("create provider registry: %w", err)
 	}
-	return provider.NewRouter(registry, cfg.Models), nil
+	router := provider.NewRouter(registry, cfg.Models)
+	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
 func init() {

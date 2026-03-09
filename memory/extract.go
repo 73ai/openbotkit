@@ -32,7 +32,7 @@ type ExtractResult struct {
 	Skipped int
 }
 
-func Extract(ctx context.Context, router *provider.Router, messages []string) ([]CandidateFact, error) {
+func Extract(ctx context.Context, llm LLM, messages []string) ([]CandidateFact, error) {
 	filtered := preFilter(messages)
 	if len(filtered) == 0 {
 		return nil, nil
@@ -48,7 +48,7 @@ func Extract(ctx context.Context, router *provider.Router, messages []string) ([
 		MaxTokens: 2048,
 	}
 
-	resp, err := router.Chat(ctx, provider.TierFast, req)
+	resp, err := llm.Chat(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("extraction LLM call: %w", err)
 	}

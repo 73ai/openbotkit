@@ -29,7 +29,7 @@ type reconcileDecision struct {
 	Content string `json:"content"`
 }
 
-func Reconcile(ctx context.Context, db *store.DB, router *provider.Router, candidates []CandidateFact) (*ExtractResult, error) {
+func Reconcile(ctx context.Context, db *store.DB, llm LLM, candidates []CandidateFact) (*ExtractResult, error) {
 	result := &ExtractResult{}
 
 	for _, candidate := range candidates {
@@ -52,7 +52,7 @@ func Reconcile(ctx context.Context, db *store.DB, router *provider.Router, candi
 			continue
 		}
 
-		decision, err := reconcileWithLLM(ctx, router, existing, candidate)
+		decision, err := reconcileWithLLM(ctx, llm, existing, candidate)
 		if err != nil {
 			result.Skipped++
 			continue
@@ -87,7 +87,7 @@ func Reconcile(ctx context.Context, db *store.DB, router *provider.Router, candi
 	return result, nil
 }
 
-func reconcileWithLLM(ctx context.Context, router *provider.Router, existing []Memory, candidate CandidateFact) (*reconcileDecision, error) {
+func reconcileWithLLM(ctx context.Context, llm LLM, existing []Memory, candidate CandidateFact) (*reconcileDecision, error) {
 	var existingLines []string
 	for _, m := range existing {
 		existingLines = append(existingLines, fmt.Sprintf("[ID=%d] %s", m.ID, m.Content))
@@ -103,7 +103,7 @@ func reconcileWithLLM(ctx context.Context, router *provider.Router, existing []M
 		MaxTokens: 256,
 	}
 
-	resp, err := router.Chat(ctx, provider.TierFast, req)
+	resp, err := llm.Chat(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("reconciliation LLM call: %w", err)
 	}
