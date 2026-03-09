@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/priyanshujain/openbotkit/provider"
@@ -177,6 +178,17 @@ func TestExtractAllFiltered(t *testing.T) {
 	}
 	if llm.lastReq != nil {
 		t.Error("LLM should not have been called when all messages filtered")
+	}
+}
+
+func TestExtractLLMError(t *testing.T) {
+	llm := &mockLLM{err: fmt.Errorf("API error")}
+
+	messages := []string{"My name is Priyanshu and I work at a startup"}
+
+	_, err := Extract(context.Background(), llm, messages)
+	if err == nil {
+		t.Fatal("expected error from Extract when LLM fails")
 	}
 }
 

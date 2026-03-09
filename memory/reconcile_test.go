@@ -164,6 +164,30 @@ func TestReconcileWithExistingADD(t *testing.T) {
 	}
 }
 
+func TestReconcileLLMError(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+
+	llm := &mockLLM{err: fmt.Errorf("API error")}
+
+	candidates := []CandidateFact{
+		{Content: "User prefers dark mode in editors", Category: "preference"},
+	}
+
+	result, err := Reconcile(context.Background(), db, llm, candidates)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if result.Skipped != 1 {
+		t.Errorf("skipped = %d, want 1 (LLM error should skip)", result.Skipped)
+	}
+}
+
 func TestParseReconcileResponse(t *testing.T) {
 	tests := []struct {
 		name   string

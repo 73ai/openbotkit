@@ -51,6 +51,18 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestGetNotFound(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	_, err := Get(db, 99999)
+	if err == nil {
+		t.Fatal("expected error for non-existent ID")
+	}
+}
+
 func TestUpdate(t *testing.T) {
 	db := testDB(t)
 	if err := Migrate(db); err != nil {
