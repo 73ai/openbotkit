@@ -163,6 +163,24 @@ type WhatsAppSendResult struct {
 	Timestamp string `json:"timestamp"`
 }
 
+// MemoryExtractResult holds the response from memory extraction.
+type MemoryExtractResult struct {
+	Added   int `json:"added"`
+	Updated int `json:"updated"`
+	Deleted int `json:"deleted"`
+	Skipped int `json:"skipped"`
+}
+
+// MemoryExtract runs memory extraction on the remote server.
+func (c *Client) MemoryExtract(last int) (*MemoryExtractResult, error) {
+	req := map[string]int{"last": last}
+	var resp MemoryExtractResult
+	if err := c.post("/api/memory/extract", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // WhatsAppSend sends a WhatsApp message via the remote server.
 func (c *Client) WhatsAppSend(to, text string) (*WhatsAppSendResult, error) {
 	req := map[string]string{"to": to, "text": text}

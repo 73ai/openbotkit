@@ -27,6 +27,20 @@ var extractCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		if cfg.IsRemote() {
+			client, err := newRemoteClient(cfg)
+			if err != nil {
+				return err
+			}
+			result, err := client.MemoryExtract(extractLast)
+			if err != nil {
+				return fmt.Errorf("extract: %w", err)
+			}
+			fmt.Printf("Added %d, Updated %d, Deleted %d, Skipped %d\n",
+				result.Added, result.Updated, result.Deleted, result.Skipped)
+			return nil
+		}
+
 		if err := cfg.RequireSetup(); err != nil {
 			return err
 		}
