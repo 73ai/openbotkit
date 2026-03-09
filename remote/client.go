@@ -98,6 +98,81 @@ func (c *Client) AppleNotesPush(notes any) error {
 	return c.post("/api/applenotes/push", notes, nil)
 }
 
+// GmailSendResult holds the response from a Gmail send.
+type GmailSendResult struct {
+	MessageID string `json:"message_id"`
+	ThreadID  string `json:"thread_id"`
+}
+
+// GmailSend sends an email via the remote server.
+func (c *Client) GmailSend(to, cc, bcc []string, subject, body, account string) (*GmailSendResult, error) {
+	req := map[string]any{
+		"to": to, "cc": cc, "bcc": bcc,
+		"subject": subject, "body": body, "account": account,
+	}
+	var resp GmailSendResult
+	if err := c.post("/api/gmail/send", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// GmailDraftResult holds the response from creating a Gmail draft.
+type GmailDraftResult struct {
+	DraftID   string `json:"draft_id"`
+	MessageID string `json:"message_id"`
+	ThreadID  string `json:"thread_id"`
+}
+
+// GmailDraft creates a draft email via the remote server.
+func (c *Client) GmailDraft(to, cc, bcc []string, subject, body, account string) (*GmailDraftResult, error) {
+	req := map[string]any{
+		"to": to, "cc": cc, "bcc": bcc,
+		"subject": subject, "body": body, "account": account,
+	}
+	var resp GmailDraftResult
+	if err := c.post("/api/gmail/draft", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// GmailSyncResult holds the response from a Gmail sync.
+type GmailSyncResult struct {
+	Fetched int `json:"fetched"`
+	Skipped int `json:"skipped"`
+	Errors  int `json:"errors"`
+}
+
+// GmailSync triggers a Gmail sync on the remote server.
+func (c *Client) GmailSync(full bool, after, account string, daysWindow int) (*GmailSyncResult, error) {
+	req := map[string]any{
+		"full": full, "after": after,
+		"account": account, "days_window": daysWindow,
+	}
+	var resp GmailSyncResult
+	if err := c.post("/api/gmail/sync", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// WhatsAppSendResult holds the response from sending a WhatsApp message.
+type WhatsAppSendResult struct {
+	MessageID string `json:"message_id"`
+	Timestamp string `json:"timestamp"`
+}
+
+// WhatsAppSend sends a WhatsApp message via the remote server.
+func (c *Client) WhatsAppSend(to, text string) (*WhatsAppSendResult, error) {
+	req := map[string]string{"to": to, "text": text}
+	var resp WhatsAppSendResult
+	if err := c.post("/api/whatsapp/send", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func (c *Client) get(path string, result any) error {
 	req, err := http.NewRequest("GET", c.baseURL+path, nil)
 	if err != nil {
