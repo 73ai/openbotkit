@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/priyanshujain/openbotkit/internal/envload"
 	"github.com/priyanshujain/openbotkit/provider"
 )
 
@@ -143,6 +144,7 @@ func TestStreamChat_TextDelta(t *testing.T) {
 }
 
 func TestGeminiIntegration(t *testing.T) {
+	envload.Load(t)
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		t.Skip("GEMINI_API_KEY not set")
