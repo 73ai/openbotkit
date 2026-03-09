@@ -8,8 +8,6 @@ import (
 
 const defaultMaxHistory = 40
 
-// compactHistory trims history to half of maxHistory when it exceeds maxHistory,
-// prepending a summary placeholder for the removed messages.
 func (a *Agent) compactHistory() {
 	if len(a.history) <= a.maxHistory {
 		return
