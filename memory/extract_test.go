@@ -1,6 +1,30 @@
 package memory
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/priyanshujain/openbotkit/provider"
+)
+
+type mockLLM struct {
+	response string
+	err      error
+	lastReq  *provider.ChatRequest
+}
+
+func (m *mockLLM) Chat(_ context.Context, req provider.ChatRequest) (*provider.ChatResponse, error) {
+	m.lastReq = &req
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &provider.ChatResponse{
+		Content: []provider.ContentBlock{
+			{Type: provider.ContentText, Text: m.response},
+		},
+		StopReason: provider.StopEndTurn,
+	}, nil
+}
 
 func TestPreFilter(t *testing.T) {
 	messages := []string{
@@ -100,5 +124,72 @@ func TestIsAck(t *testing.T) {
 		if isAck(a) {
 			t.Errorf("expected %q to NOT be ack", a)
 		}
+	}
+}
+
+func TestExtractWithMockLLM(t *testing.T) {
+	llm := &mockLLM{
+		response: `[{"content": "User prefers dark mode", "category": "preference"}, {"content": "User's name is Priyanshu", "category": "identity"}]`,
+	}
+
+	messages := []string{
+		"My name is Priyanshu and I prefer dark mode in all my editors",
+		"I've been working on this project for a while now",
+	}
+
+	facts, err := Extract(context.Background(), llm, messages)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if len(facts) != 2 {
+		t.Fatalf("expected 2 facts, got %d", len(facts))
+	}
+	if facts[0].Content != "User prefers dark mode" {
+		t.Errorf("fact[0].Content = %q", facts[0].Content)
+	}
+	if facts[1].Category != "identity" {
+		t.Errorf("fact[1].Category = %q", facts[1].Category)
+	}
+
+	// Verify the prompt was constructed correctly.
+	if llm.lastReq == nil {
+		t.Fatal("expected LLM to be called")
+	}
+	if llm.lastReq.System != extractionPrompt {
+		t.Error("expected system prompt to be the extraction prompt")
+	}
+	if len(llm.lastReq.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(llm.lastReq.Messages))
+	}
+}
+
+func TestExtractAllFiltered(t *testing.T) {
+	llm := &mockLLM{response: "should not be called"}
+
+	messages := []string{"ok", "yes", "thanks"}
+
+	facts, err := Extract(context.Background(), llm, messages)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if len(facts) != 0 {
+		t.Fatalf("expected 0 facts, got %d", len(facts))
+	}
+	if llm.lastReq != nil {
+		t.Error("LLM should not have been called when all messages filtered")
+	}
+}
+
+func TestExtractEmptyResponse(t *testing.T) {
+	llm := &mockLLM{response: `[]`}
+
+	messages := []string{"I've been thinking about this problem for a while"}
+
+	facts, err := Extract(context.Background(), llm, messages)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if len(facts) != 0 {
+		t.Fatalf("expected 0 facts, got %d", len(facts))
 	}
 }
