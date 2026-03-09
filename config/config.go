@@ -8,16 +8,59 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Mode string
+
+const (
+	ModeLocal  Mode = "local"
+	ModeRemote Mode = "remote"
+	ModeServer Mode = "server"
+)
+
 type Config struct {
+	Mode         Mode                `yaml:"mode,omitempty"`
 	Providers    *ProvidersConfig    `yaml:"providers,omitempty"`
 	Models       *ModelsConfig       `yaml:"models,omitempty"`
+	Remote       *RemoteConfig       `yaml:"remote,omitempty"`
+	Auth         *AuthConfig         `yaml:"auth,omitempty"`
+	Channels     *ChannelsConfig     `yaml:"channels,omitempty"`
 	Gmail        *GmailConfig        `yaml:"gmail,omitempty"`
 	WhatsApp     *WhatsAppConfig     `yaml:"whatsapp,omitempty"`
-	History      *HistoryConfig       `yaml:"history,omitempty"`
+	History      *HistoryConfig      `yaml:"history,omitempty"`
 	AppleNotes   *AppleNotesConfig   `yaml:"applenotes,omitempty"`
-	UserMemory   *UserMemoryConfig    `yaml:"user_memory,omitempty"`
+	UserMemory   *UserMemoryConfig   `yaml:"user_memory,omitempty"`
 	Daemon       *DaemonConfig       `yaml:"daemon,omitempty"`
 	Integrations *IntegrationsConfig `yaml:"integrations,omitempty"`
+}
+
+func (c *Config) ResolvedMode() Mode {
+	if c.Mode == "" {
+		return ModeLocal
+	}
+	return c.Mode
+}
+
+func (c *Config) IsLocal() bool  { return c.ResolvedMode() == ModeLocal }
+func (c *Config) IsRemote() bool { return c.ResolvedMode() == ModeRemote }
+func (c *Config) IsServer() bool { return c.ResolvedMode() == ModeServer }
+
+type RemoteConfig struct {
+	Server   string `yaml:"server,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+type AuthConfig struct {
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+type ChannelsConfig struct {
+	Telegram *TelegramConfig `yaml:"telegram,omitempty"`
+}
+
+type TelegramConfig struct {
+	BotToken string `yaml:"bot_token,omitempty"`
+	OwnerID  int64  `yaml:"owner_id,omitempty"`
 }
 
 // ModelsConfig configures LLM model providers and routing.
@@ -85,6 +128,23 @@ type AppleNotesConfig struct {
 type StorageConfig struct {
 	Driver string `yaml:"driver,omitempty"` // "sqlite" or "postgres"
 	DSN    string `yaml:"dsn,omitempty"`
+}
+
+func (c *Config) SourceDataDSN(source string) (string, error) {
+	switch source {
+	case "gmail":
+		return c.GmailDataDSN(), nil
+	case "whatsapp":
+		return c.WhatsAppDataDSN(), nil
+	case "history":
+		return c.HistoryDataDSN(), nil
+	case "user_memory":
+		return c.UserMemoryDataDSN(), nil
+	case "applenotes":
+		return c.AppleNotesDataDSN(), nil
+	default:
+		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes)", source)
+	}
 }
 
 // RequireSetup returns an error if LLM models have not been configured.
