@@ -7,8 +7,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// dbTokenSource wraps an oauth2.TokenSource and persists refreshed tokens
-// back to the database on every refresh.
 type dbTokenSource struct {
 	email   string
 	store   *TokenStore

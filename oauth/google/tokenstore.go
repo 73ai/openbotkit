@@ -10,8 +10,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// TokenStore persists Google OAuth tokens in a local SQLite database.
-// Uses a single unified table instead of the legacy 2-table design.
 type TokenStore struct {
 	db *sql.DB
 }
