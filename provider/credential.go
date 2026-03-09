@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,23 +48,37 @@ func ResolveAPIKey(ref, envVar string) (string, error) {
 	return "", fmt.Errorf("no API key found (ref=%q, env=%q)", ref, envVar)
 }
 
-// credentialLoad tries the OS keyring first, falls back to file-based storage.
-// Keyring errors are intentionally ignored to support headless/Docker environments
-// where no keyring daemon is available.
+// keyringUnavailable returns true for errors that indicate the OS keyring
+// daemon is not available (headless server, Docker, unsupported platform).
+// Operational errors like ErrSetDataTooBig are not considered unavailable.
+func keyringUnavailable(err error) bool {
+	return !errors.Is(err, keyring.ErrSetDataTooBig)
+}
+
+// credentialLoad tries the OS keyring first, falls back to file-based storage
+// when the keyring is unavailable (headless/Docker). Operational keyring errors
+// are propagated.
 func credentialLoad(service, account string) (string, error) {
 	val, err := keyring.Get(service, account)
 	if err == nil {
 		return val, nil
 	}
+	if !keyringUnavailable(err) {
+		return "", fmt.Errorf("keyring: %w", err)
+	}
 	return loadFromFile(service, account)
 }
 
-// credentialStore tries the OS keyring first, falls back to file-based storage.
-// Keyring errors are intentionally ignored to support headless/Docker environments
-// where no keyring daemon is available.
+// credentialStore tries the OS keyring first, falls back to file-based storage
+// when the keyring is unavailable (headless/Docker). Operational keyring errors
+// are propagated.
 func credentialStore(service, account, value string) error {
-	if err := keyring.Set(service, account, value); err == nil {
+	err := keyring.Set(service, account, value)
+	if err == nil {
 		return nil
+	}
+	if !keyringUnavailable(err) {
+		return fmt.Errorf("keyring: %w", err)
 	}
 	return storeToFile(service, account, value)
 }
