@@ -20,13 +20,10 @@ const (
 	lockfileFailImmediately = 0x00000001
 )
 
-// lockHandle stores the Windows file handle obtained during acquireLock
-// so that releaseLock can unlock the same handle. On Windows, os.File.Fd()
-// returns a new duplicated handle on each call, so we must capture it once.
+// On Windows, os.File.Fd() returns a new duplicated handle on each call,
+// so we capture it once during acquireLock for use in releaseLock.
 var lockHandle uintptr
 
-// acquireLock takes an exclusive file lock to prevent multiple daemon instances.
-// Returns the lock file which must be kept open for the lifetime of the daemon.
 func acquireLock() (*os.File, error) {
 	f, err := os.OpenFile(lockPath(), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
@@ -51,7 +48,6 @@ func acquireLock() (*os.File, error) {
 	return f, nil
 }
 
-// releaseLock releases the file lock and removes the lock file.
 func releaseLock(f *os.File) {
 	ol := new(syscall.Overlapped)
 	procUnlockFileEx.Call(
