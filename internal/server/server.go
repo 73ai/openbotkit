@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -44,20 +44,20 @@ func (s *Server) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("server listening on %s", s.addr)
+		slog.Info("server listening", "addr", s.addr)
 		errCh <- srv.ListenAndServe()
 	}()
 
 	// Start Telegram bot if configured.
 	if err := s.startTelegram(ctx); err != nil {
-		log.Printf("telegram not started: %v", err)
+		slog.Warn("telegram not started", "error", err)
 	}
 
 	select {
 	case err := <-errCh:
 		return fmt.Errorf("server error: %w", err)
 	case <-ctx.Done():
-		log.Println("shutting down server")
+		slog.Info("shutting down server")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
@@ -114,6 +114,6 @@ func (s *Server) startTelegram(ctx context.Context) error {
 	go poller.Run(ctx)
 	go sm.Run(ctx)
 
-	log.Printf("telegram bot started (owner: %d)", ownerID)
+	slog.Info("telegram bot started", "owner_id", ownerID)
 	return nil
 }
