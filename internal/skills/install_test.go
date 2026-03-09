@@ -283,7 +283,7 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 		t.Error("email-read should be installed (gmail.readonly granted)")
 	}
 	if !slices.Contains(result.Installed, "history-read") {
-		t.Error("memory-read should be installed")
+		t.Error("history-read should be installed")
 	}
 	if slices.Contains(result.Installed, "email-send") {
 		t.Error("email-send should NOT be installed (only readonly granted)")

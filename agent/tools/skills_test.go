@@ -83,7 +83,7 @@ func TestSearchSkills(t *testing.T) {
 		t.Errorf("expected email-read in results: %q", result)
 	}
 	if strings.Contains(result, "history-read") {
-		t.Errorf("unexpected memory-read in results: %q", result)
+		t.Errorf("unexpected history-read in results: %q", result)
 	}
 }
 
