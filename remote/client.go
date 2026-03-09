@@ -92,6 +92,24 @@ func (c *Client) MemoryDelete(id int64) error {
 	return c.delete(fmt.Sprintf("/api/memory/%d", id))
 }
 
+// AppleNoteItem is the wire format for pushing notes.
+type AppleNoteItem struct {
+	AppleID           string `json:"apple_id"`
+	Title             string `json:"title"`
+	Body              string `json:"body"`
+	Folder            string `json:"folder"`
+	FolderID          string `json:"folder_id"`
+	Account           string `json:"account"`
+	PasswordProtected bool   `json:"password_protected"`
+	CreatedAt         string `json:"created_at"`
+	ModifiedAt        string `json:"modified_at"`
+}
+
+// AppleNotesPush sends notes to the remote server.
+func (c *Client) AppleNotesPush(notes interface{}) error {
+	return c.post("/api/applenotes/push", notes, nil)
+}
+
 func (c *Client) get(path string, result interface{}) error {
 	req, err := http.NewRequest("GET", c.baseURL+path, nil)
 	if err != nil {
