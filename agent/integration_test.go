@@ -13,6 +13,7 @@ import (
 	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/provider/anthropic"
 	"github.com/priyanshujain/openbotkit/provider/gemini"
+	"github.com/priyanshujain/openbotkit/internal/testutil"
 	"github.com/priyanshujain/openbotkit/provider/openai"
 )
 
@@ -26,6 +27,7 @@ type providerTestCase struct {
 // availableProviders returns provider instances for all API keys that are set.
 func availableProviders(t *testing.T) []providerTestCase {
 	t.Helper()
+	testutil.LoadEnv(t)
 	var providers []providerTestCase
 
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
