@@ -15,12 +15,14 @@ type ToolExecutor interface {
 
 // Agent orchestrates the conversation between user, LLM, and tools.
 type Agent struct {
-	provider provider.Provider
-	model    string
-	system   string
-	executor ToolExecutor
-	history  []provider.Message
-	maxIter  int
+	provider    provider.Provider
+	model       string
+	system      string
+	executor    ToolExecutor
+	history     []provider.Message
+	maxIter     int
+	maxHistory  int
+	rateLimiter *provider.RateLimiter
 }
 
 // Option configures an Agent.
@@ -36,13 +38,24 @@ func WithMaxIterations(n int) Option {
 	return func(a *Agent) { a.maxIter = n }
 }
 
+// WithMaxHistory sets the maximum number of history messages before compaction.
+func WithMaxHistory(n int) Option {
+	return func(a *Agent) { a.maxHistory = n }
+}
+
+// WithRateLimit sets a rate limit on LLM API calls (requests per hour).
+func WithRateLimit(requestsPerHour int) Option {
+	return func(a *Agent) { a.rateLimiter = provider.NewRateLimiter(requestsPerHour) }
+}
+
 // New creates a new Agent.
 func New(p provider.Provider, model string, executor ToolExecutor, opts ...Option) *Agent {
 	a := &Agent{
-		provider: p,
-		model:    model,
-		executor: executor,
-		maxIter:  25,
+		provider:   p,
+		model:      model,
+		executor:   executor,
+		maxIter:    25,
+		maxHistory: defaultMaxHistory,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -56,6 +69,12 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	a.history = append(a.history, provider.NewTextMessage(provider.RoleUser, input))
 
 	for i := range a.maxIter {
+		a.compactHistory()
+		if a.rateLimiter != nil {
+			if err := a.rateLimiter.Wait(ctx); err != nil {
+				return "", fmt.Errorf("rate limiter: %w", err)
+			}
+		}
 		resp, err := a.provider.Chat(ctx, provider.ChatRequest{
 			Model:     a.model,
 			System:    a.system,
@@ -82,9 +101,9 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		for _, call := range resp.ToolCalls() {
 			output, err := a.executor.Execute(ctx, call)
 			isError := err != nil
-			content := output
+			content := ScrubCredentials(output)
 			if isError {
-				content = err.Error()
+				content = ScrubCredentials(err.Error())
 			}
 			results = append(results, provider.ContentBlock{
 				Type: provider.ContentToolResult,
