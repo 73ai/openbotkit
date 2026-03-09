@@ -39,7 +39,7 @@ func (p *Poller) Run(ctx context.Context) {
 
 func (p *Poller) handleUpdate(update tgbotapi.Update) {
 	if update.CallbackQuery != nil {
-		if update.CallbackQuery.From.ID != p.ownerID {
+		if update.CallbackQuery.From == nil || update.CallbackQuery.From.ID != p.ownerID {
 			return
 		}
 		p.channel.HandleCallback(update.CallbackQuery.Data)
@@ -50,7 +50,7 @@ func (p *Poller) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 
-	if update.Message.From.ID != p.ownerID {
+	if update.Message.From == nil || update.Message.From.ID != p.ownerID {
 		slog.Warn("telegram: ignoring message from non-owner", "user_id", update.Message.From.ID)
 		return
 	}
