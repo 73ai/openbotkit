@@ -47,7 +47,7 @@ func (sm *SessionManager) Run(ctx context.Context) {
 	for {
 		text, err := sm.channel.Receive()
 		if err == io.EOF {
-			sm.endSession(ctx)
+			sm.endSession()
 			return
 		}
 		if err != nil {
@@ -55,12 +55,12 @@ func (sm *SessionManager) Run(ctx context.Context) {
 			continue
 		}
 
-		go sm.handleMessage(ctx, text)
+		sm.handleMessage(ctx, text)
 	}
 }
 
 func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
-	sm.touchSession(ctx)
+	sm.touchSession()
 
 	a, err := sm.newAgent()
 	if err != nil {
@@ -87,7 +87,7 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
 }
 
 // touchSession resets the inactivity timer, starting a new session if needed.
-func (sm *SessionManager) touchSession(ctx context.Context) {
+func (sm *SessionManager) touchSession() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -100,12 +100,12 @@ func (sm *SessionManager) touchSession(ctx context.Context) {
 		sm.timer.Stop()
 	}
 	sm.timer = time.AfterFunc(sessionTimeout, func() {
-		sm.endSession(ctx)
+		sm.endSession()
 	})
 }
 
 // endSession finalizes the current session and runs async memory extraction.
-func (sm *SessionManager) endSession(ctx context.Context) {
+func (sm *SessionManager) endSession() {
 	sm.mu.Lock()
 	if sm.sessionID == "" {
 		sm.mu.Unlock()
@@ -121,7 +121,7 @@ func (sm *SessionManager) endSession(ctx context.Context) {
 	sm.mu.Unlock()
 
 	if len(messages) > 0 {
-		go sm.extractMemories(ctx, messages)
+		go sm.extractMemories(context.Background(), messages)
 	}
 }
 
