@@ -134,6 +134,37 @@ func TestCredentialStore_FallbackToFile(t *testing.T) {
 	}
 }
 
+func TestStoreLoadCredential_KeyringRoundTrip(t *testing.T) {
+	keyring.MockInit()
+
+	ref := "keychain:obk/test-exported"
+	if err := StoreCredential(ref, "exported-secret"); err != nil {
+		t.Fatalf("StoreCredential: %v", err)
+	}
+
+	val, err := LoadCredential(ref)
+	if err != nil {
+		t.Fatalf("LoadCredential: %v", err)
+	}
+	if val != "exported-secret" {
+		t.Errorf("got %q, want %q", val, "exported-secret")
+	}
+}
+
+func TestCredentialStore_PropagatesOperationalError(t *testing.T) {
+	keyring.MockInitWithError(keyring.ErrSetDataTooBig)
+	dir := t.TempDir()
+	setTestHome(t, dir)
+
+	err := credentialStore("obk", "test-big", "some-value")
+	if err == nil {
+		t.Fatal("expected error for ErrSetDataTooBig")
+	}
+	if !errors.Is(err, keyring.ErrSetDataTooBig) {
+		t.Errorf("expected ErrSetDataTooBig, got: %v", err)
+	}
+}
+
 func TestResolveAPIKey_EnvFallback(t *testing.T) {
 	t.Setenv("TEST_API_KEY_XYZ", "test-value-123")
 
