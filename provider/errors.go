@@ -11,10 +11,10 @@ import (
 type ErrorKind int
 
 const (
-	ErrorRetryable     ErrorKind = iota // 429, 5xx
+	ErrorPermanent     ErrorKind = iota // everything else (zero value = safe default)
+	ErrorRetryable                     // 429, 5xx
 	ErrorAuth                          // 401, 403
 	ErrorContextWindow                 // 400 + "context" in message
-	ErrorPermanent                     // everything else
 )
 
 // APIError represents a classified API error.
