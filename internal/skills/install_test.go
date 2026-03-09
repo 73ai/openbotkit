@@ -192,7 +192,7 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	}
 
 	// With no auth, only memory-read should be installed.
-	if !slices.Contains(result.Installed, "memory-read") {
+	if !slices.Contains(result.Installed, "history-read") {
 		t.Error("memory-read should be installed (no auth required)")
 	}
 	if slices.Contains(result.Installed, "email-read") {
@@ -207,7 +207,7 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 
 	// Verify SKILL.md was written.
 	tmp := config.Dir()
-	content, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-read", "SKILL.md"))
+	content, err := os.ReadFile(filepath.Join(tmp, "skills", "history-read", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("read memory-read SKILL.md: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	}
 
 	// Verify schema.sql was written alongside SKILL.md.
-	schemaContent, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-read", "schema.sql"))
+	schemaContent, err := os.ReadFile(filepath.Join(tmp, "skills", "history-read", "schema.sql"))
 	if err != nil {
 		t.Fatalf("read memory-read schema.sql: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load manifest: %v", err)
 	}
-	if _, ok := m.Skills["memory-read"]; !ok {
+	if _, ok := m.Skills["history-read"]; !ok {
 		t.Error("memory-read not in manifest")
 	}
 }
@@ -267,7 +267,7 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 	if !slices.Contains(result.Installed, "email-read") {
 		t.Error("email-read should be installed (gmail.readonly granted)")
 	}
-	if !slices.Contains(result.Installed, "memory-read") {
+	if !slices.Contains(result.Installed, "history-read") {
 		t.Error("memory-read should be installed")
 	}
 	if slices.Contains(result.Installed, "email-send") {

@@ -148,7 +148,7 @@ func TestLoadIndex(t *testing.T) {
 	original := &Index{
 		Skills: []IndexEntry{
 			{Name: "email-read", Description: "Read emails"},
-			{Name: "memory-read", Description: "Recall conversations"},
+			{Name: "history-read", Description: "Recall conversations"},
 		},
 	}
 

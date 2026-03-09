@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "obk memory capture"
+            "command": "obk history capture"
           }
         ]
       }

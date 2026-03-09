@@ -66,7 +66,7 @@ func TestSearchSkills(t *testing.T) {
 		Skills: []skills.IndexEntry{
 			{Name: "email-read", Description: "Search and read emails from Gmail inbox"},
 			{Name: "whatsapp-read", Description: "Search WhatsApp messages"},
-			{Name: "memory-read", Description: "Recall past conversations"},
+			{Name: "history-read", Description: "Recall past conversations"},
 		},
 	}
 	if err := skills.SaveIndex(idx); err != nil {
@@ -82,7 +82,7 @@ func TestSearchSkills(t *testing.T) {
 	if !strings.Contains(result, "email-read") {
 		t.Errorf("expected email-read in results: %q", result)
 	}
-	if strings.Contains(result, "memory-read") {
+	if strings.Contains(result, "history-read") {
 		t.Errorf("unexpected memory-read in results: %q", result)
 	}
 }
