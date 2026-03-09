@@ -40,12 +40,6 @@ func (s *Server) handleAppleNotesPush(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	if err := ansrc.Migrate(db); err != nil {
-		slog.Error("applenotes handler: migrate", "error", err)
-		writeError(w, http.StatusInternalServerError, "database migration failed")
-		return
-	}
-
 	saved := 0
 	for _, n := range notes {
 		createdAt, _ := time.Parse("2006-01-02T15:04:05Z07:00", n.CreatedAt)

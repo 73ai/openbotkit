@@ -9,7 +9,6 @@ import (
 
 	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/provider"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
@@ -32,17 +31,12 @@ type memoryItem struct {
 }
 
 func (s *Server) openMemoryDB() (*store.DB, error) {
-	dsn := s.cfg.UserMemoryDataDSN()
 	db, err := store.Open(store.Config{
 		Driver: s.cfg.UserMemory.Storage.Driver,
-		DSN:    dsn,
+		DSN:    s.cfg.UserMemoryDataDSN(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open memory db: %w", err)
-	}
-	if err := memory.Migrate(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("migrate memory db: %w", err)
 	}
 	return db, nil
 }
@@ -235,10 +229,6 @@ func (s *Server) handleMemoryExtract(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadRecentMessages(db *store.DB, lastN int) ([]string, error) {
-	if err := historysrc.Migrate(db); err != nil {
-		return nil, fmt.Errorf("migrate history: %w", err)
-	}
-
 	query := db.Rebind(`
 		SELECT m.content FROM history_messages m
 		JOIN history_conversations c ON c.id = m.conversation_id

@@ -15,7 +15,12 @@ import (
 
 	tgchannel "github.com/priyanshujain/openbotkit/channel/telegram"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/provider"
+	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
+	"github.com/priyanshujain/openbotkit/store"
 
 	// Register provider factories.
 	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
@@ -43,6 +48,8 @@ func (s *Server) Run(ctx context.Context) error {
 	if u == "" || p == "" {
 		return fmt.Errorf("server requires authentication credentials; set OBK_AUTH_USERNAME and OBK_AUTH_PASSWORD env vars or configure auth in config.yaml")
 	}
+
+	s.migrateDBs()
 
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -128,4 +135,30 @@ func (s *Server) startTelegram(ctx context.Context) error {
 
 	slog.Info("telegram bot started", "owner_id", ownerID)
 	return nil
+}
+
+// migrateDBs runs database migrations once at startup for all configured sources.
+func (s *Server) migrateDBs() {
+	migrations := []struct {
+		name   string
+		driver string
+		dsn    string
+		fn     func(*store.DB) error
+	}{
+		{"memory", s.cfg.UserMemory.Storage.Driver, s.cfg.UserMemoryDataDSN(), memory.Migrate},
+		{"history", s.cfg.History.Storage.Driver, s.cfg.HistoryDataDSN(), historysrc.Migrate},
+		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
+		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
+	}
+	for _, m := range migrations {
+		db, err := store.Open(store.Config{Driver: m.driver, DSN: m.dsn})
+		if err != nil {
+			slog.Warn("migrate: open failed", "source", m.name, "error", err)
+			continue
+		}
+		if err := m.fn(db); err != nil {
+			slog.Warn("migrate: failed", "source", m.name, "error", err)
+		}
+		db.Close()
+	}
 }

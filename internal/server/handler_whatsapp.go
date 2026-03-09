@@ -59,12 +59,6 @@ func (s *Server) handleWhatsAppSend(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	if err := wasrc.Migrate(db); err != nil {
-		slog.Error("whatsapp handler: migrate", "error", err)
-		writeError(w, http.StatusInternalServerError, "database migration failed")
-		return
-	}
-
 	result, err := wasrc.SendText(r.Context(), client, db, wasrc.SendInput{
 		ChatJID: req.To,
 		Text:    req.Text,
