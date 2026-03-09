@@ -194,7 +194,6 @@ func (c *Client) WaitWhatsAppAuth() error {
 			continue
 		}
 		if resp.Authenticated {
-			fmt.Println("WhatsApp authenticated successfully!")
 			return nil
 		}
 		time.Sleep(2 * time.Second)

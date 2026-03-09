@@ -123,7 +123,11 @@ func whatsappLoginRemote(cfg *config.Config) error {
 	// Poll the server until authentication completes.
 	client := remote.NewClient(cfg.Remote.Server, cfg.Remote.Username, cfg.Remote.Password)
 	fmt.Println("\nWaiting for authentication to complete...")
-	return client.WaitWhatsAppAuth()
+	if err := client.WaitWhatsAppAuth(); err != nil {
+		return err
+	}
+	fmt.Println("WhatsApp authenticated successfully!")
+	return nil
 }
 
 func init() {
