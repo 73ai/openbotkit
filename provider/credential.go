@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/zalando/go-keyring"
 )
 
 // KeychainLoad retrieves an API key from the platform credential store.
@@ -43,6 +45,23 @@ func ResolveAPIKey(ref, envVar string) (string, error) {
 	}
 
 	return "", fmt.Errorf("no API key found (ref=%q, env=%q)", ref, envVar)
+}
+
+// credentialLoad tries the OS keyring first, falls back to file-based storage.
+func credentialLoad(service, account string) (string, error) {
+	val, err := keyring.Get(service, account)
+	if err == nil {
+		return val, nil
+	}
+	return loadFromFile(service, account)
+}
+
+// credentialStore tries the OS keyring first, falls back to file-based storage.
+func credentialStore(service, account, value string) error {
+	if err := keyring.Set(service, account, value); err == nil {
+		return nil
+	}
+	return storeToFile(service, account, value)
 }
 
 func parseCredentialRef(ref string) (service, account string, err error) {
