@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"testing"
@@ -24,10 +24,10 @@ func TestMigrate(t *testing.T) {
 	}
 
 	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM memory_conversations").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM history_conversations").Scan(&count); err != nil {
 		t.Fatalf("query conversations table: %v", err)
 	}
-	if err := db.QueryRow("SELECT COUNT(*) FROM memory_messages").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM history_messages").Scan(&count); err != nil {
 		t.Fatalf("query messages table: %v", err)
 	}
 }

@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"bufio"
@@ -10,7 +10,6 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-// transcriptLine represents a single line from a Claude Code JSONL transcript.
 type transcriptLine struct {
 	Type    string          `json:"type"`
 	Message json.RawMessage `json:"message"`
@@ -103,13 +102,11 @@ func parseTranscript(path string) ([]parsedMessage, error) {
 
 		role := tl.Type
 		if role == "user" {
-			// Skip tool results and system messages.
 			if isToolResult(msg.Content) || isSystemMessage(text) {
 				continue
 			}
 		}
 		if role == "assistant" {
-			// Skip pure tool-use-only turns (no text).
 			if text == "" {
 				continue
 			}
@@ -122,13 +119,11 @@ func parseTranscript(path string) ([]parsedMessage, error) {
 }
 
 func extractText(raw json.RawMessage) string {
-	// Try as plain string first.
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return strings.TrimSpace(s)
 	}
 
-	// Try as array of content blocks.
 	var blocks []contentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return ""

@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-type Memory struct {
+type History struct {
 	cfg Config
 }
 
-func New(cfg Config) *Memory {
-	return &Memory{cfg: cfg}
+func New(cfg Config) *History {
+	return &History{cfg: cfg}
 }
 
-func (m *Memory) Name() string {
-	return "memory"
+func (h *History) Name() string {
+	return "history"
 }
 
-func (m *Memory) Status(ctx context.Context, db *store.DB) (*source.Status, error) {
+func (h *History) Status(ctx context.Context, db *store.DB) (*source.Status, error) {
 	if db == nil {
 		return &source.Status{Connected: false}, nil
 	}
