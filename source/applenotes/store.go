@@ -100,6 +100,30 @@ func ListNotes(db *store.DB, opts ListOptions) ([]Note, error) {
 	return notes, rows.Err()
 }
 
+func ListNotesModifiedSince(db *store.DB, since time.Time) ([]Note, error) {
+	rows, err := db.Query(
+		db.Rebind(`SELECT apple_id, title, body, folder, folder_id, account,
+			password_protected, created_at, modified_at
+		FROM applenotes_notes WHERE synced_at > ? ORDER BY modified_at DESC`),
+		since,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list notes modified since: %w", err)
+	}
+	defer rows.Close()
+
+	var notes []Note
+	for rows.Next() {
+		var n Note
+		if err := rows.Scan(&n.AppleID, &n.Title, &n.Body, &n.Folder, &n.FolderID, &n.Account,
+			&n.PasswordProtected, &n.CreatedAt, &n.ModifiedAt); err != nil {
+			return nil, fmt.Errorf("scan note: %w", err)
+		}
+		notes = append(notes, n)
+	}
+	return notes, rows.Err()
+}
+
 func SearchNotes(db *store.DB, query string, limit int) ([]Note, error) {
 	if limit <= 0 {
 		limit = 50

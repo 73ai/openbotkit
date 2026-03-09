@@ -35,8 +35,10 @@ func RunBridge(ctx context.Context, cfg *config.Config, client *remote.Client) e
 
 	slog.Info("bridge: starting apple notes sync")
 
+	b := &bridge{db: db, client: client}
+
 	// Initial sync + push
-	bridgeSyncAndPush(db, client)
+	b.syncAndPush()
 
 	ticker := time.NewTicker(appleNotesSyncInterval)
 	defer ticker.Stop()
@@ -47,13 +49,19 @@ func RunBridge(ctx context.Context, cfg *config.Config, client *remote.Client) e
 			slog.Info("bridge: stopping")
 			return nil
 		case <-ticker.C:
-			bridgeSyncAndPush(db, client)
+			b.syncAndPush()
 		}
 	}
 }
 
-func bridgeSyncAndPush(db *store.DB, client *remote.Client) {
-	result, err := ansrc.Sync(db, ansrc.SyncOptions{})
+type bridge struct {
+	db           *store.DB
+	client       *remote.Client
+	lastPushedAt time.Time
+}
+
+func (b *bridge) syncAndPush() {
+	result, err := ansrc.Sync(b.db, ansrc.SyncOptions{})
 	if err != nil {
 		slog.Error("bridge: sync error", "error", err)
 		return
@@ -64,15 +72,20 @@ func bridgeSyncAndPush(db *store.DB, client *remote.Client) {
 		return
 	}
 
-	notes, err := ansrc.ListNotes(db, ansrc.ListOptions{Limit: result.Synced})
+	notes, err := ansrc.ListNotesModifiedSince(b.db, b.lastPushedAt)
 	if err != nil {
 		slog.Error("bridge: list notes error", "error", err)
 		return
 	}
 
-	if err := client.AppleNotesPush(notes); err != nil {
+	if len(notes) == 0 {
+		return
+	}
+
+	if err := b.client.AppleNotesPush(notes); err != nil {
 		slog.Error("bridge: push error", "error", err)
 	} else {
+		b.lastPushedAt = time.Now()
 		slog.Info("bridge: pushed notes to remote", "count", len(notes))
 	}
 }
