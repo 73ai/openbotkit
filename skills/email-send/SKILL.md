@@ -1,7 +1,7 @@
 ---
 name: email-send
 description: Send an email or create a draft email via Gmail
-allowed-tools: Bash(obk *), Bash(sqlite3 *)
+allowed-tools: Bash(obk *)
 ---
 
 ## Commands
@@ -23,7 +23,7 @@ obk gmail drafts create --to <address> --subject <subject> --body <body> [--cc <
 If the user has multiple Gmail accounts, look up which to use:
 
 ```bash
-sqlite3 -header -column ~/.obk/gmail/data.db "SELECT DISTINCT account FROM gmail_emails;"
+obk db gmail "SELECT DISTINCT account FROM gmail_emails;"
 ```
 
 ## Examples

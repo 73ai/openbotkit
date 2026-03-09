@@ -1,7 +1,7 @@
 ---
 name: whatsapp-send
 description: Send a WhatsApp message to a contact or group
-allowed-tools: Bash(obk *), Bash(sqlite3 *)
+allowed-tools: Bash(obk *)
 ---
 
 ## Command
@@ -16,10 +16,10 @@ Always resolve the recipient before sending. Use the contacts table first, then 
 
 ```bash
 # Search contacts by name (preferred — has phone number and full name)
-sqlite3 -header -column ~/.obk/whatsapp/data.db "SELECT jid, phone, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
+obk db whatsapp "SELECT jid, phone, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
 
 # Fall back to chats if not found in contacts
-sqlite3 -header -column ~/.obk/whatsapp/data.db "SELECT jid, name FROM whatsapp_chats WHERE LOWER(name) LIKE '%name%';"
+obk db whatsapp "SELECT jid, name FROM whatsapp_chats WHERE LOWER(name) LIKE '%name%';"
 ```
 
 JID formats:
