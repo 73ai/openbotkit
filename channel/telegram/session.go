@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/agent"
@@ -18,12 +19,19 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
+const sessionTimeout = 15 * time.Minute
+
 // SessionManager manages Telegram conversations with agent sessions.
 type SessionManager struct {
 	cfg      *config.Config
 	channel  *Channel
 	provider provider.Provider
 	model    string
+
+	mu        sync.Mutex
+	sessionID string
+	timer     *time.Timer
+	messages  []string // user messages collected in this session
 }
 
 func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, model string) *SessionManager {
@@ -39,6 +47,7 @@ func (sm *SessionManager) Run(ctx context.Context) {
 	for {
 		text, err := sm.channel.Receive()
 		if err == io.EOF {
+			sm.endSession(ctx)
 			return
 		}
 		if err != nil {
@@ -51,6 +60,8 @@ func (sm *SessionManager) Run(ctx context.Context) {
 }
 
 func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
+	sm.touchSession(ctx)
+
 	a, err := sm.newAgent()
 	if err != nil {
 		slog.Error("telegram session: create agent", "error", err)
@@ -66,7 +77,104 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
 	}
 
 	sm.channel.Send(response)
-	sm.saveHistory(text, response)
+
+	sm.mu.Lock()
+	sid := sm.sessionID
+	sm.messages = append(sm.messages, text)
+	sm.mu.Unlock()
+
+	sm.saveHistory(sid, text, response)
+}
+
+// touchSession resets the inactivity timer, starting a new session if needed.
+func (sm *SessionManager) touchSession(ctx context.Context) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if sm.sessionID == "" {
+		sm.sessionID = generateSessionID()
+		sm.messages = nil
+	}
+
+	if sm.timer != nil {
+		sm.timer.Stop()
+	}
+	sm.timer = time.AfterFunc(sessionTimeout, func() {
+		sm.endSession(ctx)
+	})
+}
+
+// endSession finalizes the current session and runs async memory extraction.
+func (sm *SessionManager) endSession(ctx context.Context) {
+	sm.mu.Lock()
+	if sm.sessionID == "" {
+		sm.mu.Unlock()
+		return
+	}
+	if sm.timer != nil {
+		sm.timer.Stop()
+		sm.timer = nil
+	}
+	messages := sm.messages
+	sm.sessionID = ""
+	sm.messages = nil
+	sm.mu.Unlock()
+
+	if len(messages) > 0 {
+		go sm.extractMemories(ctx, messages)
+	}
+}
+
+func (sm *SessionManager) extractMemories(ctx context.Context, messages []string) {
+	memDB, err := store.Open(store.Config{
+		Driver: sm.cfg.UserMemory.Storage.Driver,
+		DSN:    sm.cfg.UserMemoryDataDSN(),
+	})
+	if err != nil {
+		slog.Error("telegram session: open memory db for extraction", "error", err)
+		return
+	}
+	defer memDB.Close()
+
+	if err := memory.Migrate(memDB); err != nil {
+		slog.Error("telegram session: migrate memory db", "error", err)
+		return
+	}
+
+	llm, err := sm.buildLLM()
+	if err != nil {
+		slog.Error("telegram session: build LLM for extraction", "error", err)
+		return
+	}
+
+	candidates, err := memory.Extract(ctx, llm, messages)
+	if err != nil {
+		slog.Error("telegram session: extract memories", "error", err)
+		return
+	}
+
+	if len(candidates) == 0 {
+		return
+	}
+
+	result, err := memory.Reconcile(ctx, memDB, llm, candidates)
+	if err != nil {
+		slog.Error("telegram session: reconcile memories", "error", err)
+		return
+	}
+
+	slog.Info("telegram session: memory extraction complete",
+		"added", result.Added, "updated", result.Updated,
+		"deleted", result.Deleted, "skipped", result.Skipped)
+}
+
+func (sm *SessionManager) buildLLM() (memory.LLM, error) {
+	registry, err := provider.NewRegistry(sm.cfg.Models)
+	if err != nil {
+		return nil, fmt.Errorf("create provider registry: %w", err)
+	}
+	router := provider.NewRouter(registry, sm.cfg.Models)
+	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
 func (sm *SessionManager) newAgent() (*agent.Agent, error) {
@@ -116,7 +224,7 @@ To handle domain-specific tasks (email, WhatsApp, notes, etc.), first use search
 	return system
 }
 
-func (sm *SessionManager) saveHistory(userMsg, assistantMsg string) {
+func (sm *SessionManager) saveHistory(sessionID, userMsg, assistantMsg string) {
 	histDB, err := store.Open(store.Config{
 		Driver: sm.cfg.History.Storage.Driver,
 		DSN:    sm.cfg.HistoryDataDSN(),
@@ -132,7 +240,6 @@ func (sm *SessionManager) saveHistory(userMsg, assistantMsg string) {
 		return
 	}
 
-	sessionID := generateSessionID()
 	convID, err := historysrc.UpsertConversation(histDB, sessionID, "telegram")
 	if err != nil {
 		slog.Error("telegram session: create conversation", "error", err)
