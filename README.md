@@ -114,8 +114,10 @@ Config and all synced data live under `~/.obk/` (override with `OBK_CONFIG_DIR`)
 │   └── data.db             # Synced messages
 ├── applenotes/
 │   └── data.db             # Synced notes
-└── memory/
-    └── data.db             # Conversation history
+├── history/
+│   └── data.db             # Conversation history
+└── user_memory/
+    └── data.db             # Personal facts about the user
 ```
 
 ## Prerequisites
