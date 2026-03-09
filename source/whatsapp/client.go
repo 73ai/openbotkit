@@ -87,7 +87,6 @@ func (c *Client) Disconnect() {
 	c.wm.Disconnect()
 }
 
-// Close disconnects and closes the underlying store, releasing the SQLite connection.
 func (c *Client) Close() {
 	c.Disconnect()
 	if c.store != nil {
