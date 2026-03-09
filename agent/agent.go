@@ -15,10 +15,10 @@ type ToolExecutor interface {
 
 // Agent orchestrates the conversation between user, LLM, and tools.
 type Agent struct {
-	provider   provider.Provider
-	model      string
-	system     string
-	executor   ToolExecutor
+	provider    provider.Provider
+	model       string
+	system      string
+	executor    ToolExecutor
 	history     []provider.Message
 	maxIter     int
 	maxHistory  int
