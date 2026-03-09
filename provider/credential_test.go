@@ -1,10 +1,9 @@
 package provider
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 func TestParseCredentialRef(t *testing.T) {
@@ -37,55 +36,47 @@ func TestParseCredentialRef(t *testing.T) {
 	}
 }
 
-// setTestHome overrides the home directory to dir for the duration of the test.
-// On Windows os.UserHomeDir reads USERPROFILE; on Unix it reads HOME.
-func setTestHome(t *testing.T, dir string) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", dir)
-	} else {
-		t.Setenv("HOME", dir)
+func TestStoreLoadCredential(t *testing.T) {
+	keyring.MockInit()
+
+	ref := "keychain:obk/test-provider"
+	if err := StoreCredential(ref, "my-secret"); err != nil {
+		t.Fatalf("StoreCredential: %v", err)
+	}
+
+	val, err := LoadCredential(ref)
+	if err != nil {
+		t.Fatalf("LoadCredential: %v", err)
+	}
+	if val != "my-secret" {
+		t.Errorf("got %q, want %q", val, "my-secret")
 	}
 }
 
-func TestFileCredentialStoreLoad(t *testing.T) {
-	dir := t.TempDir()
-	setTestHome(t, dir)
+func TestLoadCredential_NotFound(t *testing.T) {
+	keyring.MockInit()
 
-	err := storeToFile("obk", "test-provider", "secret-key-123")
-	if err != nil {
-		t.Fatalf("storeToFile: %v", err)
-	}
-
-	// Verify file exists with correct permissions (Unix only).
-	path := filepath.Join(dir, ".obk", "secrets", "obk-test-provider")
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat secret file: %v", err)
-	}
-	if runtime.GOOS != "windows" {
-		if perm := info.Mode().Perm(); perm != 0600 {
-			t.Errorf("file permissions = %o, want 0600", perm)
-		}
-	}
-
-	// Load it back.
-	val, err := loadFromFile("obk", "test-provider")
-	if err != nil {
-		t.Fatalf("loadFromFile: %v", err)
-	}
-	if val != "secret-key-123" {
-		t.Errorf("loaded value = %q, want %q", val, "secret-key-123")
-	}
-}
-
-func TestFileCredentialLoad_NotFound(t *testing.T) {
-	dir := t.TempDir()
-	setTestHome(t, dir)
-
-	_, err := loadFromFile("obk", "nonexistent")
+	_, err := LoadCredential("keychain:obk/nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing credential")
+	}
+}
+
+func TestStoreCredential_KeyringError(t *testing.T) {
+	keyring.MockInitWithError(keyring.ErrSetDataTooBig)
+
+	err := StoreCredential("keychain:obk/test", "value")
+	if err == nil {
+		t.Fatal("expected error when keyring fails")
+	}
+}
+
+func TestLoadCredential_KeyringError(t *testing.T) {
+	keyring.MockInitWithError(keyring.ErrUnsupportedPlatform)
+
+	_, err := LoadCredential("keychain:obk/test")
+	if err == nil {
+		t.Fatal("expected error when keyring unavailable")
 	}
 }
 
@@ -118,5 +109,23 @@ func TestResolveAPIKey_EnvOverridesEmptyRef(t *testing.T) {
 	}
 	if key != "from-env" {
 		t.Errorf("key = %q, want %q", key, "from-env")
+	}
+}
+
+func TestResolveAPIKey_KeyringThenEnv(t *testing.T) {
+	keyring.MockInit()
+	t.Setenv("TEST_RESOLVE_BOTH", "from-env")
+
+	// Store in keyring — should prefer keyring over env.
+	if err := StoreCredential("keychain:obk/resolve-test", "from-keyring"); err != nil {
+		t.Fatalf("StoreCredential: %v", err)
+	}
+
+	key, err := ResolveAPIKey("keychain:obk/resolve-test", "TEST_RESOLVE_BOTH")
+	if err != nil {
+		t.Fatalf("ResolveAPIKey: %v", err)
+	}
+	if key != "from-keyring" {
+		t.Errorf("got %q, want %q", key, "from-keyring")
 	}
 }
