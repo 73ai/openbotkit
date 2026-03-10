@@ -15,9 +15,9 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// TestServer_Docker runs the full server test suite against a Docker container
-// built from the repo's Dockerfile. Requires Docker to be running.
-func TestServer_Docker(t *testing.T) {
+// TestServerAPI_Docker runs the server API contract tests against a Docker
+// container built from the repo's Dockerfile. Requires Docker to be running.
+func TestServerAPI_Docker(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping Docker test in short mode")
 	}

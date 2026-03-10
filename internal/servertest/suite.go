@@ -6,10 +6,10 @@ import (
 	"github.com/priyanshujain/openbotkit/remote"
 )
 
-// Backend provides a configured client for running the server test suite.
-// The suite exercises all server functionality through the remote.Client,
-// making it backend-agnostic: the same tests run against a local httptest
-// server and a Docker container.
+// Backend provides a configured client for running the server API contract
+// tests. The suite verifies auth, CRUD, validation, and DB proxy behavior
+// through the remote.Client — backend-agnostic so the same tests run against
+// a local httptest server and a Docker container.
 type Backend struct {
 	Client       *remote.Client
 	NoAuthClient *remote.Client
