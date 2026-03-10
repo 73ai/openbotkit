@@ -19,11 +19,14 @@ func TestSpec_FindEmailsBySender(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	result, err := a.Run(ctx, "Find emails from Alice")
+	prompt := "Find emails from Alice"
+	result, err := a.Run(ctx, prompt)
 	if err != nil {
 		t.Fatalf("agent.Run: %v", err)
 	}
 
 	AssertNotEmpty(t, result)
-	AssertContains(t, result, "alice", "Meeting Tomorrow")
+	AssertJudge(t, fx.Provider, fx.Model, prompt, result,
+		"The response must list Alice's emails. It should mention both 'Meeting Tomorrow' and 'Lunch Plans' subjects. "+
+			"It should NOT include Bob's 'Project Update' email.")
 }
