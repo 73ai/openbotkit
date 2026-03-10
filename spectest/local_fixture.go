@@ -13,17 +13,19 @@ import (
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/internal/testutil"
+	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/provider/gemini"
 	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
 	gmail "github.com/priyanshujain/openbotkit/source/gmail"
+	"github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
 type LocalFixture struct {
 	dir      string
-	provider provider.Provider
-	model    string
+	Provider provider.Provider
+	Model    string
 }
 
 func NewLocalFixture(t *testing.T) *LocalFixture {
@@ -39,6 +41,8 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 
 	createSourceDirs(t, dir)
 	createGmailDB(t, dir)
+	createWhatsAppDB(t, dir)
+	createMemoryDB(t, dir)
 	installSkills(t, dir)
 	generateIndex(t)
 	buildBinary(t, dir)
@@ -47,8 +51,8 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 
 	return &LocalFixture{
 		dir:      dir,
-		provider: p,
-		model:    model,
+		Provider: p,
+		Model:    model,
 	}
 }
 
@@ -85,10 +89,36 @@ func createGmailDB(t *testing.T, dir string) {
 	}
 }
 
+func createWhatsAppDB(t *testing.T, dir string) {
+	t.Helper()
+	dbPath := filepath.Join(dir, "whatsapp", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open whatsapp db: %v", err)
+	}
+	defer db.Close()
+	if err := whatsapp.Migrate(db); err != nil {
+		t.Fatalf("migrate whatsapp: %v", err)
+	}
+}
+
+func createMemoryDB(t *testing.T, dir string) {
+	t.Helper()
+	dbPath := filepath.Join(dir, "user_memory", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open memory db: %v", err)
+	}
+	defer db.Close()
+	if err := memory.Migrate(db); err != nil {
+		t.Fatalf("migrate memory: %v", err)
+	}
+}
+
 func installSkills(t *testing.T, dir string) {
 	t.Helper()
 	skillsDir := filepath.Join(dir, "skills")
-	for _, name := range []string{"email-read"} {
+	for _, name := range []string{"email-read", "whatsapp-read", "memory-save"} {
 		destDir := filepath.Join(skillsDir, name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			t.Fatalf("mkdir skill %s: %v", name, err)
@@ -169,7 +199,7 @@ func (f *LocalFixture) Agent(t *testing.T) *agent.Agent {
 
 	system := buildSystemPrompt()
 
-	return agent.New(f.provider, f.model, toolReg,
+	return agent.New(f.Provider, f.Model, toolReg,
 		agent.WithSystem(system),
 		agent.WithMaxIterations(15),
 	)
@@ -224,6 +254,71 @@ func (f *LocalFixture) GivenEmails(t *testing.T, emails []Email) {
 		}
 		if _, err := gmail.SaveEmail(db, gmailEmail); err != nil {
 			t.Fatalf("save email %d: %v", i, err)
+		}
+	}
+}
+
+func (f *LocalFixture) GivenWhatsAppMessages(t *testing.T, messages []WhatsAppMessage) {
+	t.Helper()
+
+	dbPath := filepath.Join(f.dir, "whatsapp", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open whatsapp db: %v", err)
+	}
+	defer db.Close()
+
+	// Track chats so we upsert each once.
+	seenChats := make(map[string]bool)
+	baseTime := time.Date(2025, 1, 15, 14, 0, 0, 0, time.UTC)
+
+	for i, m := range messages {
+		if m.MessageID == "" {
+			m.MessageID = uuid.New().String()
+		}
+		if m.ChatJID == "" {
+			m.ChatJID = m.SenderJID
+		}
+
+		if !seenChats[m.ChatJID] {
+			if err := whatsapp.UpsertChat(db, m.ChatJID, m.ChatName, false); err != nil {
+				t.Fatalf("upsert chat %s: %v", m.ChatJID, err)
+			}
+			seenChats[m.ChatJID] = true
+		}
+
+		msg := &whatsapp.Message{
+			MessageID:  m.MessageID,
+			ChatJID:    m.ChatJID,
+			SenderJID:  m.SenderJID,
+			SenderName: m.SenderName,
+			Text:       m.Text,
+			Timestamp:  baseTime.Add(time.Duration(i) * 10 * time.Minute),
+			IsFromMe:   m.IsFromMe,
+		}
+		if err := whatsapp.SaveMessage(db, msg); err != nil {
+			t.Fatalf("save whatsapp message %d: %v", i, err)
+		}
+	}
+}
+
+func (f *LocalFixture) GivenMemories(t *testing.T, memories []UserMemory) {
+	t.Helper()
+
+	dbPath := filepath.Join(f.dir, "user_memory", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open memory db: %v", err)
+	}
+	defer db.Close()
+
+	for i, m := range memories {
+		cat := m.Category
+		if cat == "" {
+			cat = "preference"
+		}
+		if _, err := memory.Add(db, m.Content, memory.Category(cat), "manual", ""); err != nil {
+			t.Fatalf("add memory %d: %v", i, err)
 		}
 	}
 }
