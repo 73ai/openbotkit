@@ -98,6 +98,11 @@ func (c *Client) AppleNotesPush(notes any) error {
 	return c.post("/api/applenotes/push", notes, nil)
 }
 
+// IMessagePush sends iMessage messages to the remote server.
+func (c *Client) IMessagePush(messages any) error {
+	return c.post("/api/imessage/push", messages, nil)
+}
+
 // GmailSendResult holds the response from a Gmail send.
 type GmailSendResult struct {
 	MessageID string `json:"message_id"`
