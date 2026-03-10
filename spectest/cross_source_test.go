@@ -71,8 +71,10 @@ func TestSpec_RecallMemoryAndCorrelateEmails(t *testing.T) {
 		AssertNotEmpty(t, result)
 		AssertJudge(t, fx.Provider, fx.Model, prompt, result,
 			"The response must include information from BOTH memories and emails. "+
-				"It should mention Raj Patel is the tech lead at Zephyr Industries (from memory) AND mention "+
-				"email subjects or content about Project Firebird Sprint 7 and Launch Prep (from emails). "+
-				"It should not only use one source.")
+				"From memories: Raj Patel is the tech lead at Zephyr Industries, and/or "+
+				"Project Firebird has a hard deadline of June 15, 2025. "+
+				"From emails: Sprint 7 Retro (May 22, auth module refactor) and/or "+
+				"Launch Prep (staging demo June 10, QA by June 8). "+
+				"At least one fact from each source must be present.")
 	})
 }
