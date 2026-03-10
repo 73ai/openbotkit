@@ -73,6 +73,21 @@ var chatCmd = &cobra.Command{
 		toolReg.Register(&tools.FileEditTool{})
 		toolReg.Register(&tools.LoadSkillsTool{})
 		toolReg.Register(&tools.SearchSkillsTool{})
+		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
+			Provider: p,
+			Model:    modelName,
+			ToolFactory: func() *tools.Registry {
+				r := tools.NewRegistry()
+				r.Register(tools.NewBashTool(30 * time.Second))
+				r.Register(&tools.FileReadTool{})
+				r.Register(&tools.FileWriteTool{})
+				r.Register(&tools.FileEditTool{})
+				r.Register(&tools.LoadSkillsTool{})
+				r.Register(&tools.SearchSkillsTool{})
+				return r
+			},
+			System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		}))
 
 		// Build system prompt.
 		system := buildSystemPrompt()
@@ -152,7 +167,7 @@ func buildSystemPrompt() string {
 	system := `You are a personal AI assistant powered by OpenBotKit.
 
 ## Tools
-Available: bash, file_read, file_write, file_edit, load_skills, search_skills.
+Available: bash, file_read, file_write, file_edit, load_skills, search_skills, subagent.
 Tool names are case-sensitive. Call tools exactly as listed.
 
 Rules:
