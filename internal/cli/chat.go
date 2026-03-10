@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	clicli "github.com/priyanshujain/openbotkit/channel/cli"
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	"github.com/priyanshujain/openbotkit/store"
@@ -66,16 +64,17 @@ var chatCmd = &cobra.Command{
 		}
 
 		// Build tool registry.
-		toolReg := tools.NewRegistry()
-		toolReg.Register(tools.NewBashTool(30 * time.Second))
-		toolReg.Register(&tools.FileReadTool{})
-		toolReg.Register(&tools.FileWriteTool{})
-		toolReg.Register(&tools.FileEditTool{})
-		toolReg.Register(&tools.LoadSkillsTool{})
-		toolReg.Register(&tools.SearchSkillsTool{})
+		toolReg := tools.NewStandardRegistry()
+		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
+			Provider:    p,
+			Model:       modelName,
+			ToolFactory: tools.NewStandardRegistry,
+			System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
+		}))
 
 		// Build system prompt.
-		system := buildSystemPrompt()
+		system := "You are a personal AI assistant powered by OpenBotKit.\n" +
+			tools.BuildBaseSystemPrompt(toolReg)
 
 		a := agent.New(p, modelName, toolReg, agent.WithSystem(system))
 		ch := clicli.New(os.Stdin, os.Stdout)
@@ -146,39 +145,6 @@ func generateSessionID() string {
 	var b [16]byte
 	rand.Read(b[:])
 	return fmt.Sprintf("obk-chat-%x", b[:])
-}
-
-func buildSystemPrompt() string {
-	system := `You are a personal AI assistant powered by OpenBotKit.
-
-## Tools
-Available: bash, file_read, file_write, file_edit, load_skills, search_skills.
-Tool names are case-sensitive. Call tools exactly as listed.
-
-Rules:
-- ALWAYS use tools to perform actions. Never say you will do something without calling the tool.
-- Never predict or claim results before receiving them. Wait for tool output.
-- Do not narrate routine tool calls — just call the tool. Only explain when the step is non-obvious or the user asked for details.
-- If a tool call fails, analyze the error before retrying with a different approach.
-
-## Skills
-Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
-1. Scan the "Available skills" list below for matching skill names
-2. Use load_skills to read the skill's instructions
-3. Use bash to run the commands from those instructions
-4. If the request spans multiple domains, load and use ALL relevant skills
-5. If no skill matches, use search_skills to discover one by keyword
-`
-
-	idx, err := skills.LoadIndex()
-	if err == nil && len(idx.Skills) > 0 {
-		system += "\nAvailable skills:\n"
-		for _, s := range idx.Skills {
-			system += fmt.Sprintf("- %s: %s\n", s.Name, s.Description)
-		}
-	}
-
-	return system
 }
 
 func init() {

@@ -257,45 +257,13 @@ func (f *LocalFixture) Agent(t *testing.T) *agent.Agent {
 	toolReg.Register(&tools.LoadSkillsTool{})
 	toolReg.Register(&tools.SearchSkillsTool{})
 
-	system := buildSystemPrompt()
+	system := "You are a personal AI assistant powered by OpenBotKit.\n" +
+		tools.BuildBaseSystemPrompt(toolReg)
 
 	return agent.New(f.Provider, f.Model, toolReg,
 		agent.WithSystem(system),
 		agent.WithMaxIterations(15),
 	)
-}
-
-func buildSystemPrompt() string {
-	system := `You are a personal AI assistant powered by OpenBotKit.
-
-## Tools
-Available: bash, file_read, load_skills, search_skills.
-Tool names are case-sensitive. Call tools exactly as listed.
-
-Rules:
-- ALWAYS use tools to perform actions. Never say you will do something without calling the tool.
-- Never predict or claim results before receiving them. Wait for tool output.
-- Do not narrate routine tool calls — just call the tool. Only explain when the step is non-obvious or the user asked for details.
-- If a tool call fails, analyze the error before retrying with a different approach.
-
-## Skills
-Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
-1. Scan the "Available skills" list below for matching skill names
-2. Use load_skills to read the skill's instructions
-3. Use bash to run the commands from those instructions
-4. If the request spans multiple domains, load and use ALL relevant skills
-5. If no skill matches, use search_skills to discover one by keyword
-`
-
-	idx, err := skills.LoadIndex()
-	if err == nil && len(idx.Skills) > 0 {
-		system += "\nAvailable skills:\n"
-		for _, s := range idx.Skills {
-			system += "- " + s.Name + ": " + s.Description + "\n"
-		}
-	}
-
-	return system
 }
 
 func (f *LocalFixture) GivenEmails(t *testing.T, emails []Email) {

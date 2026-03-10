@@ -12,7 +12,6 @@ import (
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
@@ -178,65 +177,38 @@ func (sm *SessionManager) buildLLM() (memory.LLM, error) {
 }
 
 func (sm *SessionManager) newAgent() (*agent.Agent, error) {
-	toolReg := tools.NewRegistry()
-	toolReg.Register(tools.NewBashTool(30 * time.Second))
-	toolReg.Register(&tools.FileReadTool{})
-	toolReg.Register(&tools.FileWriteTool{})
-	toolReg.Register(&tools.FileEditTool{})
-	toolReg.Register(&tools.LoadSkillsTool{})
-	toolReg.Register(&tools.SearchSkillsTool{})
+	toolReg := tools.NewStandardRegistry()
+	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
+		Provider:    sm.provider,
+		Model:       sm.model,
+		ToolFactory: tools.NewStandardRegistry,
+		System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
+	}))
 
-	system := sm.buildSystemPrompt()
+	system := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n" +
+		tools.BuildBaseSystemPrompt(toolReg) +
+		"\nBe concise and direct. Skip filler phrases.\n"
+	system += sm.userMemoriesPrompt()
 	return agent.New(sm.provider, sm.model, toolReg, agent.WithSystem(system)), nil
 }
 
-func (sm *SessionManager) buildSystemPrompt() string {
-	system := `You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.
-
-## Tools
-Available: bash, file_read, file_write, file_edit, load_skills, search_skills.
-Tool names are case-sensitive. Call tools exactly as listed.
-
-Rules:
-- ALWAYS use tools to perform actions. Never say you will do something without calling the tool.
-- Never predict or claim results before receiving them. Wait for tool output.
-- Do not narrate routine tool calls — just call the tool. Only explain when the step is non-obvious or the user asked for details.
-- If a tool call fails, analyze the error before retrying with a different approach.
-- Be concise and direct. Skip filler phrases.
-
-## Skills
-Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
-1. Scan the "Available skills" list below for matching skill names
-2. Use load_skills to read the skill's instructions
-3. Use bash to run the commands from those instructions
-4. If the request spans multiple domains, load and use ALL relevant skills
-5. If no skill matches, use search_skills to discover one by keyword
-`
-
-	idx, err := skills.LoadIndex()
-	if err == nil && len(idx.Skills) > 0 {
-		system += "\nAvailable skills:\n"
-		for _, s := range idx.Skills {
-			system += fmt.Sprintf("- %s: %s\n", s.Name, s.Description)
-		}
-	}
-
-	// Inject user memories if available.
+func (sm *SessionManager) userMemoriesPrompt() string {
 	memDB, err := store.Open(store.Config{
 		Driver: sm.cfg.UserMemory.Storage.Driver,
 		DSN:    sm.cfg.UserMemoryDataDSN(),
 	})
-	if err == nil {
-		defer memDB.Close()
-		if err := memory.Migrate(memDB); err == nil {
-			memories, err := memory.List(memDB)
-			if err == nil && len(memories) > 0 {
-				system += "\n" + memory.FormatForPrompt(memories)
-			}
-		}
+	if err != nil {
+		return ""
 	}
-
-	return system
+	defer memDB.Close()
+	if err := memory.Migrate(memDB); err != nil {
+		return ""
+	}
+	memories, err := memory.List(memDB)
+	if err != nil || len(memories) == 0 {
+		return ""
+	}
+	return "\n" + memory.FormatForPrompt(memories)
 }
 
 func (sm *SessionManager) saveHistory(sessionID, userMsg, assistantMsg string) {
