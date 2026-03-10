@@ -17,6 +17,7 @@ type Daemon struct {
 	jobsDB         *sql.DB
 	skipAppleNotes bool
 	skipWhatsApp   bool
+	skipIMessage   bool
 }
 
 type Option func(*Daemon)
@@ -27,6 +28,10 @@ func WithSkipAppleNotes() Option {
 
 func WithSkipWhatsApp() Option {
 	return func(d *Daemon) { d.skipWhatsApp = true }
+}
+
+func WithSkipIMessage() Option {
+	return func(d *Daemon) { d.skipIMessage = true }
 }
 
 func New(cfg *config.Config, opts ...Option) *Daemon {
@@ -63,12 +68,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	slog.Info("river job queue started")
 
-	var waErrCh, anErrCh <-chan error
+	var waErrCh, anErrCh, imErrCh <-chan error
 	if !d.skipWhatsApp {
 		waErrCh = runWhatsAppSync(ctx, d.cfg)
 	}
 	if !d.skipAppleNotes {
 		anErrCh = runAppleNotesSync(ctx, d.cfg)
+	}
+	if !d.skipIMessage {
+		imErrCh = runIMessageSync(ctx, d.cfg)
 	}
 
 	// Block until context is cancelled (signal received).
@@ -84,6 +92,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if anErrCh != nil {
 		if err := <-anErrCh; err != nil {
 			slog.Error("applenotes error during shutdown", "error", err)
+		}
+	}
+	if imErrCh != nil {
+		if err := <-imErrCh; err != nil {
+			slog.Error("imessage error during shutdown", "error", err)
 		}
 	}
 
