@@ -274,3 +274,62 @@ func TestSaveAndListChats(t *testing.T) {
 		t.Errorf("participants count = %d, want 2", len(chats[0].Participants))
 	}
 }
+
+func TestSaveHandle(t *testing.T) {
+	db := openTestDB(t)
+
+	h := &Handle{ID: "+1234567890", Service: "iMessage"}
+	if err := SaveHandle(db, h); err != nil {
+		t.Fatalf("save handle: %v", err)
+	}
+
+	// Upsert with different service
+	h.Service = "SMS"
+	if err := SaveHandle(db, h); err != nil {
+		t.Fatalf("upsert handle: %v", err)
+	}
+
+	var service string
+	err := db.QueryRow(db.Rebind("SELECT service FROM imessage_handles WHERE handle_id = ?"), h.ID).Scan(&service)
+	if err != nil {
+		t.Fatalf("query handle: %v", err)
+	}
+	if service != "SMS" {
+		t.Errorf("service = %q, want %q", service, "SMS")
+	}
+}
+
+func TestListMessagesModifiedSince(t *testing.T) {
+	db := openTestDB(t)
+
+	// Use a time well in the past as the "since" marker.
+	before := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	for _, m := range []Message{
+		{GUID: "mod-1", AppleROWID: 800, Text: "Old message"},
+		{GUID: "mod-2", AppleROWID: 801, Text: "New message"},
+	} {
+		if err := SaveMessage(db, &m); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+	}
+
+	// synced_at is CURRENT_TIMESTAMP (UTC), which is after 2020.
+	msgs, err := ListMessagesModifiedSince(db, before)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Errorf("count = %d, want 2", len(msgs))
+	}
+
+	// A future time should return none.
+	future := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	msgs, err = ListMessagesModifiedSince(db, future)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Errorf("count = %d, want 0", len(msgs))
+	}
+}
