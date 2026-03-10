@@ -204,6 +204,12 @@ Rules:
 - If a tool call fails, analyze the error before retrying with a different approach.
 - Be concise and direct. Skip filler phrases.
 
+## Sub-agents
+Use the subagent tool to delegate self-contained sub-tasks that don't need your conversation history.
+Good uses: independent research, file operations, or multi-step tasks that can run in isolation.
+Do not use subagent for simple single-tool calls — just call the tool directly.
+The sub-agent has its own tools (bash, file ops, skills) but cannot spawn further sub-agents.
+
 ## Skills
 Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
 1. Scan the "Available skills" list below for matching skill names
