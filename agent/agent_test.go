@@ -344,6 +344,44 @@ func TestLoop_CompactsHistory(t *testing.T) {
 	}
 }
 
+func TestLoop_SystemBlocks(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "ok"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+	blocks := []provider.SystemBlock{
+		{Text: "block1", CacheControl: &provider.CacheControl{Type: "ephemeral"}},
+		{Text: "block2"},
+	}
+	a := New(mp, "test-model", exec, WithSystemBlocks(blocks))
+
+	_, err := a.Run(context.Background(), "Hi")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(mp.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(mp.requests))
+	}
+	req := mp.requests[0]
+	if len(req.SystemBlocks) != 2 {
+		t.Fatalf("SystemBlocks length = %d, want 2", len(req.SystemBlocks))
+	}
+	if req.SystemBlocks[0].Text != "block1" {
+		t.Errorf("block 0 text = %q", req.SystemBlocks[0].Text)
+	}
+	if req.SystemBlocks[0].CacheControl == nil {
+		t.Error("block 0 should have cache_control")
+	}
+	if req.SystemBlocks[1].CacheControl != nil {
+		t.Error("block 1 should not have cache_control")
+	}
+}
+
 func TestLoop_RateLimiterContextCancel(t *testing.T) {
 	mp := &mockProvider{
 		responses: []*provider.ChatResponse{
