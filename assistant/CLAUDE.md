@@ -4,7 +4,7 @@ Skills are loaded from ~/.obk/skills/ — run `obk setup` to configure.
 
 ## How to access data
 
-Use the skills provided to query data via `sqlite3`, send messages via `obk`, or interact with Google Workspace via `gws`. Each skill contains the exact schema, query patterns, and command usage.
+Use the skills provided to query data via `sqlite3`, send messages via `obk`, or interact with Google Workspace via `gws`. Each skill's SKILL.md contains a summary. Before using a skill, read its REFERENCE.md file for the full schema, query patterns, and command usage.
 
 ## Messaging someone
 

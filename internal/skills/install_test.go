@@ -218,6 +218,15 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Error("history-read SKILL.md is empty")
 	}
 
+	// Verify REFERENCE.md was written alongside SKILL.md.
+	refContent, err := os.ReadFile(filepath.Join(tmp, "skills", "history-read", "REFERENCE.md"))
+	if err != nil {
+		t.Fatalf("read history-read REFERENCE.md: %v", err)
+	}
+	if len(refContent) == 0 {
+		t.Error("history-read REFERENCE.md is empty")
+	}
+
 	// Verify schema.sql was written alongside SKILL.md.
 	schemaContent, err := os.ReadFile(filepath.Join(tmp, "skills", "history-read", "schema.sql"))
 	if err != nil {
@@ -227,13 +236,20 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Error("history-read schema.sql is empty")
 	}
 
-	// Verify memory-save SKILL.md was written.
+	// Verify memory-save SKILL.md and REFERENCE.md were written.
 	memorySaveContent, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-save", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("read memory-save SKILL.md: %v", err)
 	}
 	if len(memorySaveContent) == 0 {
 		t.Error("memory-save SKILL.md is empty")
+	}
+	memorySaveRef, err := os.ReadFile(filepath.Join(tmp, "skills", "memory-save", "REFERENCE.md"))
+	if err != nil {
+		t.Fatalf("read memory-save REFERENCE.md: %v", err)
+	}
+	if len(memorySaveRef) == 0 {
+		t.Error("memory-save REFERENCE.md is empty")
 	}
 
 	// Verify manifest was written.
@@ -420,6 +436,56 @@ func TestInstallRemovesRevokedSkills(t *testing.T) {
 	skillDir := filepath.Join(tmp, "skills", "whatsapp-read")
 	if _, err := os.Stat(skillDir); !os.IsNotExist(err) {
 		t.Error("whatsapp-read directory should have been removed")
+	}
+}
+
+func TestSplitSkillFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantSlim string
+		wantRef  string
+	}{
+		{
+			name:     "no frontmatter",
+			input:    "Just some content",
+			wantSlim: "Just some content",
+			wantRef:  "",
+		},
+		{
+			name:     "frontmatter only",
+			input:    "---\nname: test\n---\n",
+			wantSlim: "---\nname: test\n---\n",
+			wantRef:  "",
+		},
+		{
+			name:     "single paragraph body",
+			input:    "---\nname: test\n---\n\nJust a summary line.",
+			wantSlim: "---\nname: test\n---\n\nJust a summary line.",
+			wantRef:  "",
+		},
+		{
+			name:  "multi paragraph body",
+			input: "---\nname: test\ndescription: Test skill\n---\n\nFirst paragraph summary.\n\n## Commands\n\n```bash\nsome command\n```\n\n## Examples\n\nMore content here.",
+			wantSlim: "---\nname: test\ndescription: Test skill\n---\n\nFirst paragraph summary.\n\n" +
+				"Read the REFERENCE.md in this skill's directory for full instructions.\n",
+			wantRef: "## Commands\n\n```bash\nsome command\n```\n\n## Examples\n\nMore content here.\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			slim, ref := splitSkillFile([]byte(tt.input))
+			if string(slim) != tt.wantSlim {
+				t.Errorf("slim:\ngot:  %q\nwant: %q", string(slim), tt.wantSlim)
+			}
+			if string(ref) != tt.wantRef {
+				if tt.wantRef == "" && ref == nil {
+					return // nil and "" are equivalent for empty ref
+				}
+				t.Errorf("ref:\ngot:  %q\nwant: %q", string(ref), tt.wantRef)
+			}
+		})
 	}
 }
 

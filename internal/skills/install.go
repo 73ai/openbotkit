@@ -296,13 +296,19 @@ func resolveGWSSkills(cfg *config.Config) (map[string]SkillEntry, []string, erro
 		}
 		desired[name] = se
 
-		// Copy to skills dir.
+		// Split into slim SKILL.md + full REFERENCE.md, then copy.
+		slim, ref := splitSkillFile(content)
 		destDir := filepath.Join(SkillsDir(), name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			return nil, nil, fmt.Errorf("create skill dir %s: %w", name, err)
 		}
-		if err := os.WriteFile(filepath.Join(destDir, "SKILL.md"), content, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(destDir, "SKILL.md"), slim, 0600); err != nil {
 			return nil, nil, fmt.Errorf("write skill %s: %w", name, err)
+		}
+		if len(ref) > 0 {
+			if err := os.WriteFile(filepath.Join(destDir, "REFERENCE.md"), ref, 0600); err != nil {
+				return nil, nil, fmt.Errorf("write reference %s: %w", name, err)
+			}
 		}
 	}
 
@@ -377,4 +383,46 @@ func gwsServiceFromSkillName(name string) string {
 	name = strings.TrimPrefix(name, "gws-")
 	parts := strings.SplitN(name, "-", 2)
 	return parts[0]
+}
+
+// splitSkillFile splits a full SKILL.md into a slim summary (frontmatter +
+// first paragraph + pointer) and a REFERENCE.md (remaining body).
+// If there is no body after frontmatter, ref is nil.
+func splitSkillFile(content []byte) (slim []byte, ref []byte) {
+	text := string(content)
+
+	// Parse frontmatter (between --- markers).
+	if !strings.HasPrefix(text, "---\n") {
+		return content, nil
+	}
+	end := strings.Index(text[4:], "\n---\n")
+	if end < 0 {
+		return content, nil
+	}
+	frontmatter := text[:4+end+5] // includes both --- lines and trailing newline
+	body := strings.TrimSpace(text[4+end+5:])
+	if body == "" {
+		return content, nil
+	}
+
+	// Extract first paragraph (up to first blank line) as the summary.
+	var summary, rest string
+	if idx := strings.Index(body, "\n\n"); idx >= 0 {
+		summary = body[:idx]
+		rest = strings.TrimSpace(body[idx+2:])
+	} else {
+		summary = body
+	}
+
+	// Build slim SKILL.md: frontmatter + summary + pointer.
+	slimStr := frontmatter + "\n" + summary + "\n\nRead the REFERENCE.md in this skill's directory for full instructions.\n"
+	slim = []byte(slimStr)
+
+	if rest == "" {
+		// Only one paragraph — no reference needed, keep full body in SKILL.md.
+		return content, nil
+	}
+
+	ref = []byte(rest + "\n")
+	return slim, ref
 }

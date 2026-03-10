@@ -40,8 +40,13 @@ func (l *LoadSkillsTool) Execute(_ context.Context, input json.RawMessage) (stri
 
 	var parts []string
 	for _, name := range in.Names {
-		skillPath := filepath.Join(skills.SkillsDir(), name, "SKILL.md")
-		content, err := os.ReadFile(skillPath)
+		// Prefer REFERENCE.md (full instructions), fall back to SKILL.md.
+		refPath := filepath.Join(skills.SkillsDir(), name, "REFERENCE.md")
+		content, err := os.ReadFile(refPath)
+		if err != nil {
+			skillPath := filepath.Join(skills.SkillsDir(), name, "SKILL.md")
+			content, err = os.ReadFile(skillPath)
+		}
 		if err != nil {
 			parts = append(parts, fmt.Sprintf("--- %s ---\nError: skill not found", name))
 			continue
