@@ -72,11 +72,10 @@ var chatCmd = &cobra.Command{
 			System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
 		}))
 
-		// Build system prompt.
-		system := "You are a personal AI assistant powered by OpenBotKit.\n" +
-			tools.BuildBaseSystemPrompt(toolReg)
-
-		a := agent.New(p, modelName, toolReg, agent.WithSystem(system))
+		// Build system prompt with structured blocks for cache optimization.
+		identity := "You are a personal AI assistant powered by OpenBotKit.\n"
+		blocks := tools.BuildSystemBlocks(identity, toolReg)
+		a := agent.New(p, modelName, toolReg, agent.WithSystemBlocks(blocks))
 		ch := clicli.New(os.Stdin, os.Stdout)
 
 		fmt.Println("OpenBotKit Chat (Ctrl+D to exit)")
