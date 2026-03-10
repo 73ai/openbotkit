@@ -176,6 +176,7 @@ func TestSourceDataDSN_ValidSources(t *testing.T) {
 		{"history", filepath.Join("history", "data.db")},
 		{"user_memory", filepath.Join("user_memory", "data.db")},
 		{"applenotes", filepath.Join("applenotes", "data.db")},
+		{"imessage", filepath.Join("imessage", "data.db")},
 	}
 	for _, s := range sources {
 		t.Run(s.name, func(t *testing.T) {
