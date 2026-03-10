@@ -12,6 +12,7 @@ import (
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
@@ -58,6 +59,9 @@ var statusCmd = &cobra.Command{
 		an := ansrc.New(ansrc.Config{})
 		source.Register(an)
 
+		im := imsrc.New(imsrc.Config{})
+		source.Register(im)
+
 		ctx := context.Background()
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "SOURCE\tCONNECTED\tACCOUNTS\tITEMS\tLAST SYNC")
@@ -101,6 +105,15 @@ var statusCmd = &cobra.Command{
 				})
 				if db != nil {
 					ansrc.Migrate(db)
+				}
+			case "imessage":
+				dsn := cfg.IMessageDataDSN()
+				db, _ = store.Open(store.Config{
+					Driver: cfg.IMessage.Storage.Driver,
+					DSN:    dsn,
+				})
+				if db != nil {
+					imsrc.Migrate(db)
 				}
 			}
 
