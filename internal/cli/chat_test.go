@@ -13,7 +13,7 @@ func TestOpenHistoryDB(t *testing.T) {
 
 	cfg := config.Default()
 
-	db, convID, err := openHistoryDB(cfg)
+	db, convID, err := openHistoryDB(cfg, "test-session")
 	if err != nil {
 		t.Fatalf("openHistoryDB: %v", err)
 	}

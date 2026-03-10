@@ -12,6 +12,7 @@ import (
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
 	"github.com/priyanshujain/openbotkit/store"
 
 	// Register provider factories.
@@ -54,8 +55,10 @@ var chatCmd = &cobra.Command{
 
 		_ = router // Will be used for tier-based routing later.
 
+		sessionID := generateSessionID()
+
 		// Open history DB for saving conversation.
-		histDB, convID, err := openHistoryDB(cfg)
+		histDB, convID, err := openHistoryDB(cfg, sessionID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: history will not be saved: %v\n", err)
 		}
@@ -72,10 +75,19 @@ var chatCmd = &cobra.Command{
 			System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
 		}))
 
+		// Set up usage recording.
+		usageRecorder := openUsageRecorder(cfg, providerName, "cli", sessionID)
+
 		// Build system prompt with structured blocks for cache optimization.
 		identity := "You are a personal AI assistant powered by OpenBotKit.\n"
 		blocks := tools.BuildSystemBlocks(identity, toolReg)
-		a := agent.New(p, modelName, toolReg, agent.WithSystemBlocks(blocks))
+
+		var agentOpts []agent.Option
+		agentOpts = append(agentOpts, agent.WithSystemBlocks(blocks))
+		if usageRecorder != nil {
+			agentOpts = append(agentOpts, agent.WithUsageRecorder(usageRecorder))
+		}
+		a := agent.New(p, modelName, toolReg, agentOpts...)
 		ch := clicli.New(os.Stdin, os.Stdout)
 
 		fmt.Println("OpenBotKit Chat (Ctrl+D to exit)")
@@ -111,7 +123,7 @@ var chatCmd = &cobra.Command{
 	},
 }
 
-func openHistoryDB(cfg *config.Config) (*store.DB, int64, error) {
+func openHistoryDB(cfg *config.Config, sessionID string) (*store.DB, int64, error) {
 	if err := config.EnsureSourceDir("history"); err != nil {
 		return nil, 0, fmt.Errorf("ensure history dir: %w", err)
 	}
@@ -129,7 +141,6 @@ func openHistoryDB(cfg *config.Config) (*store.DB, int64, error) {
 		return nil, 0, fmt.Errorf("migrate history: %w", err)
 	}
 
-	sessionID := generateSessionID()
 	cwd, _ := os.Getwd()
 	convID, err := historysrc.UpsertConversation(db, sessionID, cwd)
 	if err != nil {
@@ -138,6 +149,24 @@ func openHistoryDB(cfg *config.Config) (*store.DB, int64, error) {
 	}
 
 	return db, convID, nil
+}
+
+func openUsageRecorder(cfg *config.Config, providerName, channel, sessionID string) *usagesrc.Recorder {
+	if err := config.EnsureSourceDir("usage"); err != nil {
+		return nil
+	}
+	db, err := store.Open(store.Config{
+		Driver: cfg.Usage.Storage.Driver,
+		DSN:    cfg.UsageDataDSN(),
+	})
+	if err != nil {
+		return nil
+	}
+	if err := usagesrc.Migrate(db); err != nil {
+		db.Close()
+		return nil
+	}
+	return usagesrc.NewRecorder(db, providerName, channel, sessionID)
 }
 
 func generateSessionID() string {
