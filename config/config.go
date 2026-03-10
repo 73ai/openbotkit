@@ -29,6 +29,7 @@ type Config struct {
 	AppleNotes   *AppleNotesConfig   `yaml:"applenotes,omitempty"`
 	UserMemory   *UserMemoryConfig   `yaml:"user_memory,omitempty"`
 	Daemon       *DaemonConfig       `yaml:"daemon,omitempty"`
+	Usage        *UsageConfig        `yaml:"usage,omitempty"`
 	Integrations *IntegrationsConfig `yaml:"integrations,omitempty"`
 }
 
@@ -125,6 +126,10 @@ type AppleNotesConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
 }
 
+type UsageConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
 type StorageConfig struct {
 	Driver string `yaml:"driver,omitempty"` // "sqlite" or "postgres"
 	DSN    string `yaml:"dsn,omitempty"`
@@ -142,6 +147,8 @@ func (c *Config) SourceDataDSN(source string) (string, error) {
 		return c.UserMemoryDataDSN(), nil
 	case "applenotes":
 		return c.AppleNotesDataDSN(), nil
+	case "usage":
+		return c.UsageDataDSN(), nil
 	default:
 		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes)", source)
 	}
@@ -217,6 +224,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		Usage: &UsageConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -256,6 +268,12 @@ func (c *Config) applyDefaults() {
 	if c.AppleNotes.Storage.Driver == "" {
 		c.AppleNotes.Storage.Driver = "sqlite"
 	}
+	if c.Usage == nil {
+		c.Usage = &UsageConfig{}
+	}
+	if c.Usage.Storage.Driver == "" {
+		c.Usage.Storage.Driver = "sqlite"
+	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
 	}
@@ -294,6 +312,13 @@ func (c *Config) UserMemoryDataDSN() string {
 		return c.UserMemory.Storage.DSN
 	}
 	return filepath.Join(SourceDir("user_memory"), "data.db")
+}
+
+func (c *Config) UsageDataDSN() string {
+	if c.Usage.Storage.DSN != "" {
+		return c.Usage.Storage.DSN
+	}
+	return filepath.Join(SourceDir("usage"), "data.db")
 }
 
 func (c *Config) AppleNotesDataDSN() string {
