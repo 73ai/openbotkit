@@ -1,6 +1,6 @@
 ---
 name: memory-save
-description: Save a personal fact about the user to memory when they ask you to remember something
+description: Save and recall personal facts about the user (memories, preferences, relationships)
 allowed-tools: Bash(obk *)
 ---
 
