@@ -15,7 +15,7 @@ func TestLoadSkills(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", tmp)
 
-	// Create test skill.
+	// Create test skill with only SKILL.md (fallback path).
 	skillDir := filepath.Join(tmp, "skills", "test-skill")
 	if err := os.MkdirAll(skillDir, 0700); err != nil {
 		t.Fatal(err)
@@ -35,6 +35,35 @@ func TestLoadSkills(t *testing.T) {
 	}
 	if !strings.Contains(result, "test-skill") {
 		t.Errorf("result missing skill name: %q", result)
+	}
+}
+
+func TestLoadSkillsPrefersReferenceMD(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmp)
+
+	skillDir := filepath.Join(tmp, "skills", "test-skill")
+	if err := os.MkdirAll(skillDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: test-skill\n---\nSlim summary"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "REFERENCE.md"), []byte("Full reference content with schema and examples"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	tool := &LoadSkillsTool{}
+	input, _ := json.Marshal(map[string]any{"names": []string{"test-skill"}})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(result, "Full reference content") {
+		t.Errorf("should prefer REFERENCE.md content, got: %q", result)
+	}
+	if strings.Contains(result, "Slim summary") {
+		t.Errorf("should not contain SKILL.md content when REFERENCE.md exists, got: %q", result)
 	}
 }
 
