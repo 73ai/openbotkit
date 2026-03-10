@@ -185,11 +185,10 @@ func (sm *SessionManager) newAgent() (*agent.Agent, error) {
 		System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
 	}))
 
-	system := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n" +
-		tools.BuildBaseSystemPrompt(toolReg) +
-		"\nBe concise and direct. Skip filler phrases.\n"
-	system += sm.userMemoriesPrompt()
-	return agent.New(sm.provider, sm.model, toolReg, agent.WithSystem(system)), nil
+	identity := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n"
+	extras := "\nBe concise and direct. Skip filler phrases.\n" + sm.userMemoriesPrompt()
+	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
+	return agent.New(sm.provider, sm.model, toolReg, agent.WithSystemBlocks(blocks)), nil
 }
 
 func (sm *SessionManager) userMemoriesPrompt() string {
