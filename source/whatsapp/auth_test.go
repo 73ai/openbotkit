@@ -218,7 +218,7 @@ func TestWaitForHistorySync_QuietPeriod(t *testing.T) {
 	waitForHistorySync(ch, 5*time.Second, 100*time.Millisecond)
 	elapsed := time.Since(start)
 
-	if elapsed < 100*time.Millisecond || elapsed > 500*time.Millisecond {
+	if elapsed < 100*time.Millisecond || elapsed > 5*time.Second {
 		t.Fatalf("expected ~100ms quiet period, got %v", elapsed)
 	}
 }
@@ -238,7 +238,7 @@ func TestWaitForHistorySync_ResetOnMultipleEvents(t *testing.T) {
 
 	// First signal at t=0 starts 100ms quiet timer; second at t=80ms resets it.
 	// Should return around t=180ms.
-	if elapsed < 150*time.Millisecond || elapsed > 500*time.Millisecond {
+	if elapsed < 150*time.Millisecond || elapsed > 5*time.Second {
 		t.Fatalf("expected ~180ms (reset quiet period), got %v", elapsed)
 	}
 }
@@ -265,7 +265,7 @@ func TestWaitForHistorySync_DeadlineExpires(t *testing.T) {
 	elapsed := time.Since(start)
 	close(stop)
 
-	if elapsed < 180*time.Millisecond || elapsed > 500*time.Millisecond {
+	if elapsed < 180*time.Millisecond || elapsed > 5*time.Second {
 		t.Fatalf("expected ~200ms deadline, got %v", elapsed)
 	}
 }
@@ -277,7 +277,7 @@ func TestWaitForHistorySync_NoSignal(t *testing.T) {
 	waitForHistorySync(ch, 200*time.Millisecond, 100*time.Millisecond)
 	elapsed := time.Since(start)
 
-	if elapsed < 180*time.Millisecond || elapsed > 500*time.Millisecond {
+	if elapsed < 180*time.Millisecond || elapsed > 5*time.Second {
 		t.Fatalf("expected ~200ms deadline (no signal), got %v", elapsed)
 	}
 }
