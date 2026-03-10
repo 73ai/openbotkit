@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/provider"
@@ -43,6 +44,22 @@ func NewStandardRegistry() *Registry {
 	r.Register(&LoadSkillsTool{})
 	r.Register(&SearchSkillsTool{})
 	return r
+}
+
+// Has returns true if a tool with the given name is registered.
+func (r *Registry) Has(name string) bool {
+	_, ok := r.tools[name]
+	return ok
+}
+
+// ToolNames returns sorted tool names registered in the registry.
+func (r *Registry) ToolNames() []string {
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 const maxOutputBytes = 524288 // 512KB
