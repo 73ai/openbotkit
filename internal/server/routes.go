@@ -12,6 +12,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/memory/{id}", auth(http.HandlerFunc(s.handleMemoryDelete)))
 	mux.Handle("POST /api/memory/extract", auth(http.HandlerFunc(s.handleMemoryExtract)))
 	mux.Handle("POST /api/applenotes/push", auth(http.HandlerFunc(s.handleAppleNotesPush)))
+	mux.Handle("POST /api/imessage/push", auth(http.HandlerFunc(s.handleIMessagePush)))
 	mux.Handle("POST /api/gmail/send", auth(http.HandlerFunc(s.handleGmailSend)))
 	mux.Handle("POST /api/gmail/draft", auth(http.HandlerFunc(s.handleGmailDraft)))
 	mux.Handle("POST /api/gmail/sync", auth(http.HandlerFunc(s.handleGmailSync)))

@@ -20,6 +20,7 @@ import (
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
 
@@ -149,6 +150,7 @@ func (s *Server) migrateDBs() {
 		{"memory", s.cfg.UserMemory.Storage.Driver, s.cfg.UserMemoryDataDSN(), memory.Migrate},
 		{"history", s.cfg.History.Storage.Driver, s.cfg.HistoryDataDSN(), historysrc.Migrate},
 		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
+		{"imessage", s.cfg.IMessage.Storage.Driver, s.cfg.IMessageDataDSN(), imsrc.Migrate},
 		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
 		{"gmail", s.cfg.Gmail.Storage.Driver, s.cfg.GmailDataDSN(), gmailsrc.Migrate},
 	}
