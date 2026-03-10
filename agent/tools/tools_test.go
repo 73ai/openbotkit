@@ -262,6 +262,41 @@ func TestRegistryUnknownTool(t *testing.T) {
 	}
 }
 
+func TestBuildSystemBlocks_BaseOnly(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+
+	blocks := BuildSystemBlocks("You are an AI.\n", reg)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	if blocks[0].CacheControl == nil || blocks[0].CacheControl.Type != "ephemeral" {
+		t.Error("base block should have ephemeral cache_control")
+	}
+	if !strings.Contains(blocks[0].Text, "You are an AI.") {
+		t.Error("base block should contain identity")
+	}
+	if !strings.Contains(blocks[0].Text, "bash") {
+		t.Error("base block should contain tool names")
+	}
+}
+
+func TestBuildSystemBlocks_WithExtras(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+
+	blocks := BuildSystemBlocks("You are an AI.\n", reg, "\nBe concise.\n", "User likes Go.")
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2", len(blocks))
+	}
+	if blocks[1].CacheControl != nil {
+		t.Error("extras block should not have cache_control")
+	}
+	if blocks[1].Text != "\nBe concise.\nUser likes Go." {
+		t.Errorf("extras text = %q", blocks[1].Text)
+	}
+}
+
 func TestFileEditNotFound(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "edit.txt")

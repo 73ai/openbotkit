@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/priyanshujain/openbotkit/internal/skills"
+	"github.com/priyanshujain/openbotkit/provider"
 )
 
 // BuildBaseSystemPrompt generates the shared portion of the system prompt
@@ -63,4 +64,18 @@ Before replying to domain-specific requests (email, WhatsApp, memories, notes, e
 	}
 
 	return b.String()
+}
+
+// BuildSystemBlocks returns a structured system prompt split into
+// a cacheable base block (identity + tool instructions) and an optional
+// extras block (memories, channel rules) that may change between sessions.
+func BuildSystemBlocks(identity string, reg *Registry, extras ...string) []provider.SystemBlock {
+	base := identity + BuildBaseSystemPrompt(reg)
+	blocks := []provider.SystemBlock{
+		{Text: base, CacheControl: &provider.CacheControl{Type: "ephemeral"}},
+	}
+	if extra := strings.Join(extras, ""); extra != "" {
+		blocks = append(blocks, provider.SystemBlock{Text: extra})
+	}
+	return blocks
 }
