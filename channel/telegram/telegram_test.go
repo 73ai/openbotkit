@@ -4,19 +4,27 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type mockBot struct {
-	mu   sync.Mutex
-	sent []tgbotapi.Chattable
+	mu     sync.Mutex
+	sent   []tgbotapi.Chattable
+	notify chan struct{}
 }
 
 func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sent = append(m.sent, c)
+	if m.notify != nil {
+		select {
+		case m.notify <- struct{}{}:
+		default:
+		}
+	}
 	return tgbotapi.Message{}, nil
 }
 
@@ -74,7 +82,7 @@ func TestReceive_EOFOnClose(t *testing.T) {
 }
 
 func TestRequestApproval_SendsKeyboard(t *testing.T) {
-	bot := &mockBot{}
+	bot := &mockBot{notify: make(chan struct{}, 1)}
 	ch := NewChannel(bot, 123)
 
 	done := make(chan bool, 1)
@@ -87,14 +95,10 @@ func TestRequestApproval_SendsKeyboard(t *testing.T) {
 		done <- approved
 	}()
 
-	// Wait for the approval message to be sent
-	for {
-		bot.mu.Lock()
-		n := len(bot.sent)
-		bot.mu.Unlock()
-		if n > 0 {
-			break
-		}
+	select {
+	case <-bot.notify:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval message")
 	}
 
 	bot.mu.Lock()

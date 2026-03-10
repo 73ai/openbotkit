@@ -17,7 +17,7 @@ import (
 	"github.com/priyanshujain/openbotkit/provider/openai"
 )
 
-// providerTestCase holds a provider instance and model name for table-driven integration tests.
+// providerTestCase holds a provider instance and model name for provider conformance tests.
 type providerTestCase struct {
 	name     string
 	provider provider.Provider
@@ -81,15 +81,14 @@ func availableProviders(t *testing.T) []providerTestCase {
 	}
 
 	if len(providers) == 0 {
-		t.Skip("no API keys set (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) — skipping integration tests")
+		t.Skip("no API keys set (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) — skipping provider tests")
 	}
 	return providers
 }
 
-// TestIntegration_AgentLoop tests the full agent loop with a real LLM API.
-// The agent is given a bash tool, asked to run "echo hello", and should
-// return a response containing the command output.
-func TestIntegration_AgentLoop(t *testing.T) {
+// TestProvider_AgentToolExecution verifies each provider can drive the agent
+// loop: user request → tool call → tool execution → text response.
+func TestProvider_AgentToolExecution(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			reg := tools.NewRegistry()
@@ -115,9 +114,9 @@ func TestIntegration_AgentLoop(t *testing.T) {
 	}
 }
 
-// TestIntegration_ToolUseRoundtrip verifies the provider correctly handles a
-// tool_use → tool_result → text response cycle via the real API.
-func TestIntegration_ToolUseRoundtrip(t *testing.T) {
+// TestProvider_ToolUseRoundtrip verifies each provider correctly handles the
+// tool_use → tool_result → text response cycle against the real API.
+func TestProvider_ToolUseRoundtrip(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			toolSchema := provider.Tool{
@@ -170,6 +169,7 @@ func TestIntegration_ToolUseRoundtrip(t *testing.T) {
 							Type: provider.ContentToolResult,
 							ToolResult: &provider.ToolResult{
 								ToolUseID: calls[0].ID,
+								Name:      calls[0].Name,
 								Content:   `{"temperature": "22°C", "condition": "Sunny"}`,
 							},
 						},
@@ -205,8 +205,9 @@ func TestIntegration_ToolUseRoundtrip(t *testing.T) {
 	}
 }
 
-// TestIntegration_Streaming verifies streaming works with the real API.
-func TestIntegration_Streaming(t *testing.T) {
+// TestProvider_Streaming verifies each provider's streaming implementation
+// delivers text deltas and a done event.
+func TestProvider_Streaming(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

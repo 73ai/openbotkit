@@ -168,8 +168,3 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestChatName(t *testing.T) {
-	// chatName is not exported, but we test it via the events.Message path.
-	// For now, test the helper directly since we're in the same package.
-	// chatName returns push name for non-group chats.
-}

@@ -18,9 +18,9 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
-// TestIntegration_SessionWithRealLLM tests the full session lifecycle:
-// message → agent with real Gemini API → response → history saved.
-func TestIntegration_SessionWithRealLLM(t *testing.T) {
+// TestSession_MessageAndHistorySaved verifies the full session lifecycle:
+// message → agent with real Gemini API → response → history saved to DB.
+func TestSession_MessageAndHistorySaved(t *testing.T) {
 	key := testutil.RequireGeminiKey(t)
 
 	dir := t.TempDir()
@@ -105,7 +105,9 @@ func TestIntegration_SessionWithRealLLM(t *testing.T) {
 
 // TestIntegration_SessionWithMemoryInjection tests that user memories are injected
 // into the system prompt when the agent processes a message.
-func TestIntegration_SessionWithMemoryInjection(t *testing.T) {
+// TestSession_MemoryInjectedIntoPrompt verifies memories from the DB appear
+// in the system prompt and the agent can reference them.
+func TestSession_MemoryInjectedIntoPrompt(t *testing.T) {
 	key := testutil.RequireGeminiKey(t)
 
 	dir := t.TempDir()
@@ -171,7 +173,9 @@ func TestIntegration_SessionWithMemoryInjection(t *testing.T) {
 
 // TestIntegration_SessionWithToolUse tests that the agent can use tools
 // (like bash) when processing a Telegram message.
-func TestIntegration_SessionWithToolUse(t *testing.T) {
+// TestSession_ToolUseViaBash verifies the agent can execute bash commands
+// through the tool use loop within a Telegram session.
+func TestSession_ToolUseViaBash(t *testing.T) {
 	key := testutil.RequireGeminiKey(t)
 
 	dir := t.TempDir()

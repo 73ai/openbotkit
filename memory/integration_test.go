@@ -73,7 +73,9 @@ func (pl *providerLLM) Chat(ctx context.Context, req provider.ChatRequest) (*pro
 	return pl.p.Chat(ctx, req)
 }
 
-func TestIntegration_Extract(t *testing.T) {
+// TestExtract_WithRealLLM verifies fact extraction from conversation messages
+// produces valid categorized facts.
+func TestExtract_WithRealLLM(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			llm := &providerLLM{p: tc.provider, model: tc.model}
@@ -110,7 +112,10 @@ func TestIntegration_Extract(t *testing.T) {
 	}
 }
 
-func TestIntegration_ExtractAndReconcile(t *testing.T) {
+// TestExtractAndReconcile_WithRealLLM verifies the full pipeline: extract facts
+// from messages, reconcile against existing DB (add new, update changed, skip
+// duplicates).
+func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			db := testDB(t)

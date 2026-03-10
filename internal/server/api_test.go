@@ -70,8 +70,9 @@ func newLocalBackend(t *testing.T) servertest.Backend {
 	}
 }
 
-// TestServer_Local runs the full server test suite against a local httptest server.
-func TestServer_Local(t *testing.T) {
+// TestServerAPI runs the server API contract tests (auth, CRUD, validation,
+// DB proxy) against a local httptest server.
+func TestServerAPI(t *testing.T) {
 	if _, err := exec.LookPath("sqlite3"); err != nil {
 		t.Skip("sqlite3 not in PATH")
 	}
