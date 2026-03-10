@@ -10,6 +10,7 @@ import (
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/remote"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
@@ -17,7 +18,7 @@ import (
 // Only works on macOS.
 func RunBridge(ctx context.Context, cfg *config.Config, client *remote.Client) error {
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("bridge mode requires macOS (for Apple Notes)")
+		return fmt.Errorf("bridge mode requires macOS")
 	}
 
 	if err := config.EnsureSourceDir("applenotes"); err != nil {
@@ -33,9 +34,22 @@ func RunBridge(ctx context.Context, cfg *config.Config, client *remote.Client) e
 	}
 	defer db.Close()
 
-	slog.Info("bridge: starting apple notes sync")
+	if err := config.EnsureSourceDir("imessage"); err != nil {
+		return fmt.Errorf("ensure imessage dir: %w", err)
+	}
 
-	b := &bridge{db: db, client: client}
+	imDB, err := store.Open(store.Config{
+		Driver: cfg.IMessage.Storage.Driver,
+		DSN:    cfg.IMessageDataDSN(),
+	})
+	if err != nil {
+		return fmt.Errorf("open imessage db: %w", err)
+	}
+	defer imDB.Close()
+
+	slog.Info("bridge: starting sync")
+
+	b := &bridge{db: db, imDB: imDB, client: client}
 
 	// Initial sync + push
 	b.syncAndPush()
@@ -55,18 +69,25 @@ func RunBridge(ctx context.Context, cfg *config.Config, client *remote.Client) e
 }
 
 type bridge struct {
-	db           *store.DB
-	client       *remote.Client
-	lastPushedAt time.Time
+	db             *store.DB
+	imDB           *store.DB
+	client         *remote.Client
+	lastPushedAt   time.Time
+	imLastPushedAt time.Time
 }
 
 func (b *bridge) syncAndPush() {
+	b.syncAndPushAppleNotes()
+	b.syncAndPushIMessage()
+}
+
+func (b *bridge) syncAndPushAppleNotes() {
 	result, err := ansrc.Sync(b.db, ansrc.SyncOptions{})
 	if err != nil {
-		slog.Error("bridge: sync error", "error", err)
+		slog.Error("bridge: applenotes sync error", "error", err)
 		return
 	}
-	slog.Info("bridge: sync complete", "synced", result.Synced, "skipped", result.Skipped, "errors", result.Errors)
+	slog.Info("bridge: applenotes sync complete", "synced", result.Synced, "skipped", result.Skipped, "errors", result.Errors)
 
 	if result.Synced == 0 {
 		return
@@ -83,9 +104,43 @@ func (b *bridge) syncAndPush() {
 	}
 
 	if err := b.client.AppleNotesPush(notes); err != nil {
-		slog.Error("bridge: push error", "error", err)
+		slog.Error("bridge: applenotes push error", "error", err)
 	} else {
 		b.lastPushedAt = time.Now()
 		slog.Info("bridge: pushed notes to remote", "count", len(notes))
+	}
+}
+
+func (b *bridge) syncAndPushIMessage() {
+	if b.imDB == nil {
+		return
+	}
+
+	result, err := imsrc.Sync(b.imDB, imsrc.SyncOptions{})
+	if err != nil {
+		slog.Error("bridge: imessage sync error", "error", err)
+		return
+	}
+	slog.Info("bridge: imessage sync complete", "synced", result.Synced, "skipped", result.Skipped, "errors", result.Errors)
+
+	if result.Synced == 0 {
+		return
+	}
+
+	msgs, err := imsrc.ListMessagesModifiedSince(b.imDB, b.imLastPushedAt)
+	if err != nil {
+		slog.Error("bridge: list imessage error", "error", err)
+		return
+	}
+
+	if len(msgs) == 0 {
+		return
+	}
+
+	if err := b.client.IMessagePush(msgs); err != nil {
+		slog.Error("bridge: imessage push error", "error", err)
+	} else {
+		b.imLastPushedAt = time.Now()
+		slog.Info("bridge: pushed messages to remote", "count", len(msgs))
 	}
 }
