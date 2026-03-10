@@ -32,13 +32,24 @@ func (m *mockProvider) StreamChat(_ context.Context, _ provider.ChatRequest) (<-
 	return nil, fmt.Errorf("not implemented")
 }
 
+// stubTool is a minimal tool that always returns a fixed output.
+type stubTool struct {
+	name   string
+	output string
+}
+
+func (s *stubTool) Name() string                                                          { return s.name }
+func (s *stubTool) Description() string                                                   { return "stub" }
+func (s *stubTool) InputSchema() json.RawMessage                                          { return json.RawMessage(`{"type":"object"}`) }
+func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (string, error) { return s.output, nil }
+
 func newSubagentTool(mp *mockProvider) *tools.SubagentTool {
 	return tools.NewSubagentTool(tools.SubagentConfig{
 		Provider: mp,
 		Model:    "test-model",
 		ToolFactory: func() *tools.Registry {
 			r := tools.NewRegistry()
-			r.Register(tools.NewBashTool(0))
+			r.Register(&stubTool{name: "bash", output: "ok"})
 			return r
 		},
 		System: "You are a test sub-agent.",
