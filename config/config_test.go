@@ -295,9 +295,6 @@ func TestApplyDefaultsWebSearch(t *testing.T) {
 	if cfg.WebSearch.Timeout != "15s" {
 		t.Fatalf("expected 15s timeout, got %q", cfg.WebSearch.Timeout)
 	}
-	if cfg.WebSearch.CacheTTL != "15m" {
-		t.Fatalf("expected 15m cache_ttl, got %q", cfg.WebSearch.CacheTTL)
-	}
 }
 
 func TestSaveAndLoad(t *testing.T) {

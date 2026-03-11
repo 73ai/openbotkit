@@ -22,13 +22,11 @@ var fetchCmd = &cobra.Command{
 
 		format, _ := cmd.Flags().GetString("format")
 		maxLength, _ := cmd.Flags().GetInt("max-length")
-		noCache, _ := cmd.Flags().GetBool("no-cache")
 
 		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch})
 		result, err := ws.Fetch(cmd.Context(), args[0], wssrc.FetchOptions{
 			Format:    format,
 			MaxLength: maxLength,
-			NoCache:   noCache,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -42,5 +40,4 @@ var fetchCmd = &cobra.Command{
 func init() {
 	fetchCmd.Flags().StringP("format", "f", "markdown", "Output format (markdown, text)")
 	fetchCmd.Flags().Int("max-length", 100000, "Maximum content length")
-	fetchCmd.Flags().Bool("no-cache", false, "Skip cache")
 }

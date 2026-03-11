@@ -24,7 +24,6 @@ var searchCmd = &cobra.Command{
 		backend, _ := cmd.Flags().GetString("backend")
 		timeLimit, _ := cmd.Flags().GetString("time-limit")
 		region, _ := cmd.Flags().GetString("region")
-		noCache, _ := cmd.Flags().GetBool("no-cache")
 
 		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch})
 		result, err := ws.Search(cmd.Context(), args[0], wssrc.SearchOptions{
@@ -32,7 +31,6 @@ var searchCmd = &cobra.Command{
 			Backend:    backend,
 			TimeLimit:  timeLimit,
 			Region:     region,
-			NoCache:    noCache,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -48,5 +46,4 @@ func init() {
 	searchCmd.Flags().StringP("backend", "b", "auto", "Search backend (auto, duckduckgo, wikipedia)")
 	searchCmd.Flags().StringP("time-limit", "t", "", "Time limit (d=day, w=week, m=month)")
 	searchCmd.Flags().StringP("region", "r", "us-en", "Region for search results")
-	searchCmd.Flags().Bool("no-cache", false, "Skip cache")
 }
