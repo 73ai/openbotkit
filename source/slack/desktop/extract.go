@@ -8,11 +8,10 @@ import (
 )
 
 type Credentials struct {
-	Token        string
-	Cookie       string
-	TeamID       string
-	TeamName     string
-	WorkspaceURL string
+	Token    string
+	Cookie   string
+	TeamID   string
+	TeamName string
 }
 
 func Extract() (*Credentials, error) {

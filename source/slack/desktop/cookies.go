@@ -98,17 +98,19 @@ func decryptCookie(encrypted, key []byte) (string, error) {
 	if len(encrypted) < 3 {
 		return "", fmt.Errorf("encrypted value too short")
 	}
-	if string(encrypted[:3]) == "v10" {
-		encrypted = encrypted[3:]
+	prefix := string(encrypted[:3])
+	if prefix != "v10" {
+		return "", fmt.Errorf("unsupported encryption version %q", prefix)
 	}
+	encrypted = encrypted[3:]
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("create cipher: %w", err)
 	}
 
-	if len(encrypted) < aes.BlockSize {
-		return "", fmt.Errorf("ciphertext too short")
+	if len(encrypted) < aes.BlockSize || len(encrypted)%aes.BlockSize != 0 {
+		return "", fmt.Errorf("ciphertext length %d is not a multiple of block size", len(encrypted))
 	}
 
 	// Chromium uses 16 bytes of space as IV.
@@ -135,7 +137,7 @@ func decryptCookie(encrypted, key []byte) (string, error) {
 		return match, nil
 	}
 
-	return string(plaintext), nil
+	return "", fmt.Errorf("no xoxd- token found in decrypted cookie")
 }
 
 func getKeychainPassword() (string, error) {
