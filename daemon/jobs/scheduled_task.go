@@ -73,7 +73,7 @@ func (w *ScheduledTaskWorker) NextRetryAt(_ *river.Job[ScheduledTaskArgs]) time.
 }
 
 func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string, error) {
-	if w.Cfg.Models == nil || w.Cfg.Models.Default == "" {
+	if w.Cfg == nil || w.Cfg.Models == nil || w.Cfg.Models.Default == "" {
 		return "", fmt.Errorf("no LLM model configured")
 	}
 

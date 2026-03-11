@@ -28,6 +28,14 @@ func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 	return tgbotapi.Message{}, nil
 }
 
+func TestChatID_ReturnsConfiguredID(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 42)
+	if ch.ChatID() != 42 {
+		t.Fatalf("expected ChatID 42, got %d", ch.ChatID())
+	}
+}
+
 func TestSend_FormatsMarkdown(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
