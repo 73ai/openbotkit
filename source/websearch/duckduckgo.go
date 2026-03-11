@@ -15,13 +15,25 @@ const (
 	maxQueryLen = 499
 )
 
+const (
+	ddgVqdURL  = "https://duckduckgo.com/"
+	ddgNewsURL = "https://duckduckgo.com/news.js"
+)
+
 type DuckDuckGo struct {
 	client  *http.Client
 	baseURL string
+	vqdURL  string
+	newsURL string
 }
 
 func NewDuckDuckGo(client *http.Client) *DuckDuckGo {
-	return &DuckDuckGo{client: client, baseURL: ddgURL}
+	return &DuckDuckGo{
+		client:  client,
+		baseURL: ddgURL,
+		vqdURL:  ddgVqdURL,
+		newsURL: ddgNewsURL,
+	}
 }
 
 func (d *DuckDuckGo) Name() string  { return "duckduckgo" }

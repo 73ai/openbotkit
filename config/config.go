@@ -138,9 +138,10 @@ type IMessageConfig struct {
 }
 
 type WebSearchConfig struct {
-	Storage StorageConfig `yaml:"storage,omitempty"`
-	Proxy   string        `yaml:"proxy,omitempty"`
-	Timeout string        `yaml:"timeout,omitempty"`
+	Storage  StorageConfig `yaml:"storage,omitempty"`
+	Proxy    string        `yaml:"proxy,omitempty"`
+	Timeout  string        `yaml:"timeout,omitempty"`
+	CacheTTL string        `yaml:"cache_ttl,omitempty"`
 }
 
 type ContactsConfig struct {
@@ -326,6 +327,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.WebSearch.Timeout == "" {
 		c.WebSearch.Timeout = "15s"
+	}
+	if c.WebSearch.CacheTTL == "" {
+		c.WebSearch.CacheTTL = "15m"
 	}
 	if c.Contacts == nil {
 		c.Contacts = &ContactsConfig{}

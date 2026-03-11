@@ -4,6 +4,6 @@ description: Search the web for information, find articles, look up facts, resea
 allowed-tools: Bash(obk websearch *)
 ---
 
-Search the web using `obk websearch search`. Returns JSON results from DuckDuckGo and Wikipedia.
+Search the web using `obk websearch search`. Returns JSON results from multiple search engines (DuckDuckGo, Brave, Mojeek, Wikipedia, and more).
 
 Read the REFERENCE.md in this skill's directory for full instructions.

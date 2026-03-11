@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var fetchCmd = &cobra.Command{
-	Use:   "fetch [url]",
-	Short: "Fetch and read a web page",
+var newsCmd = &cobra.Command{
+	Use:   "news [query]",
+	Short: "Search for recent news",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
@@ -21,8 +21,10 @@ var fetchCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		format, _ := cmd.Flags().GetString("format")
-		maxLength, _ := cmd.Flags().GetInt("max-length")
+		maxResults, _ := cmd.Flags().GetInt("max-results")
+		backend, _ := cmd.Flags().GetString("backend")
+		timeLimit, _ := cmd.Flags().GetString("time-limit")
+		region, _ := cmd.Flags().GetString("region")
 		noCache, _ := cmd.Flags().GetBool("no-cache")
 
 		var opts []wssrc.Option
@@ -35,10 +37,12 @@ var fetchCmd = &cobra.Command{
 		}
 
 		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch}, opts...)
-		result, err := ws.Fetch(cmd.Context(), args[0], wssrc.FetchOptions{
-			Format:    format,
-			MaxLength: maxLength,
-			NoCache:   noCache,
+		result, err := ws.News(cmd.Context(), args[0], wssrc.SearchOptions{
+			MaxResults: maxResults,
+			Backend:    backend,
+			TimeLimit:  timeLimit,
+			Region:     region,
+			NoCache:    noCache,
 		})
 		if err != nil {
 			return err
@@ -49,7 +53,9 @@ var fetchCmd = &cobra.Command{
 }
 
 func init() {
-	fetchCmd.Flags().StringP("format", "f", "markdown", "Output format (markdown, text)")
-	fetchCmd.Flags().Int("max-length", 100000, "Maximum content length")
-	fetchCmd.Flags().Bool("no-cache", false, "Bypass result cache")
+	newsCmd.Flags().IntP("max-results", "n", 10, "Maximum number of results")
+	newsCmd.Flags().StringP("backend", "b", "auto", "News backend (auto, duckduckgo, yahoo)")
+	newsCmd.Flags().StringP("time-limit", "t", "", "Time limit (d=day, w=week, m=month)")
+	newsCmd.Flags().StringP("region", "r", "us-en", "Region for news results")
+	newsCmd.Flags().Bool("no-cache", false, "Bypass result cache")
 }

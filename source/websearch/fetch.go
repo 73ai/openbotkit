@@ -45,6 +45,12 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 
 	rawURL = normalizeGitHubURL(rawURL)
 
+	if !opts.NoCache {
+		if cached, ok := getFetchCache(w.db, rawURL, opts.Format, w.cacheTTL()); ok {
+			return cached, nil
+		}
+	}
+
 	client := w.fetchClient()
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
@@ -99,6 +105,10 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 	if len(result.Content) > opts.MaxLength {
 		result.Content = result.Content[:opts.MaxLength] + "\n\n[Content truncated at " + fmt.Sprintf("%d", opts.MaxLength) + " characters]"
 		result.Truncated = true
+	}
+
+	if !opts.NoCache {
+		putFetchCache(w.db, result, opts.Format)
 	}
 
 	return result, nil

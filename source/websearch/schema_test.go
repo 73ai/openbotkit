@@ -24,7 +24,7 @@ func TestMigrateSQLite(t *testing.T) {
 	}
 
 	// Verify tables exist by querying them.
-	tables := []string{"search_history"}
+	tables := []string{"search_history", "search_cache", "fetch_cache"}
 	for _, table := range tables {
 		var count int
 		err := db.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count)

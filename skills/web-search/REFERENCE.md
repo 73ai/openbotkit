@@ -9,9 +9,16 @@ obk websearch search "query" [flags]
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--max-results` | `-n` | 10 | Maximum number of results |
-| `--backend` | `-b` | auto | Search backend: auto, duckduckgo, wikipedia |
+| `--backend` | `-b` | auto | Search backend: auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia |
 | `--time-limit` | `-t` | | Time limit: d (day), w (week), m (month) |
 | `--region` | `-r` | us-en | Region for search results |
+| `--no-cache` | | false | Bypass result cache |
+
+## Auto Backend Set
+
+When `--backend auto` (default), searches use: DuckDuckGo + Brave + Mojeek + Wikipedia.
+
+Yahoo, Yandex, and Google are opt-in only via `--backend <name>`.
 
 ## Output
 
@@ -31,10 +38,15 @@ JSON to stdout:
   "metadata": {
     "backends": ["wikipedia", "duckduckgo"],
     "search_time_ms": 450,
-    "total_results": 5
+    "total_results": 5,
+    "cached": false
   }
 }
 ```
+
+## Caching
+
+Results are cached for 15 minutes by default. Repeated queries return cached results with `"cached": true` in metadata. Use `--no-cache` to bypass.
 
 ## Search History
 

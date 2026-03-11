@@ -10,6 +10,7 @@ obk websearch fetch "url" [flags]
 |------|-------|---------|-------------|
 | `--format` | `-f` | markdown | Output format: markdown, text |
 | `--max-length` | | 100000 | Maximum content length in characters |
+| `--no-cache` | | false | Bypass result cache |
 
 ## Output
 
@@ -22,7 +23,8 @@ JSON to stdout:
   "content": "# Example Domain\n\nThis domain is for use in illustrative examples...",
   "content_type": "text/html; charset=UTF-8",
   "status_code": 200,
-  "truncated": false
+  "truncated": false,
+  "cached": false
 }
 ```
 
@@ -34,4 +36,4 @@ JSON to stdout:
 - **GitHub URL normalization**: `github.com/.../blob/...` URLs are converted to raw content URLs
 - **SSRF Protection**: Blocks requests to private/loopback IP addresses
 - **Content Truncation**: Long pages are truncated at `--max-length` with a marker
-
+- **Caching**: Fetched pages are cached for 15 minutes. Use `--no-cache` to bypass
