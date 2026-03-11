@@ -12,6 +12,7 @@ import (
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
@@ -207,8 +208,27 @@ func (sm *SessionManager) buildLLM() (memory.LLM, error) {
 	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
+func (sm *SessionManager) gwsEnabled() bool {
+	return sm.cfg.Integrations != nil && sm.cfg.Integrations.GWS != nil && sm.cfg.Integrations.GWS.Enabled
+}
+
 func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 	toolReg := tools.NewStandardRegistry()
+
+	if sm.gwsEnabled() && sm.interactor != nil {
+		manifest, _ := skills.LoadManifest()
+		toolReg.Register(tools.NewGWSExecuteTool(tools.GWSToolConfig{
+			Interactor:   sm.interactor,
+			ScopeChecker: &tools.GoogleScopeChecker{TokenDBPath: sm.cfg.GoogleTokenDBPath()},
+			Bridge:       sm.tokenBridge,
+			ScopeWaiter:  sm.scopeWaiter,
+			Google:       sm.googleAuth,
+			Account:      sm.account,
+			Manifest:     manifest,
+			Runner:       tools.NewGWSRunner(),
+		}))
+	}
+
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
 		Model:       sm.model,
