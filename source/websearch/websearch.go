@@ -62,6 +62,13 @@ func (w *WebSearch) cacheTTL() time.Duration {
 	return defaultCacheTTL
 }
 
+func (w *WebSearch) configuredBackends() []string {
+	if w.cfg.WebSearch != nil {
+		return w.cfg.WebSearch.Backends
+	}
+	return nil
+}
+
 func (w *WebSearch) httpClient() *http.Client {
 	var opts []browser.ClientOption
 

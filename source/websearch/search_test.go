@@ -123,72 +123,95 @@ func TestSearchAllEnginesFail(t *testing.T) {
 
 func TestSearchBackendSelection(t *testing.T) {
 	t.Run("duckduckgo only", func(t *testing.T) {
-		engines := buildEngines(nil, "duckduckgo")
+		engines := buildEngines(nil, "duckduckgo", nil)
 		if len(engines) != 1 || engines[0].Name() != "duckduckgo" {
 			t.Errorf("expected only duckduckgo engine")
 		}
 	})
 
 	t.Run("wikipedia only", func(t *testing.T) {
-		engines := buildEngines(nil, "wikipedia")
+		engines := buildEngines(nil, "wikipedia", nil)
 		if len(engines) != 1 || engines[0].Name() != "wikipedia" {
 			t.Errorf("expected only wikipedia engine")
 		}
 	})
 
 	t.Run("brave only", func(t *testing.T) {
-		engines := buildEngines(nil, "brave")
+		engines := buildEngines(nil, "brave", nil)
 		if len(engines) != 1 || engines[0].Name() != "brave" {
 			t.Errorf("expected only brave engine")
 		}
 	})
 
 	t.Run("mojeek only", func(t *testing.T) {
-		engines := buildEngines(nil, "mojeek")
+		engines := buildEngines(nil, "mojeek", nil)
 		if len(engines) != 1 || engines[0].Name() != "mojeek" {
 			t.Errorf("expected only mojeek engine")
 		}
 	})
 
 	t.Run("yahoo only", func(t *testing.T) {
-		engines := buildEngines(nil, "yahoo")
+		engines := buildEngines(nil, "yahoo", nil)
 		if len(engines) != 1 || engines[0].Name() != "yahoo" {
 			t.Errorf("expected only yahoo engine")
 		}
 	})
 
 	t.Run("yandex only", func(t *testing.T) {
-		engines := buildEngines(nil, "yandex")
+		engines := buildEngines(nil, "yandex", nil)
 		if len(engines) != 1 || engines[0].Name() != "yandex" {
 			t.Errorf("expected only yandex engine")
 		}
 	})
 
 	t.Run("google only", func(t *testing.T) {
-		engines := buildEngines(nil, "google")
+		engines := buildEngines(nil, "google", nil)
 		if len(engines) != 1 || engines[0].Name() != "google" {
 			t.Errorf("expected only google engine")
 		}
 	})
 
 	t.Run("auto uses duckduckgo+brave+mojeek+wikipedia", func(t *testing.T) {
-		engines := buildEngines(nil, "auto")
+		engines := buildEngines(nil, "auto", nil)
 		if len(engines) != 4 {
 			t.Errorf("expected 4 engines for auto, got %d", len(engines))
 		}
 	})
 
 	t.Run("empty uses auto set", func(t *testing.T) {
-		engines := buildEngines(nil, "")
+		engines := buildEngines(nil, "", nil)
 		if len(engines) != 4 {
 			t.Errorf("expected 4 engines for empty, got %d", len(engines))
 		}
 	})
 
 	t.Run("unknown returns nil", func(t *testing.T) {
-		engines := buildEngines(nil, "unknown")
+		engines := buildEngines(nil, "unknown", nil)
 		if engines != nil {
 			t.Errorf("expected nil for unknown backend")
+		}
+	})
+}
+
+func TestSearchBackendFiltering(t *testing.T) {
+	t.Run("configured backends filters auto set", func(t *testing.T) {
+		engines := buildEngines(nil, "auto", []string{"duckduckgo", "wikipedia"})
+		if len(engines) != 2 {
+			t.Fatalf("expected 2 engines, got %d", len(engines))
+		}
+		names := map[string]bool{}
+		for _, e := range engines {
+			names[e.Name()] = true
+		}
+		if !names["duckduckgo"] || !names["wikipedia"] {
+			t.Errorf("expected duckduckgo and wikipedia, got %v", names)
+		}
+	})
+
+	t.Run("explicit backend ignores configured list", func(t *testing.T) {
+		engines := buildEngines(nil, "google", []string{"duckduckgo"})
+		if len(engines) != 1 || engines[0].Name() != "google" {
+			t.Errorf("explicit backend should ignore configured list")
 		}
 	})
 }
@@ -310,28 +333,28 @@ func TestNewsFallbackOnError(t *testing.T) {
 
 func TestNewsBackendSelection(t *testing.T) {
 	t.Run("auto uses duckduckgo+yahoo", func(t *testing.T) {
-		engines := buildNewsEngines(nil, "auto")
+		engines := buildNewsEngines(nil, "auto", nil)
 		if len(engines) != 2 {
 			t.Errorf("expected 2 news engines for auto, got %d", len(engines))
 		}
 	})
 
 	t.Run("duckduckgo only", func(t *testing.T) {
-		engines := buildNewsEngines(nil, "duckduckgo")
+		engines := buildNewsEngines(nil, "duckduckgo", nil)
 		if len(engines) != 1 || engines[0].Name() != "duckduckgo" {
 			t.Errorf("expected only duckduckgo news engine")
 		}
 	})
 
 	t.Run("yahoo only", func(t *testing.T) {
-		engines := buildNewsEngines(nil, "yahoo")
+		engines := buildNewsEngines(nil, "yahoo", nil)
 		if len(engines) != 1 || engines[0].Name() != "yahoo" {
 			t.Errorf("expected only yahoo news engine")
 		}
 	})
 
 	t.Run("unsupported returns nil", func(t *testing.T) {
-		engines := buildNewsEngines(nil, "wikipedia")
+		engines := buildNewsEngines(nil, "wikipedia", nil)
 		if engines != nil {
 			t.Errorf("expected nil for non-news backend")
 		}

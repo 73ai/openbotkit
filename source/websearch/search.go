@@ -37,7 +37,7 @@ func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions
 	}
 
 	client := w.httpClient()
-	engines := buildEngines(client, opts.Backend)
+	engines := buildEngines(client, opts.Backend, w.configuredBackends())
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown backend: %q", opts.Backend)
 	}
@@ -112,15 +112,16 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 	}, nil
 }
 
-func buildEngines(client *http.Client, backend string) []Engine {
+func buildEngines(client *http.Client, backend string, configured []string) []Engine {
 	switch backend {
 	case "", "auto":
-		return []Engine{
+		all := []Engine{
 			NewDuckDuckGo(client),
 			NewBrave(client),
 			NewMojeek(client),
 			NewWikipedia(client),
 		}
+		return filterEngines(all, configured)
 	case "duckduckgo":
 		return []Engine{NewDuckDuckGo(client)}
 	case "brave":
@@ -138,6 +139,23 @@ func buildEngines(client *http.Client, backend string) []Engine {
 	default:
 		return nil
 	}
+}
+
+func filterEngines(engines []Engine, allowed []string) []Engine {
+	if len(allowed) == 0 {
+		return engines
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		set[name] = true
+	}
+	var out []Engine
+	for _, eng := range engines {
+		if set[eng.Name()] {
+			out = append(out, eng)
+		}
+	}
+	return out
 }
 
 func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
@@ -160,7 +178,7 @@ func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) 
 	}
 
 	client := w.httpClient()
-	engines := buildNewsEngines(client, opts.Backend)
+	engines := buildNewsEngines(client, opts.Backend, w.configuredBackends())
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown or non-news backend: %q", opts.Backend)
 	}
@@ -234,13 +252,14 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 	}, nil
 }
 
-func buildNewsEngines(client *http.Client, backend string) []NewsEngine {
+func buildNewsEngines(client *http.Client, backend string, configured []string) []NewsEngine {
 	switch backend {
 	case "", "auto":
-		return []NewsEngine{
+		all := []NewsEngine{
 			NewDuckDuckGo(client),
 			NewYahoo(client),
 		}
+		return filterNewsEngines(all, configured)
 	case "duckduckgo":
 		return []NewsEngine{NewDuckDuckGo(client)}
 	case "yahoo":
@@ -248,6 +267,23 @@ func buildNewsEngines(client *http.Client, backend string) []NewsEngine {
 	default:
 		return nil
 	}
+}
+
+func filterNewsEngines(engines []NewsEngine, allowed []string) []NewsEngine {
+	if len(allowed) == 0 {
+		return engines
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		set[name] = true
+	}
+	var out []NewsEngine
+	for _, eng := range engines {
+		if set[eng.Name()] {
+			out = append(out, eng)
+		}
+	}
+	return out
 }
 
 func normalizeURL(raw string) string {
