@@ -60,9 +60,10 @@ When a tool result includes "user notified", keep your response brief — the us
 		b.WriteString(`
 ## Task Delegation
 Use delegate_task for complex tasks: research, analysis, code generation.
-Set async=true for tasks that will take more than a minute — the user will be notified when done.
-Use check_task to retrieve results of background tasks.
-Do NOT delegate simple tasks — just do them directly.
+For multi-step workflows, provide steps in the spec — they execute as a single agent run.
+Set async=true for tasks taking more than a minute. You'll be notified of progress periodically.
+Use check_task to retrieve results, then deliver them using other tools (gws_execute for Google Docs, slack_send for Slack, etc.).
+Example workflow: delegate research → check_task → gws_execute to create doc → slack_send to share link.
 `)
 	}
 
