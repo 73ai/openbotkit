@@ -64,6 +64,7 @@ var setupCmd = &cobra.Command{
 			huh.NewOption("Google Tasks", "tasks"),
 			huh.NewOption("Google Contacts", "people"),
 		}
+		sourceOptions = append(sourceOptions, huh.NewOption("Slack", "slack"))
 		if runtime.GOOS == "darwin" {
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
 		}
@@ -124,6 +125,9 @@ var setupCmd = &cobra.Command{
 				if err := setupModels(cfg); err != nil {
 					return err
 				}
+			case "slack":
+				fmt.Println("\n  -- Slack Setup --")
+				fmt.Println("  Run: obk auth slack login")
 			}
 		}
 
@@ -157,6 +161,8 @@ var setupCmd = &cobra.Command{
 				fmt.Println("    - Run: obk auth whatsapp login")
 			case "applenotes":
 				fmt.Println("    - Apple Notes is ready (synced during setup)")
+			case "slack":
+				fmt.Println("    - Run: obk auth slack login")
 			}
 		}
 		return nil
