@@ -135,6 +135,8 @@ func buildEngines(client HTTPDoer, backend string, configured []string) []Engine
 		return []Engine{NewGoogle(client)}
 	case "wikipedia":
 		return []Engine{NewWikipedia(client)}
+	case "bing":
+		return []Engine{NewBing(client)}
 	default:
 		return nil
 	}

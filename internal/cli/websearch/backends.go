@@ -26,6 +26,7 @@ var backendsCmd = &cobra.Command{
 			{Name: "yandex", Priority: 1, News: false},
 			{Name: "google", Priority: 0, News: false},
 			{Name: "wikipedia", Priority: 2, News: false},
+			{Name: "bing", Priority: 0, News: false},
 		}
 		return json.NewEncoder(os.Stdout).Encode(backends)
 	},
