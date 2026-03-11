@@ -43,7 +43,7 @@ var searchCmd = &cobra.Command{
 
 func init() {
 	searchCmd.Flags().IntP("max-results", "n", 10, "Maximum number of results")
-	searchCmd.Flags().StringP("backend", "b", "auto", "Search backend (auto, duckduckgo, wikipedia)")
+	searchCmd.Flags().StringP("backend", "b", "auto", "Search backend (auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia)")
 	searchCmd.Flags().StringP("time-limit", "t", "", "Time limit (d=day, w=week, m=month)")
 	searchCmd.Flags().StringP("region", "r", "us-en", "Region for search results")
 }
