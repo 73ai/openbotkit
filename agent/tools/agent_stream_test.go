@@ -55,7 +55,7 @@ func TestParseStreamLine_EmptyType(t *testing.T) {
 
 func TestStreamRunner_BuildsClaudeStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})
-	args := r.buildStreamArgs()
+	args := r.buildStreamArgs(runOptions{})
 	want := []string{"--print", "--verbose", "--output-format", "stream-json"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
@@ -69,7 +69,7 @@ func TestStreamRunner_BuildsClaudeStreamArgs(t *testing.T) {
 
 func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentGemini, Binary: "/usr/local/bin/gemini"})
-	args := r.buildStreamArgs()
+	args := r.buildStreamArgs(runOptions{})
 	want := []string{"-o", "stream-json"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
@@ -78,6 +78,21 @@ func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 		if a != want[i] {
 			t.Errorf("args[%d] = %q, want %q", i, a, want[i])
 		}
+	}
+}
+
+func TestStreamRunner_BuildsClaudeStreamArgsWithBudget(t *testing.T) {
+	r := NewStreamRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})
+	args := r.buildStreamArgs(runOptions{maxBudgetUSD: 0.50})
+	found := false
+	for i, a := range args {
+		if a == "--max-budget-usd" && i+1 < len(args) && args[i+1] == "0.50" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("args missing --max-budget-usd 0.50: %v", args)
 	}
 }
 

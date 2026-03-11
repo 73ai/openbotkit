@@ -216,7 +216,7 @@ func (d *DelegateTaskTool) runAsync(
 				lastNotify = time.Now()
 			}
 		}
-		output, err := sr.RunStream(ctx, task, d.timeout, onEvent)
+		output, err := sr.RunStream(ctx, task, d.timeout, onEvent, runOpts...)
 		if err != nil {
 			d.tracker.Fail(taskID, err.Error())
 			d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))

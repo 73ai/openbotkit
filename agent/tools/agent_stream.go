@@ -20,7 +20,7 @@ type StreamEvent struct {
 
 // StreamRunnerInterface abstracts streaming agent execution for testability.
 type StreamRunnerInterface interface {
-	RunStream(ctx context.Context, prompt string, timeout time.Duration, onEvent func(StreamEvent)) (string, error)
+	RunStream(ctx context.Context, prompt string, timeout time.Duration, onEvent func(StreamEvent), opts ...RunOption) (string, error)
 }
 
 // StreamRunner executes an external AI CLI with streaming NDJSON output.
@@ -40,11 +40,16 @@ func (r *StreamRunner) RunStream(
 	prompt string,
 	timeout time.Duration,
 	onEvent func(StreamEvent),
+	opts ...RunOption,
 ) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	args := r.buildStreamArgs()
+	var ro runOptions
+	for _, o := range opts {
+		o(&ro)
+	}
+	args := r.buildStreamArgs(ro)
 	if r.info.Kind == AgentGemini {
 		args = append(args, "-p", prompt)
 	}
@@ -98,10 +103,14 @@ func (r *StreamRunner) RunStream(
 	return accumulated.String(), nil
 }
 
-func (r *StreamRunner) buildStreamArgs() []string {
+func (r *StreamRunner) buildStreamArgs(opts runOptions) []string {
 	switch r.info.Kind {
 	case AgentClaude:
-		return []string{"--print", "--verbose", "--output-format", "stream-json"}
+		args := []string{"--print", "--verbose", "--output-format", "stream-json"}
+		if opts.maxBudgetUSD > 0 {
+			args = append(args, "--max-budget-usd", fmt.Sprintf("%.2f", opts.maxBudgetUSD))
+		}
+		return args
 	case AgentGemini:
 		return []string{"-o", "stream-json"}
 	default:

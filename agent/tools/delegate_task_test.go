@@ -535,7 +535,7 @@ type mockStreamRunner struct {
 	events []StreamEvent
 }
 
-func (m *mockStreamRunner) RunStream(_ context.Context, _ string, _ time.Duration, onEvent func(StreamEvent)) (string, error) {
+func (m *mockStreamRunner) RunStream(_ context.Context, _ string, _ time.Duration, onEvent func(StreamEvent), _ ...RunOption) (string, error) {
 	for _, evt := range m.events {
 		if onEvent != nil {
 			onEvent(evt)
