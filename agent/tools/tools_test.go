@@ -305,6 +305,24 @@ func TestBuildBaseSystemPrompt_NoGWSInstructions(t *testing.T) {
 	}
 }
 
+func TestBuildBaseSystemPrompt_SlackInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "slack_search"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if !strings.Contains(prompt, "Slack") {
+		t.Error("prompt missing slack instructions")
+	}
+}
+
+func TestBuildBaseSystemPrompt_NoSlackInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if strings.Contains(prompt, "slack_search") {
+		t.Error("prompt should not contain slack instructions without slack tools")
+	}
+}
+
 func TestBuildSystemBlocks_BaseOnly(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(&stubTool{name: "bash"})
