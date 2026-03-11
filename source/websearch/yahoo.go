@@ -10,15 +10,19 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-const yahooSearchURL = "https://search.yahoo.com/search"
+const (
+	yahooSearchURL = "https://search.yahoo.com/search"
+	yahooNewsURL   = "https://news.search.yahoo.com/search"
+)
 
 type Yahoo struct {
 	client  *http.Client
 	baseURL string
+	newsURL string
 }
 
 func NewYahoo(client *http.Client) *Yahoo {
-	return &Yahoo{client: client, baseURL: yahooSearchURL}
+	return &Yahoo{client: client, baseURL: yahooSearchURL, newsURL: yahooNewsURL}
 }
 
 func (y *Yahoo) Name() string  { return "yahoo" }
