@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -57,7 +59,7 @@ func (c *Client) Quote(ctx context.Context, symbols ...string) ([]Quote, error) 
 	}
 
 	quotes, err := c.fetchQuotes(ctx, symbols)
-	if err == errUnauthorized {
+	if errors.Is(err, errUnauthorized) {
 		if err := c.initSession(ctx); err != nil {
 			return nil, fmt.Errorf("refresh session: %w", err)
 		}
@@ -79,6 +81,7 @@ func (c *Client) initSession(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fetch cookies: %w", err)
 	}
+	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
 	// Step 2: Get crumb.
@@ -111,10 +114,16 @@ func (c *Client) initSession(ctx context.Context) error {
 }
 
 func (c *Client) fetchQuotes(ctx context.Context, symbols []string) ([]Quote, error) {
-	url := fmt.Sprintf("%s?symbols=%s&crumb=%s",
-		c.quoteURL, strings.Join(symbols, ","), c.crumb)
+	u, err := url.Parse(c.quoteURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse quote URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("symbols", strings.Join(symbols, ","))
+	q.Set("crumb", c.crumb)
+	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
