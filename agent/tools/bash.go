@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,10 @@ func (b *BashTool) Execute(ctx context.Context, input json.RawMessage) (string, 
 	}
 	if in.Command == "" {
 		return "", fmt.Errorf("command is required")
+	}
+
+	if strings.HasPrefix(strings.TrimSpace(in.Command), "gws ") {
+		return "", fmt.Errorf("gws commands must use the gws_execute tool, not bash")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, b.timeout)
