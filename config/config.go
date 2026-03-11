@@ -32,6 +32,7 @@ type Config struct {
 	Daemon       *DaemonConfig       `yaml:"daemon,omitempty"`
 	Usage        *UsageConfig        `yaml:"usage,omitempty"`
 	Integrations *IntegrationsConfig `yaml:"integrations,omitempty"`
+	WebSearch    *WebSearchConfig    `yaml:"websearch,omitempty"`
 }
 
 func (c *Config) ResolvedMode() Mode {
@@ -135,6 +136,12 @@ type IMessageConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
 }
 
+type WebSearchConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
+	Proxy   string        `yaml:"proxy,omitempty"`
+	Timeout string        `yaml:"timeout,omitempty"`
+}
+
 type StorageConfig struct {
 	Driver string `yaml:"driver,omitempty"` // "sqlite" or "postgres"
 	DSN    string `yaml:"dsn,omitempty"`
@@ -156,8 +163,10 @@ func (c *Config) SourceDataDSN(source string) (string, error) {
 		return c.UsageDataDSN(), nil
 	case "imessage":
 		return c.IMessageDataDSN(), nil
+	case "websearch":
+		return c.WebSearchDataDSN(), nil
 	default:
-		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage)", source)
+		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage, websearch)", source)
 	}
 }
 
@@ -241,6 +250,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		WebSearch: &WebSearchConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -291,6 +305,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.IMessage.Storage.Driver == "" {
 		c.IMessage.Storage.Driver = "sqlite"
+	}
+	if c.WebSearch == nil {
+		c.WebSearch = &WebSearchConfig{}
+	}
+	if c.WebSearch.Storage.Driver == "" {
+		c.WebSearch.Storage.Driver = "sqlite"
+	}
+	if c.WebSearch.Timeout == "" {
+		c.WebSearch.Timeout = "15s"
 	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
@@ -344,6 +367,13 @@ func (c *Config) AppleNotesDataDSN() string {
 		return c.AppleNotes.Storage.DSN
 	}
 	return filepath.Join(SourceDir("applenotes"), "data.db")
+}
+
+func (c *Config) WebSearchDataDSN() string {
+	if c.WebSearch.Storage.DSN != "" {
+		return c.WebSearch.Storage.DSN
+	}
+	return filepath.Join(SourceDir("websearch"), "data.db")
 }
 
 func (c *Config) IMessageDataDSN() string {

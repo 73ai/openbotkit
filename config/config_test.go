@@ -177,6 +177,7 @@ func TestSourceDataDSN_ValidSources(t *testing.T) {
 		{"user_memory", filepath.Join("user_memory", "data.db")},
 		{"applenotes", filepath.Join("applenotes", "data.db")},
 		{"imessage", filepath.Join("imessage", "data.db")},
+		{"websearch", filepath.Join("websearch", "data.db")},
 	}
 	for _, s := range sources {
 		t.Run(s.name, func(t *testing.T) {
@@ -261,6 +262,38 @@ gmail:
 	}
 	if !cfg.IsLocal() {
 		t.Fatalf("old config without mode should default to local, got %q", cfg.ResolvedMode())
+	}
+}
+
+func TestWebSearchDataDSN(t *testing.T) {
+	cfg := Default()
+	dsn := cfg.WebSearchDataDSN()
+	if !strings.HasSuffix(dsn, filepath.Join("websearch", "data.db")) {
+		t.Fatalf("expected path ending in websearch/data.db, got %q", dsn)
+	}
+}
+
+func TestWebSearchDataDSNCustom(t *testing.T) {
+	cfg := Default()
+	cfg.WebSearch.Storage.DSN = "postgres://localhost/ws"
+	dsn := cfg.WebSearchDataDSN()
+	if dsn != "postgres://localhost/ws" {
+		t.Fatalf("expected custom DSN, got %q", dsn)
+	}
+}
+
+func TestApplyDefaultsWebSearch(t *testing.T) {
+	cfg := &Config{}
+	cfg.applyDefaults()
+
+	if cfg.WebSearch == nil {
+		t.Fatal("applyDefaults should create WebSearch config")
+	}
+	if cfg.WebSearch.Storage.Driver != "sqlite" {
+		t.Fatalf("expected sqlite, got %q", cfg.WebSearch.Storage.Driver)
+	}
+	if cfg.WebSearch.Timeout != "15s" {
+		t.Fatalf("expected 15s timeout, got %q", cfg.WebSearch.Timeout)
 	}
 }
 

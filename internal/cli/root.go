@@ -11,6 +11,7 @@ import (
 	historycli "github.com/priyanshujain/openbotkit/internal/cli/history"
 	imessagecli "github.com/priyanshujain/openbotkit/internal/cli/imessage"
 	memorycli "github.com/priyanshujain/openbotkit/internal/cli/memory"
+	websearchcli "github.com/priyanshujain/openbotkit/internal/cli/websearch"
 	whatsappcli "github.com/priyanshujain/openbotkit/internal/cli/whatsapp"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,7 @@ func init() {
 	rootCmd.AddCommand(gmail.Cmd)
 	rootCmd.AddCommand(historycli.Cmd)
 	rootCmd.AddCommand(memorycli.Cmd)
+	rootCmd.AddCommand(websearchcli.Cmd)
 	rootCmd.AddCommand(whatsappcli.Cmd)
 }
 

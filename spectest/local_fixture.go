@@ -25,9 +25,11 @@ import (
 )
 
 type LocalFixture struct {
-	dir      string
-	Provider provider.Provider
-	Model    string
+	dir           string
+	Provider      provider.Provider
+	Model         string
+	JudgeProvider provider.Provider
+	JudgeModel    string
 }
 
 type providerCase struct {
@@ -43,19 +45,28 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 	if len(cases) == 0 {
 		t.Skip("no LLM API keys set — skipping spec tests")
 	}
-	return newLocalFixtureWith(t, cases[0].Provider, cases[0].Model)
+	judge := pickJudge(cases)
+	fx := newLocalFixtureWith(t, cases[0].Provider, cases[0].Model)
+	fx.JudgeProvider = judge.Provider
+	fx.JudgeModel = judge.Model
+	return fx
 }
 
 // EachProvider runs fn as a subtest for every available LLM provider.
+// A separate judge provider is chosen for evaluating responses to avoid
+// self-evaluation bias (e.g., Gemini judging its own output).
 func EachProvider(t *testing.T, fn func(t *testing.T, fx *LocalFixture)) {
 	t.Helper()
 	cases := availableProviders(t)
 	if len(cases) == 0 {
 		t.Skip("no LLM API keys set — skipping spec tests")
 	}
+	judge := pickJudge(cases)
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			fx := newLocalFixtureWith(t, tc.Provider, tc.Model)
+			fx.JudgeProvider = judge.Provider
+			fx.JudgeModel = judge.Model
 			fn(t, fx)
 		})
 	}
@@ -86,6 +97,19 @@ func newLocalFixtureWith(t *testing.T, p provider.Provider, model string) *Local
 		Provider: p,
 		Model:    model,
 	}
+}
+
+// pickJudge selects the best provider for LLM-as-judge evaluation.
+// Prefers anthropic-vertex (Claude) > openai > gemini for reliability.
+func pickJudge(cases []providerCase) providerCase {
+	priority := map[string]int{"anthropic-vertex": 0, "openai": 1, "gemini": 2}
+	best := cases[0]
+	for _, c := range cases[1:] {
+		if priority[c.Name] < priority[best.Name] {
+			best = c
+		}
+	}
+	return best
 }
 
 func availableProviders(t *testing.T) []providerCase {
@@ -120,7 +144,7 @@ func availableProviders(t *testing.T) []providerCase {
 		cases = append(cases, providerCase{
 			Name:     "openai",
 			Provider: openai.New(key),
-			Model:    "gpt-4o-mini",
+			Model:    "gpt-4.1-mini",
 		})
 	}
 
@@ -178,7 +202,7 @@ func createMemoryDB(t *testing.T, dir string) {
 func installSkills(t *testing.T, dir string) {
 	t.Helper()
 	skillsDir := filepath.Join(dir, "skills")
-	for _, name := range []string{"email-read", "whatsapp-read", "memory-save"} {
+	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save"} {
 		destDir := filepath.Join(skillsDir, name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			t.Fatalf("mkdir skill %s: %v", name, err)

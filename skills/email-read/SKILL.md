@@ -4,6 +4,6 @@ description: Search emails, check inbox, find messages, look up correspondence, 
 allowed-tools: Bash(obk *)
 ---
 
-Query synced Gmail emails from `~/.obk/gmail/data.db`.
+Query synced Gmail emails using `obk db gmail` commands.
 
 Read the REFERENCE.md in this skill's directory for the full schema and query patterns.

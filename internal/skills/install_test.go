@@ -191,12 +191,18 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
-	// With no auth, only history-read and memory-save should be installed.
+	// With no auth, history-read, memory-save, web-search, web-fetch should be installed.
 	if !slices.Contains(result.Installed, "history-read") {
 		t.Error("history-read should be installed (no auth required)")
 	}
 	if !slices.Contains(result.Installed, "memory-save") {
 		t.Error("memory-save should be installed (no auth required)")
+	}
+	if !slices.Contains(result.Installed, "web-search") {
+		t.Error("web-search should be installed (no auth required)")
+	}
+	if !slices.Contains(result.Installed, "web-fetch") {
+		t.Error("web-fetch should be installed (no auth required)")
 	}
 	if slices.Contains(result.Installed, "email-read") {
 		t.Error("email-read should NOT be installed (no gmail auth)")
@@ -252,6 +258,38 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Error("memory-save REFERENCE.md is empty")
 	}
 
+	// Verify web-search SKILL.md and REFERENCE.md were written.
+	wsContent, err := os.ReadFile(filepath.Join(tmp, "skills", "web-search", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read web-search SKILL.md: %v", err)
+	}
+	if len(wsContent) == 0 {
+		t.Error("web-search SKILL.md is empty")
+	}
+	wsRef, err := os.ReadFile(filepath.Join(tmp, "skills", "web-search", "REFERENCE.md"))
+	if err != nil {
+		t.Fatalf("read web-search REFERENCE.md: %v", err)
+	}
+	if len(wsRef) == 0 {
+		t.Error("web-search REFERENCE.md is empty")
+	}
+
+	// Verify web-fetch SKILL.md and REFERENCE.md were written.
+	wfContent, err := os.ReadFile(filepath.Join(tmp, "skills", "web-fetch", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read web-fetch SKILL.md: %v", err)
+	}
+	if len(wfContent) == 0 {
+		t.Error("web-fetch SKILL.md is empty")
+	}
+	wfRef, err := os.ReadFile(filepath.Join(tmp, "skills", "web-fetch", "REFERENCE.md"))
+	if err != nil {
+		t.Fatalf("read web-fetch REFERENCE.md: %v", err)
+	}
+	if len(wfRef) == 0 {
+		t.Error("web-fetch REFERENCE.md is empty")
+	}
+
 	// Verify manifest was written.
 	m, err := LoadManifest()
 	if err != nil {
@@ -262,6 +300,12 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	}
 	if _, ok := m.Skills["memory-save"]; !ok {
 		t.Error("memory-save not in manifest")
+	}
+	if _, ok := m.Skills["web-search"]; !ok {
+		t.Error("web-search not in manifest")
+	}
+	if _, ok := m.Skills["web-fetch"]; !ok {
+		t.Error("web-fetch not in manifest")
 	}
 }
 

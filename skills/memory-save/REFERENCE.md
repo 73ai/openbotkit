@@ -20,7 +20,7 @@ obk memory add "User prefers dark mode" --category preference
 - relationship: people, pets, family
 - project: what they're working on, goals, plans
 
-### List existing memories (to avoid duplicates)
+### List existing memories (to avoid duplicates before saving)
 ```bash
 obk memory list
 ```

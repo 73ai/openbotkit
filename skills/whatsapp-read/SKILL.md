@@ -4,6 +4,6 @@ description: Search WhatsApp messages, check chats, find conversations, look up 
 allowed-tools: Bash(obk *)
 ---
 
-Query synced WhatsApp messages from `~/.obk/whatsapp/data.db`.
+Query synced WhatsApp messages using `obk db whatsapp` commands.
 
 Read the REFERENCE.md in this skill's directory for the full schema and query patterns.

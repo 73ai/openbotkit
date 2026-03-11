@@ -9,10 +9,10 @@ import (
 	"github.com/priyanshujain/openbotkit/provider"
 )
 
-// AssertJudge uses an LLM to evaluate whether the agent's response satisfies
-// the given criteria. The criteria should describe what a correct response
-// looks like (e.g., "mentions both email topics and WhatsApp messages from Alice").
-func AssertJudge(t *testing.T, p provider.Provider, model string, prompt, response, criteria string) {
+// AssertJudge uses the fixture's dedicated judge provider to evaluate whether
+// the agent's response satisfies the given criteria. Using a separate judge
+// avoids self-evaluation bias (e.g., Gemini misjudging its own correct output).
+func (f *LocalFixture) AssertJudge(t *testing.T, prompt, response, criteria string) {
 	t.Helper()
 
 	judgePrompt := `You are a strict test evaluator. You will be given:
@@ -37,8 +37,8 @@ Success criteria: ` + criteria
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := p.Chat(ctx, provider.ChatRequest{
-		Model: model,
+	resp, err := f.JudgeProvider.Chat(ctx, provider.ChatRequest{
+		Model: f.JudgeModel,
 		Messages: []provider.Message{
 			provider.NewTextMessage(provider.RoleUser, judgePrompt),
 		},
