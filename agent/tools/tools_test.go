@@ -284,6 +284,27 @@ func TestRegistryUnknownTool(t *testing.T) {
 	}
 }
 
+func TestBuildBaseSystemPrompt_GWSInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "gws_execute"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if !strings.Contains(prompt, "Google Workspace") {
+		t.Error("prompt missing gws_execute instructions")
+	}
+	if !strings.Contains(prompt, "gws_execute") {
+		t.Error("prompt missing gws_execute tool reference")
+	}
+}
+
+func TestBuildBaseSystemPrompt_NoGWSInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if strings.Contains(prompt, "Google Workspace") {
+		t.Error("prompt should not contain gws instructions without gws_execute")
+	}
+}
+
 func TestBuildSystemBlocks_BaseOnly(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(&stubTool{name: "bash"})
