@@ -3,6 +3,7 @@ package websearch
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -126,19 +127,62 @@ func TestFetchGitHubBlobURL(t *testing.T) {
 }
 
 func TestFetchSSRFBlocksLoopback(t *testing.T) {
-	err := checkSSRF(context.Background(), "http://localhost/secret")
+	ws := &WebSearch{}
+	_, err := ws.Fetch(context.Background(), "http://localhost/secret", FetchOptions{})
 	if err == nil {
 		t.Fatal("expected SSRF error for localhost")
 	}
-	if !strings.Contains(err.Error(), "private/loopback") {
-		t.Errorf("expected loopback error, got: %v", err)
+	if !strings.Contains(err.Error(), "private IP") {
+		t.Errorf("expected private IP error, got: %v", err)
 	}
 }
 
 func TestFetchSSRFBlocksPrivateIP(t *testing.T) {
-	err := checkSSRF(context.Background(), "http://127.0.0.1/secret")
+	ws := &WebSearch{}
+	_, err := ws.Fetch(context.Background(), "http://127.0.0.1/secret", FetchOptions{})
 	if err == nil {
 		t.Fatal("expected SSRF error for 127.0.0.1")
+	}
+}
+
+func TestFetchSSRFBlocksIPv6Loopback(t *testing.T) {
+	ws := &WebSearch{}
+	_, err := ws.Fetch(context.Background(), "http://[::1]/secret", FetchOptions{})
+	if err == nil {
+		t.Fatal("expected SSRF error for IPv6 loopback")
+	}
+}
+
+func TestFetchRejectsNonHTTPScheme(t *testing.T) {
+	ws := &WebSearch{skipSSRF: true}
+	_, err := ws.Fetch(context.Background(), "file:///etc/passwd", FetchOptions{})
+	if err == nil {
+		t.Fatal("expected error for file:// scheme")
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("expected scheme error, got: %v", err)
+	}
+}
+
+func TestIsPrivateIP(t *testing.T) {
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		{"127.0.0.1", true},
+		{"10.0.0.1", true},
+		{"192.168.1.1", true},
+		{"172.16.0.1", true},
+		{"::1", true},
+		{"0.0.0.0", true},
+		{"8.8.8.8", false},
+		{"1.1.1.1", false},
+	}
+	for _, tt := range tests {
+		ip := net.ParseIP(tt.ip)
+		if got := isPrivateIP(ip); got != tt.want {
+			t.Errorf("isPrivateIP(%s) = %v, want %v", tt.ip, got, tt.want)
+		}
 	}
 }
 

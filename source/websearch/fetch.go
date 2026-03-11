@@ -9,9 +9,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
-	"github.com/JohannesKaufmann/html-to-markdown/v2"
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -26,6 +28,14 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 		return nil, errors.New("empty URL")
 	}
 
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme %q: only http and https allowed", parsed.Scheme)
+	}
+
 	if opts.MaxLength <= 0 {
 		opts.MaxLength = defaultMaxLength
 	}
@@ -35,13 +45,7 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 
 	rawURL = normalizeGitHubURL(rawURL)
 
-	if !w.skipSSRF {
-		if err := checkSSRF(ctx, rawURL); err != nil {
-			return nil, fmt.Errorf("ssrf check: %w", err)
-		}
-	}
-
-	client := w.httpClient()
+	client := w.fetchClient()
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -125,29 +129,50 @@ func extractText(html []byte) string {
 	return strings.TrimSpace(doc.Find("body").Text())
 }
 
-func checkSSRF(ctx context.Context, rawURL string) error {
-	// Parse host from URL.
-	host := rawURL
-	if idx := strings.Index(host, "://"); idx >= 0 {
-		host = host[idx+3:]
-	}
-	if idx := strings.Index(host, "/"); idx >= 0 {
-		host = host[:idx]
-	}
-	if idx := strings.Index(host, ":"); idx >= 0 {
-		host = host[:idx]
-	}
+func (w *WebSearch) fetchClient() *http.Client {
+	transport := &http.Transport{}
 
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return fmt.Errorf("dns lookup failed for %q: %w", host, err)
-	}
-
-	for _, ip := range ips {
-		if ip.IP.IsLoopback() || ip.IP.IsPrivate() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsLinkLocalMulticast() {
-			return fmt.Errorf("blocked request to private/loopback IP %s for host %q", ip.IP, host)
+	if !w.skipSSRF {
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("dns lookup for %q: %w", host, err)
+			}
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP) {
+					return nil, fmt.Errorf("blocked: %s resolves to private IP %s", host, ip.IP)
+				}
+			}
+			// Pin to first resolved IP to prevent DNS rebinding (TOCTOU).
+			return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
 		}
 	}
 
-	return nil
+	timeout := 30 * time.Second
+	if w.cfg.WebSearch != nil {
+		if w.cfg.WebSearch.Timeout != "" {
+			if d, err := time.ParseDuration(w.cfg.WebSearch.Timeout); err == nil {
+				timeout = d
+			}
+		}
+		if w.cfg.WebSearch.Proxy != "" {
+			if u, err := url.Parse(w.cfg.WebSearch.Proxy); err == nil {
+				transport.Proxy = http.ProxyURL(u)
+			}
+		}
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
+}
+
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 }
