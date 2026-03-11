@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -57,7 +57,7 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 		results, err := eng.Search(ctx, query, opts)
 		if err != nil {
 			lastErr = err
-			fmt.Fprintf(os.Stderr, "websearch: %s: %v\n", eng.Name(), err)
+			slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
 			continue
 		}
 		allResults = append(allResults, results...)
