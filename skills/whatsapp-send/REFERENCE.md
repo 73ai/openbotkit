@@ -6,13 +6,19 @@ obk whatsapp messages send --to <jid> --text "<message>"
 
 ## Finding the recipient
 
-Always resolve the recipient before sending. Use the contacts table first, then fall back to chats.
+Always resolve the recipient before sending. Use unified contacts first, then fall back to WhatsApp-specific queries.
 
 ```bash
-# Search contacts by name (preferred — has phone number and full name)
+# Step 1: Search unified contacts (preferred — cross-source, ranked by frequency)
+obk contacts search "David"
+
+# Step 2: Use the WhatsApp JID from the results to send
+obk whatsapp messages send --to "<jid>" --text "..."
+
+# Fallback: search WhatsApp contacts directly
 obk db whatsapp "SELECT jid, phone, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
 
-# Fall back to chats if not found in contacts
+# Fallback: search chats if not found in contacts
 obk db whatsapp "SELECT jid, name FROM whatsapp_chats WHERE LOWER(name) LIKE '%name%';"
 ```
 
