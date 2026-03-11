@@ -16,6 +16,7 @@ import (
 	tgchannel "github.com/priyanshujain/openbotkit/channel/telegram"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/memory"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
@@ -38,6 +39,9 @@ type Server struct {
 
 	waMu   sync.Mutex
 	waAuth *whatsAppAuth
+
+	scopeWaiter *google.ScopeWaiter
+	google      *google.Google
 }
 
 func New(cfg *config.Config, addr string) *Server {
@@ -51,6 +55,12 @@ func (s *Server) Run(ctx context.Context) error {
 	if u == "" || p == "" {
 		return fmt.Errorf("server requires authentication credentials; set OBK_AUTH_USERNAME and OBK_AUTH_PASSWORD env vars or configure auth in config.yaml")
 	}
+
+	s.scopeWaiter = google.NewScopeWaiter()
+	s.google = google.New(google.Config{
+		CredentialsFile: s.cfg.GoogleCredentialsFile(),
+		TokenDBPath:     s.cfg.GoogleTokenDBPath(),
+	})
 
 	s.migrateDBs()
 
