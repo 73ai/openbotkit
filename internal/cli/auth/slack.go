@@ -65,7 +65,7 @@ func slackLoginDesktop() error {
 		return fmt.Errorf("desktop extraction failed: %w", err)
 	}
 
-	workspace := sanitizeWorkspaceName(creds.TeamName)
+	workspace := slacksrc.SanitizeWorkspaceName(creds.TeamName)
 	if err := slacksrc.SaveCredentials(workspace, creds.Token, creds.Cookie); err != nil {
 		return fmt.Errorf("save credentials: %w", err)
 	}
@@ -120,7 +120,7 @@ func slackLoginToken() error {
 		return err
 	}
 
-	workspace = sanitizeWorkspaceName(strings.TrimSpace(workspace))
+	workspace = slacksrc.SanitizeWorkspaceName(strings.TrimSpace(workspace))
 	token = strings.TrimSpace(token)
 	cookie = strings.TrimSpace(cookie)
 
@@ -129,6 +129,9 @@ func slackLoginToken() error {
 	}
 	if err := slacksrc.ValidateToken(token); err != nil {
 		return err
+	}
+	if strings.HasPrefix(token, "xoxc-") && cookie == "" {
+		return fmt.Errorf("xoxc- tokens require a cookie (xoxd-) value")
 	}
 
 	client := slacksrc.NewClient(token, cookie)
@@ -246,12 +249,6 @@ var slackStatusCmd = &cobra.Command{
 		}
 		return nil
 	},
-}
-
-func sanitizeWorkspaceName(name string) string {
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-	return name
 }
 
 func init() {

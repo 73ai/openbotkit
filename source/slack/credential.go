@@ -39,9 +39,24 @@ func LoadCredentials(workspace string) (*Credentials, error) {
 }
 
 func DeleteCredentials(workspace string) error {
-	_ = keyring.Delete(keyringService, tokenAccount(workspace))
-	_ = keyring.Delete(keyringService, cookieAccount(workspace))
+	var errs []error
+	if err := keyring.Delete(keyringService, tokenAccount(workspace)); err != nil && err != keyring.ErrNotFound {
+		errs = append(errs, fmt.Errorf("delete token: %w", err))
+	}
+	if err := keyring.Delete(keyringService, cookieAccount(workspace)); err != nil && err != keyring.ErrNotFound {
+		errs = append(errs, fmt.Errorf("delete cookie: %w", err))
+	}
+	if len(errs) > 0 {
+		return errs[0]
+	}
 	return nil
+}
+
+// SanitizeWorkspaceName normalizes a workspace name for use as a key.
+func SanitizeWorkspaceName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, " ", "-")
+	return name
 }
 
 func ListWorkspaces() ([]string, error) {

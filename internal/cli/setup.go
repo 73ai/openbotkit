@@ -435,7 +435,7 @@ func setupSlack(cfg *config.Config) error {
 
 		creds, err := desktop.Extract()
 		if err == nil {
-			workspace := strings.ToLower(strings.ReplaceAll(creds.TeamName, " ", "-"))
+			workspace := slacksrc.SanitizeWorkspaceName(creds.TeamName)
 			if err := slacksrc.SaveCredentials(workspace, creds.Token, creds.Cookie); err != nil {
 				return fmt.Errorf("save credentials: %w", err)
 			}

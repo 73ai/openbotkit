@@ -205,7 +205,7 @@ func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Chan
 	}
 	client := slacksrc.NewClient(creds.Token, creds.Cookie)
 	inter := &cliInteractor{ch: ch}
-	deps := tools.SlackToolDeps{Client: client, Interactor: inter, Workspace: cfg.Slack.DefaultWorkspace}
+	deps := tools.SlackToolDeps{Client: client, Interactor: inter}
 
 	reg.Register(tools.NewSlackSearchTool(deps))
 	reg.Register(tools.NewSlackReadChannelTool(deps))
