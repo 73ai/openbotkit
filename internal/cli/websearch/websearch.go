@@ -12,4 +12,6 @@ func init() {
 	Cmd.AddCommand(fetchCmd)
 	Cmd.AddCommand(newsCmd)
 	Cmd.AddCommand(backendsCmd)
+	Cmd.AddCommand(historyCmd)
+	Cmd.AddCommand(cacheCmd)
 }
