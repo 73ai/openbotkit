@@ -7,6 +7,7 @@ import (
 
 	"github.com/priyanshujain/openbotkit/config"
 	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
+	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 
@@ -24,13 +25,24 @@ var newsCmd = &cobra.Command{
 		backend, _ := cmd.Flags().GetString("backend")
 		timeLimit, _ := cmd.Flags().GetString("time-limit")
 		region, _ := cmd.Flags().GetString("region")
+		noCache, _ := cmd.Flags().GetBool("no-cache")
 
-		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch})
+		var opts []wssrc.Option
+		db, err := store.Open(store.SQLiteConfig(cfg.WebSearchDataDSN()))
+		if err == nil {
+			defer db.Close()
+			if err := wssrc.Migrate(db); err == nil {
+				opts = append(opts, wssrc.WithDB(db))
+			}
+		}
+
+		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch}, opts...)
 		result, err := ws.News(cmd.Context(), args[0], wssrc.SearchOptions{
 			MaxResults: maxResults,
 			Backend:    backend,
 			TimeLimit:  timeLimit,
 			Region:     region,
+			NoCache:    noCache,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -46,4 +58,5 @@ func init() {
 	newsCmd.Flags().StringP("backend", "b", "auto", "News backend (auto, duckduckgo, yahoo)")
 	newsCmd.Flags().StringP("time-limit", "t", "", "Time limit (d=day, w=week, m=month)")
 	newsCmd.Flags().StringP("region", "r", "us-en", "Region for news results")
+	newsCmd.Flags().Bool("no-cache", false, "Bypass result cache")
 }
