@@ -305,6 +305,24 @@ func TestBuildBaseSystemPrompt_NoGWSInstructions(t *testing.T) {
 	}
 }
 
+func TestBuildBaseSystemPrompt_DelegateInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "delegate_task"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if !strings.Contains(prompt, "Task Delegation") {
+		t.Error("prompt missing delegate_task instructions")
+	}
+}
+
+func TestBuildBaseSystemPrompt_NoDelegateInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if strings.Contains(prompt, "Task Delegation") {
+		t.Error("prompt should not contain delegate instructions without delegate_task")
+	}
+}
+
 func TestBuildBaseSystemPrompt_SlackInstructions(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(&stubTool{name: "slack_search"})

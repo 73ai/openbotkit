@@ -55,6 +55,16 @@ When a tool result includes "user notified", keep your response brief — the us
 `)
 	}
 
+	// Delegate section — only if delegate_task tool is registered.
+	if reg.Has("delegate_task") {
+		b.WriteString(`
+## Task Delegation
+Use delegate_task for complex, time-consuming tasks: deep research, analysis, code generation, multi-step reasoning.
+Do NOT delegate simple tasks — just do them directly with your existing tools.
+The external agent runs locally and incurs API costs — use judiciously.
+`)
+	}
+
 	// Slack section — only if slack tools are registered.
 	if reg.Has("slack_search") {
 		b.WriteString(`
