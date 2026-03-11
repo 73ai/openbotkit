@@ -73,3 +73,35 @@ func TestSlackReactTool_MissingParams(t *testing.T) {
 		t.Fatal("expected error for missing emoji")
 	}
 }
+
+func TestSlackReactTool_Metadata(t *testing.T) {
+	tool := NewSlackReactTool(SlackToolDeps{Client: &mockSlackAPI{}, Interactor: &mockInteractor{}})
+	if tool.Name() != "slack_react" {
+		t.Errorf("Name() = %q", tool.Name())
+	}
+	if tool.Description() == "" {
+		t.Error("empty description")
+	}
+	if !json.Valid(tool.InputSchema()) {
+		t.Error("invalid schema")
+	}
+}
+
+func TestSlackReactTool_InvalidJSON(t *testing.T) {
+	tool := NewSlackReactTool(SlackToolDeps{Client: &mockSlackAPI{}, Interactor: &mockInteractor{}})
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{bad`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestSlackReactTool_ResolveError(t *testing.T) {
+	api := &mockSlackAPI{channels: []slack.Channel{}}
+	inter := &mockInteractor{approveAll: true}
+	tool := NewSlackReactTool(SlackToolDeps{Client: api, Interactor: inter})
+	input, _ := json.Marshal(slackReactInput{Channel: "#nonexistent", TS: "111", Emoji: "thumbsup"})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error for unresolvable channel")
+	}
+}
