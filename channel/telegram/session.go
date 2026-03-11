@@ -36,6 +36,7 @@ type SessionManager struct {
 	tokenBridge *tools.TokenBridge
 	googleAuth  *google.Google
 	account     string
+	manifest    *skills.Manifest
 
 	mu        sync.Mutex
 	sessionID string
@@ -67,6 +68,9 @@ func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, pro
 		sm.tokenBridge = d.TokenBridge
 		sm.googleAuth = d.GoogleAuth
 		sm.account = d.Account
+	}
+	if sm.gwsEnabled() {
+		sm.manifest, _ = skills.LoadManifest()
 	}
 	return sm
 }
@@ -216,7 +220,6 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 	toolReg := tools.NewStandardRegistry()
 
 	if sm.gwsEnabled() && sm.interactor != nil {
-		manifest, _ := skills.LoadManifest()
 		toolReg.Register(tools.NewGWSExecuteTool(tools.GWSToolConfig{
 			Interactor:   sm.interactor,
 			ScopeChecker: &tools.GoogleScopeChecker{TokenDBPath: sm.cfg.GoogleTokenDBPath()},
@@ -224,7 +227,7 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 			ScopeWaiter:  sm.scopeWaiter,
 			Google:       sm.googleAuth,
 			Account:      sm.account,
-			Manifest:     manifest,
+			Manifest:     sm.manifest,
 			Runner:       tools.NewGWSRunner(),
 		}))
 	}
