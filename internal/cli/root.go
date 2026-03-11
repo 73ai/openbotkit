@@ -6,6 +6,7 @@ import (
 
 	applenotescli "github.com/priyanshujain/openbotkit/internal/cli/applenotes"
 	authcli "github.com/priyanshujain/openbotkit/internal/cli/auth"
+	financecli "github.com/priyanshujain/openbotkit/internal/cli/finance"
 	"github.com/priyanshujain/openbotkit/internal/cli/gmail"
 	historycli "github.com/priyanshujain/openbotkit/internal/cli/history"
 	imessagecli "github.com/priyanshujain/openbotkit/internal/cli/imessage"
@@ -34,6 +35,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(applenotescli.Cmd)
 	rootCmd.AddCommand(authcli.Cmd)
+	rootCmd.AddCommand(financecli.Cmd)
 	rootCmd.AddCommand(imessagecli.Cmd)
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(gmail.Cmd)
