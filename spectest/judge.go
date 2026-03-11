@@ -20,7 +20,7 @@ func (f *LocalFixture) AssertJudge(t *testing.T, prompt, response, criteria stri
 2. The AI assistant's response
 3. Success criteria
 
-The assistant had access to real databases (email, WhatsApp, memories) via tool calls.
+The assistant had access to real databases (email, WhatsApp, memories, contacts) via tool calls.
 The details in the response (names, dates, email addresses, subjects) come from those databases — they are NOT hallucinated.
 Your job is ONLY to check whether the response covers the topics described in the criteria.
 
