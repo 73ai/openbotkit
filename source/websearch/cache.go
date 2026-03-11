@@ -70,11 +70,11 @@ func getFetchCache(db *store.DB, url, format string, ttl time.Duration) (*FetchR
 		return nil, false
 	}
 
-	var title, content, storedFormat string
+	var title, content, contentType, storedFormat string
 	var statusCode int
 	var fetchedAt time.Time
-	q := db.Rebind("SELECT title, content, format, status_code, fetched_at FROM fetch_cache WHERE url = ?")
-	err := db.QueryRow(q, url).Scan(&title, &content, &storedFormat, &statusCode, &fetchedAt)
+	q := db.Rebind("SELECT title, content, content_type, format, status_code, fetched_at FROM fetch_cache WHERE url = ?")
+	err := db.QueryRow(q, url).Scan(&title, &content, &contentType, &storedFormat, &statusCode, &fetchedAt)
 	if err != nil {
 		return nil, false
 	}
@@ -90,11 +90,12 @@ func getFetchCache(db *store.DB, url, format string, ttl time.Duration) (*FetchR
 	}
 
 	return &FetchResult{
-		URL:        url,
-		Title:      title,
-		Content:    content,
-		StatusCode: statusCode,
-		Cached:     true,
+		URL:         url,
+		Title:       title,
+		Content:     content,
+		ContentType: contentType,
+		StatusCode:  statusCode,
+		Cached:      true,
 	}, true
 }
 
@@ -103,9 +104,9 @@ func putFetchCache(db *store.DB, result *FetchResult, format string) {
 		return
 	}
 
-	q := db.Rebind(`INSERT INTO fetch_cache (url, title, content, format, status_code) VALUES (?, ?, ?, ?, ?)
+	q := db.Rebind(`INSERT INTO fetch_cache (url, title, content, content_type, format, status_code) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(url) DO UPDATE SET title = excluded.title, content = excluded.content,
-		format = excluded.format, status_code = excluded.status_code, fetched_at = CURRENT_TIMESTAMP`)
-	db.Exec(q, result.URL, result.Title, result.Content, format, result.StatusCode)
+		content_type = excluded.content_type, format = excluded.format, status_code = excluded.status_code, fetched_at = CURRENT_TIMESTAMP`)
+	db.Exec(q, result.URL, result.Title, result.Content, result.ContentType, format, result.StatusCode)
 }
 
