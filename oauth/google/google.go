@@ -163,6 +163,25 @@ func (g *Google) RevokeScopes(ctx context.Context, account string, scopes []stri
 	return store.SaveToken(account, tok, remaining)
 }
 
+// AuthURL generates an OAuth consent URL for incremental scope grant.
+// The state parameter correlates with a ScopeWaiter.
+func (g *Google) AuthURL(account string, scopes []string, state string) (string, error) {
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	if err != nil {
+		return "", err
+	}
+
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	if account != "" {
+		opts = append(opts,
+			oauth2.SetAuthURLParam("login_hint", account),
+			oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+		)
+	}
+
+	return oauthCfg.AuthCodeURL(state, opts...), nil
+}
+
 func (g *Google) Accounts(ctx context.Context) ([]string, error) {
 	store, err := NewTokenStore(g.cfg.TokenDBPath)
 	if err != nil {
