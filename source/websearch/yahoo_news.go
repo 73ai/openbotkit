@@ -23,7 +23,6 @@ func (y *Yahoo) News(ctx context.Context, query string, opts SearchOptions) ([]R
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := y.client.Do(req)

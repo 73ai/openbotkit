@@ -43,6 +43,7 @@ type SearchOptions struct {
 	Backend    string
 	TimeLimit  string
 	Region     string
+	Page       int
 	NoCache    bool
 }
 

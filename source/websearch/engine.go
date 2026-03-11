@@ -1,6 +1,13 @@
 package websearch
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
+
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
 type Engine interface {
 	Name() string

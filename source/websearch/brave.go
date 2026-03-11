@@ -13,11 +13,11 @@ import (
 const braveURL = "https://search.brave.com/search"
 
 type Brave struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 }
 
-func NewBrave(client *http.Client) *Brave {
+func NewBrave(client HTTPDoer) *Brave {
 	return &Brave{client: client, baseURL: braveURL}
 }
 
@@ -29,7 +29,6 @@ func (b *Brave) Search(ctx context.Context, query string, opts SearchOptions) ([
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := b.client.Do(req)

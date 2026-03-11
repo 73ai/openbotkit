@@ -14,11 +14,11 @@ import (
 const yandexURL = "https://yandex.com/search/site/"
 
 type Yandex struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 }
 
-func NewYandex(client *http.Client) *Yandex {
+func NewYandex(client HTTPDoer) *Yandex {
 	return &Yandex{client: client, baseURL: yandexURL}
 }
 
@@ -34,14 +34,17 @@ func (y *Yandex) Search(ctx context.Context, query string, opts SearchOptions) (
 	q.Set("text", query)
 	q.Set("web", "1")
 	q.Set("searchid", fmt.Sprintf("%07d", rand.IntN(10000000)))
-	q.Set("p", "0")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("p", fmt.Sprintf("%d", page-1))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := y.client.Do(req)

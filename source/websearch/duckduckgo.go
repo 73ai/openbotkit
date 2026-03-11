@@ -21,13 +21,13 @@ const (
 )
 
 type DuckDuckGo struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 	vqdURL  string
 	newsURL string
 }
 
-func NewDuckDuckGo(client *http.Client) *DuckDuckGo {
+func NewDuckDuckGo(client HTTPDoer) *DuckDuckGo {
 	return &DuckDuckGo{
 		client:  client,
 		baseURL: ddgURL,
@@ -46,7 +46,12 @@ func (d *DuckDuckGo) Search(ctx context.Context, query string, opts SearchOption
 
 	form := url.Values{}
 	form.Set("q", query)
-	form.Set("s", "0")
+	page := opts.Page
+	if page <= 1 {
+		form.Set("s", "0")
+	} else {
+		form.Set("s", fmt.Sprintf("%d", 10+(page-2)*15))
+	}
 	if opts.Region != "" {
 		form.Set("kl", opts.Region)
 	}
@@ -58,7 +63,6 @@ func (d *DuckDuckGo) Search(ctx context.Context, query string, opts SearchOption
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Referer", "https://html.duckduckgo.com/")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

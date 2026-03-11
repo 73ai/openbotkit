@@ -56,7 +56,7 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := client.Do(req)
@@ -145,6 +145,10 @@ func extractText(html []byte) string {
 	return strings.TrimSpace(doc.Find("body").Text())
 }
 
+// fetchClient returns a raw http.Client with SSRF protection (private IP blocking).
+// This is separate from httpClient() which uses httpclient.Client with UA rotation
+// and rate limiting for search engines — fetch needs SSRF guards since it hits
+// arbitrary user-provided URLs.
 func (w *WebSearch) fetchClient() *http.Client {
 	transport := &http.Transport{}
 

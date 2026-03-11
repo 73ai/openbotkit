@@ -143,6 +143,7 @@ type WebSearchConfig struct {
 	Proxy    string        `yaml:"proxy,omitempty"`
 	Timeout  string        `yaml:"timeout,omitempty"`
 	CacheTTL string        `yaml:"cache_ttl,omitempty"`
+	Backends []string      `yaml:"backends,omitempty"`
 }
 
 type ContactsConfig struct {

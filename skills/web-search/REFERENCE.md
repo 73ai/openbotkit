@@ -9,16 +9,17 @@ obk websearch search "query" [flags]
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--max-results` | `-n` | 10 | Maximum number of results |
-| `--backend` | `-b` | auto | Search backend: auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia |
+| `--backend` | `-b` | auto | Search backend: auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia, bing |
 | `--time-limit` | `-t` | | Time limit: d (day), w (week), m (month) |
 | `--region` | `-r` | us-en | Region for search results |
+| `--page` | `-p` | 1 | Page number for pagination |
 | `--no-cache` | | false | Bypass result cache |
 
 ## Auto Backend Set
 
 When `--backend auto` (default), searches use: DuckDuckGo + Brave + Mojeek + Wikipedia.
 
-Yahoo, Yandex, and Google are opt-in only via `--backend <name>`.
+Yahoo, Yandex, Google, and Bing are opt-in only via `--backend <name>`.
 
 ## Output
 
@@ -50,12 +51,17 @@ Results are cached for 15 minutes by default. Repeated queries return cached res
 
 ## Search History
 
-Query past searches via `obk db websearch`:
+```bash
+# Recent searches (JSON output)
+obk websearch history --limit 20
+
+# Or query directly via SQL
+obk db websearch "SELECT query, category, result_count, backends, search_ms, created_at FROM search_history ORDER BY created_at DESC LIMIT 10;"
+```
+
+## Cache Management
 
 ```bash
-# Recent searches
-obk db websearch "SELECT query, result_count, backends, search_ms, created_at FROM search_history ORDER BY created_at DESC LIMIT 10;"
-
-# Search frequency
-obk db websearch "SELECT query, COUNT(*) as times FROM search_history GROUP BY query ORDER BY times DESC LIMIT 10;"
+# Clear all search and fetch caches
+obk websearch cache clear
 ```

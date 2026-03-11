@@ -16,12 +16,12 @@ const (
 )
 
 type Yahoo struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 	newsURL string
 }
 
-func NewYahoo(client *http.Client) *Yahoo {
+func NewYahoo(client HTTPDoer) *Yahoo {
 	return &Yahoo{client: client, baseURL: yahooSearchURL, newsURL: yahooNewsURL}
 }
 
@@ -35,7 +35,11 @@ func (y *Yahoo) Search(ctx context.Context, query string, opts SearchOptions) ([
 	}
 	q := u.Query()
 	q.Set("p", query)
-	q.Set("b", "1")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("b", fmt.Sprintf("%d", (page-1)*7+1))
 	if opts.TimeLimit != "" {
 		q.Set("btf", opts.TimeLimit)
 	}
@@ -45,7 +49,6 @@ func (y *Yahoo) Search(ctx context.Context, query string, opts SearchOptions) ([
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := y.client.Do(req)

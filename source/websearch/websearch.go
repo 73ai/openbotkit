@@ -2,19 +2,19 @@ package websearch
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/internal/browser"
 	"github.com/priyanshujain/openbotkit/source"
+	"github.com/priyanshujain/openbotkit/source/websearch/httpclient"
 	"github.com/priyanshujain/openbotkit/store"
 )
-
-const chromeUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 type WebSearch struct {
 	cfg      Config
 	db       *store.DB
+	health   *healthTracker
+	client   *httpclient.Client
 	skipSSRF bool // for testing only
 }
 
@@ -27,10 +27,11 @@ func WithDB(db *store.DB) Option {
 }
 
 func New(cfg Config, opts ...Option) *WebSearch {
-	w := &WebSearch{cfg: cfg}
+	w := &WebSearch{cfg: cfg, health: newHealthTracker()}
 	for _, opt := range opts {
 		opt(w)
 	}
+	w.client = w.buildHTTPClient()
 	return w
 }
 
@@ -61,19 +62,30 @@ func (w *WebSearch) cacheTTL() time.Duration {
 	return defaultCacheTTL
 }
 
-func (w *WebSearch) httpClient() *http.Client {
-	var opts []browser.ClientOption
+func (w *WebSearch) configuredBackends() []string {
+	if w.cfg.WebSearch != nil {
+		return w.cfg.WebSearch.Backends
+	}
+	return nil
+}
+
+func (w *WebSearch) httpClient() *httpclient.Client {
+	return w.client
+}
+
+func (w *WebSearch) buildHTTPClient() *httpclient.Client {
+	var browserOpts []browser.ClientOption
 
 	if w.cfg.WebSearch != nil {
 		if w.cfg.WebSearch.Timeout != "" {
 			if d, err := time.ParseDuration(w.cfg.WebSearch.Timeout); err == nil {
-				opts = append(opts, browser.WithTimeout(d))
+				browserOpts = append(browserOpts, browser.WithTimeout(d))
 			}
 		}
 		if w.cfg.WebSearch.Proxy != "" {
-			opts = append(opts, browser.WithProxy(w.cfg.WebSearch.Proxy))
+			browserOpts = append(browserOpts, browser.WithProxy(w.cfg.WebSearch.Proxy))
 		}
 	}
 
-	return browser.NewClient(opts...)
+	return httpclient.New(browserOpts)
 }

@@ -25,6 +25,7 @@ var searchCmd = &cobra.Command{
 		backend, _ := cmd.Flags().GetString("backend")
 		timeLimit, _ := cmd.Flags().GetString("time-limit")
 		region, _ := cmd.Flags().GetString("region")
+		page, _ := cmd.Flags().GetInt("page")
 		noCache, _ := cmd.Flags().GetBool("no-cache")
 
 		var opts []wssrc.Option
@@ -42,6 +43,7 @@ var searchCmd = &cobra.Command{
 			Backend:    backend,
 			TimeLimit:  timeLimit,
 			Region:     region,
+			Page:       page,
 			NoCache:    noCache,
 		})
 		if err != nil {
@@ -54,8 +56,9 @@ var searchCmd = &cobra.Command{
 
 func init() {
 	searchCmd.Flags().IntP("max-results", "n", 10, "Maximum number of results")
-	searchCmd.Flags().StringP("backend", "b", "auto", "Search backend (auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia)")
+	searchCmd.Flags().StringP("backend", "b", "auto", "Search backend (auto, duckduckgo, brave, mojeek, yahoo, yandex, google, wikipedia, bing)")
 	searchCmd.Flags().StringP("time-limit", "t", "", "Time limit (d=day, w=week, m=month)")
 	searchCmd.Flags().StringP("region", "r", "us-en", "Region for search results")
+	searchCmd.Flags().IntP("page", "p", 1, "Page number for pagination")
 	searchCmd.Flags().Bool("no-cache", false, "Bypass result cache")
 }

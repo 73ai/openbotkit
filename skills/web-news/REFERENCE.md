@@ -12,6 +12,8 @@ obk websearch news "query" [flags]
 | `--backend` | `-b` | auto | News backend: auto, duckduckgo, yahoo |
 | `--time-limit` | `-t` | | Time limit: d (day), w (week), m (month) |
 | `--region` | `-r` | us-en | Region for news results |
+| `--page` | `-p` | 1 | Page number for pagination |
+| `--no-cache` | | false | Bypass result cache |
 
 ## Output
 

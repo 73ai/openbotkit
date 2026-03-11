@@ -5,21 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	defaultMaxResults = 10
 	defaultRegion     = "us-en"
+	maxQueryLength    = 2000
 )
 
 func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("empty search query")
+	}
+	if len(query) > maxQueryLength {
+		return nil, fmt.Errorf("query too long (%d chars, max %d)", len(query), maxQueryLength)
 	}
 
 	if opts.MaxResults <= 0 {
@@ -30,14 +35,14 @@ func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions
 	}
 
 	if !opts.NoCache {
-		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit)
+		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit, opts.Page)
 		if cached, ok := getSearchCache(w.db, key, w.cacheTTL()); ok {
 			return cached, nil
 		}
 	}
 
 	client := w.httpClient()
-	engines := buildEngines(client, opts.Backend)
+	engines := buildEngines(client, opts.Backend, w.configuredBackends())
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown backend: %q", opts.Backend)
 	}
@@ -48,9 +53,11 @@ func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions
 	}
 
 	if !opts.NoCache {
-		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit)
+		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit, opts.Page)
 		putSearchCache(w.db, key, query, "web", result.Results)
 	}
+
+	putSearchHistory(w.db, query, "web", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
 
 	return result, nil
 }
@@ -66,26 +73,58 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 	})
 
 	start := time.Now()
-	var allResults []Result
-	var backends []string
-	var lastErr error
 
-	for _, eng := range engines {
-		results, err := eng.Search(ctx, query, opts)
-		if err != nil {
-			lastErr = err
-			slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
-			continue
-		}
-		allResults = append(allResults, results...)
-		backends = append(backends, eng.Name())
+	type engineResult struct {
+		name    string
+		results []Result
 	}
 
-	if len(allResults) == 0 && lastErr != nil {
+	var (
+		mu         sync.Mutex
+		collected  []engineResult
+		lastErr    error
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+	for _, eng := range engines {
+		if !w.health.IsHealthy(eng.Name()) {
+			slog.Info("skipping unhealthy backend", "engine", eng.Name())
+			continue
+		}
+		g.Go(func() error {
+			results, err := eng.Search(gctx, query, opts)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				lastErr = err
+				w.health.RecordFailure(eng.Name())
+				slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
+				return nil // don't cancel other goroutines
+			}
+			w.health.RecordSuccess(eng.Name())
+			collected = append(collected, engineResult{name: eng.Name(), results: results})
+			return nil
+		})
+	}
+	g.Wait()
+
+	if len(collected) == 0 && lastErr != nil {
 		return nil, fmt.Errorf("all backends failed: %w", lastErr)
 	}
 
-	allResults = dedup(allResults)
+	// Maintain priority order for deterministic ranking.
+	sort.Slice(collected, func(i, j int) bool {
+		return priorityOf(collected[i].name, engines) > priorityOf(collected[j].name, engines)
+	})
+
+	var allResults []Result
+	var backends []string
+	for _, c := range collected {
+		allResults = append(allResults, c.results...)
+		backends = append(backends, c.name)
+	}
+
+	allResults = rankResults(allResults, query)
 
 	if len(allResults) > opts.MaxResults {
 		allResults = allResults[:opts.MaxResults]
@@ -104,15 +143,16 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 	}, nil
 }
 
-func buildEngines(client *http.Client, backend string) []Engine {
+func buildEngines(client HTTPDoer, backend string, configured []string) []Engine {
 	switch backend {
 	case "", "auto":
-		return []Engine{
+		all := []Engine{
 			NewDuckDuckGo(client),
 			NewBrave(client),
 			NewMojeek(client),
 			NewWikipedia(client),
 		}
+		return filterEngines(all, configured)
 	case "duckduckgo":
 		return []Engine{NewDuckDuckGo(client)}
 	case "brave":
@@ -127,14 +167,36 @@ func buildEngines(client *http.Client, backend string) []Engine {
 		return []Engine{NewGoogle(client)}
 	case "wikipedia":
 		return []Engine{NewWikipedia(client)}
+	case "bing":
+		return []Engine{NewBing(client)}
 	default:
 		return nil
 	}
 }
 
+func filterEngines(engines []Engine, allowed []string) []Engine {
+	if len(allowed) == 0 {
+		return engines
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		set[name] = true
+	}
+	var out []Engine
+	for _, eng := range engines {
+		if set[eng.Name()] {
+			out = append(out, eng)
+		}
+	}
+	return out
+}
+
 func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("empty search query")
+	}
+	if len(query) > maxQueryLength {
+		return nil, fmt.Errorf("query too long (%d chars, max %d)", len(query), maxQueryLength)
 	}
 
 	if opts.MaxResults <= 0 {
@@ -145,14 +207,14 @@ func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) 
 	}
 
 	if !opts.NoCache {
-		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit)
+		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit, opts.Page)
 		if cached, ok := getSearchCache(w.db, key, w.cacheTTL()); ok {
 			return cached, nil
 		}
 	}
 
 	client := w.httpClient()
-	engines := buildNewsEngines(client, opts.Backend)
+	engines := buildNewsEngines(client, opts.Backend, w.configuredBackends())
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown or non-news backend: %q", opts.Backend)
 	}
@@ -163,9 +225,11 @@ func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) 
 	}
 
 	if !opts.NoCache {
-		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit)
+		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit, opts.Page)
 		putSearchCache(w.db, key, query, "news", result.Results)
 	}
+
+	putSearchHistory(w.db, query, "news", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
 
 	return result, nil
 }
@@ -180,26 +244,58 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 	})
 
 	start := time.Now()
-	var allResults []Result
-	var backends []string
-	var lastErr error
 
-	for _, eng := range engines {
-		results, err := eng.News(ctx, query, opts)
-		if err != nil {
-			lastErr = err
-			slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
-			continue
-		}
-		allResults = append(allResults, results...)
-		backends = append(backends, eng.Name())
+	type newsResult struct {
+		name    string
+		results []Result
 	}
 
-	if len(allResults) == 0 && lastErr != nil {
+	var (
+		mu        sync.Mutex
+		collected []newsResult
+		lastErr   error
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+	for _, eng := range engines {
+		if !w.health.IsHealthy(eng.Name()) {
+			slog.Info("skipping unhealthy news backend", "engine", eng.Name())
+			continue
+		}
+		g.Go(func() error {
+			results, err := eng.News(gctx, query, opts)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				lastErr = err
+				w.health.RecordFailure(eng.Name())
+				slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
+				return nil
+			}
+			w.health.RecordSuccess(eng.Name())
+			collected = append(collected, newsResult{name: eng.Name(), results: results})
+			return nil
+		})
+	}
+	g.Wait()
+
+	if len(collected) == 0 && lastErr != nil {
 		return nil, fmt.Errorf("all news backends failed: %w", lastErr)
 	}
 
-	allResults = dedup(allResults)
+	// Maintain priority order for deterministic ranking.
+	sort.Slice(collected, func(i, j int) bool {
+		return newsEngPriority(collected[i].name, engines) > newsEngPriority(collected[j].name, engines)
+	})
+
+	var allResults []Result
+	var backends []string
+	for _, c := range collected {
+		allResults = append(allResults, c.results...)
+		backends = append(backends, c.name)
+	}
+
+	allResults = rankResults(allResults, query)
 
 	if len(allResults) > opts.MaxResults {
 		allResults = allResults[:opts.MaxResults]
@@ -218,13 +314,14 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 	}, nil
 }
 
-func buildNewsEngines(client *http.Client, backend string) []NewsEngine {
+func buildNewsEngines(client HTTPDoer, backend string, configured []string) []NewsEngine {
 	switch backend {
 	case "", "auto":
-		return []NewsEngine{
+		all := []NewsEngine{
 			NewDuckDuckGo(client),
 			NewYahoo(client),
 		}
+		return filterNewsEngines(all, configured)
 	case "duckduckgo":
 		return []NewsEngine{NewDuckDuckGo(client)}
 	case "yahoo":
@@ -234,25 +331,37 @@ func buildNewsEngines(client *http.Client, backend string) []NewsEngine {
 	}
 }
 
-func dedup(results []Result) []Result {
-	seen := make(map[string]bool)
-	var out []Result
-	for _, r := range results {
-		key := normalizeURL(r.URL)
-		if seen[key] {
-			continue
+func priorityOf(name string, engines []Engine) int {
+	for _, e := range engines {
+		if e.Name() == name {
+			return e.Priority()
 		}
-		seen[key] = true
-		out = append(out, r)
 	}
-	return out
+	return 0
 }
 
-func normalizeURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
+func newsEngPriority(name string, engines []NewsEngine) int {
+	for _, e := range engines {
+		if e.Name() == name {
+			return e.Priority()
+		}
 	}
-	u.Fragment = ""
-	return strings.TrimSuffix(u.String(), "/")
+	return 0
+}
+
+func filterNewsEngines(engines []NewsEngine, allowed []string) []NewsEngine {
+	if len(allowed) == 0 {
+		return engines
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		set[name] = true
+	}
+	var out []NewsEngine
+	for _, eng := range engines {
+		if set[eng.Name()] {
+			out = append(out, eng)
+		}
+	}
+	return out
 }

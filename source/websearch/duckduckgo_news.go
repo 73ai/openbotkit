@@ -43,8 +43,6 @@ func (d *DuckDuckGo) News(ctx context.Context, query string, opts SearchOptions)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
-
 	resp, err := d.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -101,8 +99,6 @@ func (d *DuckDuckGo) fetchVQD(ctx context.Context, query string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
-
 	resp, err := d.client.Do(req)
 	if err != nil {
 		return "", err
