@@ -34,6 +34,7 @@ type Config struct {
 	Integrations *IntegrationsConfig `yaml:"integrations,omitempty"`
 	WebSearch    *WebSearchConfig    `yaml:"websearch,omitempty"`
 	Contacts     *ContactsConfig     `yaml:"contacts,omitempty"`
+	Slack        *SlackConfig        `yaml:"slack,omitempty"`
 }
 
 func (c *Config) ResolvedMode() Mode {
@@ -146,6 +147,17 @@ type WebSearchConfig struct {
 
 type ContactsConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
+type SlackConfig struct {
+	DefaultWorkspace string                    `yaml:"default_workspace,omitempty"`
+	Workspaces       map[string]SlackWorkspace `yaml:"workspaces,omitempty"`
+}
+
+type SlackWorkspace struct {
+	TeamID   string `yaml:"team_id,omitempty"`
+	TeamName string `yaml:"team_name,omitempty"`
+	AuthMode string `yaml:"auth_mode,omitempty"` // "desktop" or "token"
 }
 
 type StorageConfig struct {

@@ -17,6 +17,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
 	"github.com/priyanshujain/openbotkit/store"
 )
@@ -232,6 +233,8 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 		}))
 	}
 
+	sm.registerSlackTools(toolReg)
+
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
 		Model:       sm.model,
@@ -249,6 +252,24 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 		opts = append(opts, agent.WithUsageRecorder(recorder))
 	}
 	return agent.New(sm.provider, sm.model, toolReg, opts...), recorder, nil
+}
+
+func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
+	if sm.cfg.Slack == nil || sm.cfg.Slack.DefaultWorkspace == "" || sm.interactor == nil {
+		return
+	}
+	creds, err := slacksrc.LoadCredentials(sm.cfg.Slack.DefaultWorkspace)
+	if err != nil {
+		return
+	}
+	client := slacksrc.NewClient(creds.Token, creds.Cookie)
+	deps := tools.SlackToolDeps{Client: client, Interactor: sm.interactor}
+	reg.Register(tools.NewSlackSearchTool(deps))
+	reg.Register(tools.NewSlackReadChannelTool(deps))
+	reg.Register(tools.NewSlackReadThreadTool(deps))
+	reg.Register(tools.NewSlackSendTool(deps))
+	reg.Register(tools.NewSlackEditTool(deps))
+	reg.Register(tools.NewSlackReactTool(deps))
 }
 
 func (sm *SessionManager) userMemoriesPrompt() string {

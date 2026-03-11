@@ -55,6 +55,16 @@ When a tool result includes "user notified", keep your response brief — the us
 `)
 	}
 
+	// Slack section — only if slack tools are registered.
+	if reg.Has("slack_search") {
+		b.WriteString(`
+## Slack
+Use the slack_search, slack_read_channel, and slack_read_thread tools for reading Slack content.
+Use slack_send, slack_edit, and slack_react for write operations (these require user approval).
+Channel references accept: #name, C-ID, or Slack archive URL. User references accept: @handle, U-ID, or email.
+`)
+	}
+
 	// Skills section.
 	b.WriteString(`
 ## Skills

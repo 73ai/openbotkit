@@ -15,6 +15,7 @@ import (
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
+	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
@@ -69,6 +70,9 @@ var statusCmd = &cobra.Command{
 
 		ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch})
 		source.Register(ws)
+
+		sl := slacksrc.New(slacksrc.Config{Slack: cfg.Slack})
+		source.Register(sl)
 
 		ctx := context.Background()
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

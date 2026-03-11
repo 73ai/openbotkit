@@ -10,4 +10,5 @@ var Cmd = &cobra.Command{
 func init() {
 	Cmd.AddCommand(googleCmd)
 	Cmd.AddCommand(whatsappCmd)
+	Cmd.AddCommand(slackCmd)
 }
