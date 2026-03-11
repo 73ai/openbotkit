@@ -271,3 +271,80 @@ func TestFetchResponseBodyCapped(t *testing.T) {
 		t.Errorf("body not capped: got %d bytes", len(result.Content))
 	}
 }
+
+func TestFetchCacheIntegration(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "cached content")
+	}))
+	defer srv.Close()
+
+	db := openTestDB(t)
+	ws := &WebSearch{skipSSRF: true, db: db}
+
+	// First fetch — cache miss, server called.
+	r1, err := ws.Fetch(context.Background(), srv.URL, FetchOptions{})
+	if err != nil {
+		t.Fatalf("first fetch: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 server call, got %d", callCount)
+	}
+	if r1.Cached {
+		t.Error("first fetch should not be cached")
+	}
+	if r1.Content != "cached content" {
+		t.Errorf("expected 'cached content', got %q", r1.Content)
+	}
+
+	// Second fetch — cache hit, server NOT called.
+	r2, err := ws.Fetch(context.Background(), srv.URL, FetchOptions{})
+	if err != nil {
+		t.Fatalf("second fetch: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected server called only once, got %d", callCount)
+	}
+	if !r2.Cached {
+		t.Error("second fetch should be cached")
+	}
+	if r2.Content != "cached content" {
+		t.Errorf("expected cached content, got %q", r2.Content)
+	}
+}
+
+func TestFetchNoCacheBypass(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "response %d", callCount)
+	}))
+	defer srv.Close()
+
+	db := openTestDB(t)
+	ws := &WebSearch{skipSSRF: true, db: db}
+
+	// First fetch to populate cache.
+	_, err := ws.Fetch(context.Background(), srv.URL, FetchOptions{})
+	if err != nil {
+		t.Fatalf("first fetch: %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+
+	// Second fetch with NoCache — server called again.
+	r2, err := ws.Fetch(context.Background(), srv.URL, FetchOptions{NoCache: true})
+	if err != nil {
+		t.Fatalf("second fetch: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 calls with NoCache, got %d", callCount)
+	}
+	if r2.Content != "response 2" {
+		t.Errorf("expected fresh response, got %q", r2.Content)
+	}
+}

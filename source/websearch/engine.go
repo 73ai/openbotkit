@@ -7,3 +7,9 @@ type Engine interface {
 	Search(ctx context.Context, query string, opts SearchOptions) ([]Result, error)
 	Priority() int
 }
+
+type NewsEngine interface {
+	Name() string
+	News(ctx context.Context, query string, opts SearchOptions) ([]Result, error)
+	Priority() int
+}

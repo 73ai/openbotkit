@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
@@ -27,6 +29,30 @@ func TestWebSearchStatusNoDB(t *testing.T) {
 	}
 	if st.ItemCount != 0 {
 		t.Errorf("expected ItemCount=0, got %d", st.ItemCount)
+	}
+}
+
+func TestWithDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	defer os.Remove(dbPath)
+
+	ws := New(Config{}, WithDB(db))
+	if ws.db == nil {
+		t.Fatal("expected db to be set")
+	}
+}
+
+func TestNewWithoutOptions(t *testing.T) {
+	ws := New(Config{})
+	if ws.db != nil {
+		t.Fatal("expected db to be nil")
 	}
 }
 
@@ -64,5 +90,26 @@ func TestWebSearchStatusWithDB(t *testing.T) {
 	}
 	if st.ItemCount != 3 {
 		t.Errorf("expected ItemCount=3, got %d", st.ItemCount)
+	}
+}
+
+func TestCacheTTLDefault(t *testing.T) {
+	ws := New(Config{})
+	if ws.cacheTTL() != 15*time.Minute {
+		t.Errorf("expected 15m default, got %v", ws.cacheTTL())
+	}
+}
+
+func TestCacheTTLFromConfig(t *testing.T) {
+	ws := New(Config{WebSearch: &config.WebSearchConfig{CacheTTL: "30m"}})
+	if ws.cacheTTL() != 30*time.Minute {
+		t.Errorf("expected 30m, got %v", ws.cacheTTL())
+	}
+}
+
+func TestCacheTTLInvalidFallsBack(t *testing.T) {
+	ws := New(Config{WebSearch: &config.WebSearchConfig{CacheTTL: "invalid"}})
+	if ws.cacheTTL() != 15*time.Minute {
+		t.Errorf("expected 15m fallback, got %v", ws.cacheTTL())
 	}
 }
