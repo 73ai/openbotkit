@@ -19,13 +19,17 @@ func GuardedWrite(
 		return "", fmt.Errorf("approval: %w", err)
 	}
 	if !approved {
-		interactor.Notify("Action not performed.")
+		if nerr := interactor.Notify("Action not performed."); nerr != nil {
+			return "", fmt.Errorf("notify denial: %w", nerr)
+		}
 		return "denied_by_user", nil
 	}
 	result, err := action()
 	if err != nil {
 		return "", err
 	}
-	interactor.Notify("Done.")
+	if nerr := interactor.Notify("Done."); nerr != nil {
+		return "", fmt.Errorf("notify completion: %w", nerr)
+	}
 	return result, nil
 }

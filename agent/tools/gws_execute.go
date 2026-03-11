@@ -136,13 +136,19 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 	if err != nil {
 		return fmt.Errorf("generate auth URL: %w", err)
 	}
-	g.interactor.Notify("I need additional Google access to complete this request.")
-	g.interactor.NotifyLink("Tap to grant access", url)
+	if err := g.interactor.Notify("I need additional Google access to complete this request."); err != nil {
+		return fmt.Errorf("notify: %w", err)
+	}
+	if err := g.interactor.NotifyLink("Tap to grant access", url); err != nil {
+		return fmt.Errorf("notify link: %w", err)
+	}
 
 	if err := g.scopeWaiter.Wait(state, g.authTimeout, scopes, g.account); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
-	g.interactor.Notify("Access granted, thanks!")
+	if err := g.interactor.Notify("Access granted, thanks!"); err != nil {
+		return fmt.Errorf("notify: %w", err)
+	}
 	return nil
 }
 

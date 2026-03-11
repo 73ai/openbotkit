@@ -12,11 +12,12 @@ type mockInteractor struct {
 	approvals  []string
 	approveAll bool
 	approveErr error
+	notifyErr  error
 }
 
 func (m *mockInteractor) Notify(msg string) error {
 	m.notified = append(m.notified, msg)
-	return nil
+	return m.notifyErr
 }
 
 func (m *mockInteractor) NotifyLink(text, url string) error {
@@ -82,6 +83,20 @@ func TestGuardedWrite_ApprovalError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if !errors.Is(err, want) {
+		t.Errorf("error = %v, want %v", err, want)
+	}
+}
+
+func TestGuardedWrite_NotifyError(t *testing.T) {
+	want := errors.New("channel closed")
+	inter := &mockInteractor{approveAll: true, notifyErr: want}
+	_, err := GuardedWrite(context.Background(), inter, "action", func() (string, error) {
+		return "ok", nil
+	})
+	if err == nil {
+		t.Fatal("expected error from Notify")
 	}
 	if !errors.Is(err, want) {
 		t.Errorf("error = %v, want %v", err, want)
