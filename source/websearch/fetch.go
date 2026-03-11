@@ -1,0 +1,153 @@
+package websearch
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"strings"
+
+	"github.com/JohannesKaufmann/html-to-markdown/v2"
+	"github.com/PuerkitoBio/goquery"
+)
+
+const (
+	defaultMaxLength = 100000
+	defaultFormat    = "markdown"
+	fetchUserAgent   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions) (*FetchResult, error) {
+	if strings.TrimSpace(rawURL) == "" {
+		return nil, errors.New("empty URL")
+	}
+
+	if opts.MaxLength <= 0 {
+		opts.MaxLength = defaultMaxLength
+	}
+	if opts.Format == "" {
+		opts.Format = defaultFormat
+	}
+
+	rawURL = normalizeGitHubURL(rawURL)
+
+	if !w.skipSSRF {
+		if err := checkSSRF(ctx, rawURL); err != nil {
+			return nil, fmt.Errorf("ssrf check: %w", err)
+		}
+	}
+
+	client := w.httpClient()
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", fetchUserAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	result := &FetchResult{
+		URL:         rawURL,
+		ContentType: contentType,
+		StatusCode:  resp.StatusCode,
+	}
+
+	switch {
+	case strings.Contains(contentType, "text/html"), strings.Contains(contentType, "application/xhtml"):
+		result.Title = extractTitle(body)
+		switch opts.Format {
+		case "text":
+			result.Content = extractText(body)
+		default:
+			md, err := htmltomarkdown.ConvertString(string(body))
+			if err != nil {
+				result.Content = extractText(body)
+			} else {
+				result.Content = md
+			}
+		}
+	case strings.Contains(contentType, "application/json"):
+		var pretty bytes.Buffer
+		if err := json.Indent(&pretty, body, "", "  "); err != nil {
+			result.Content = string(body)
+		} else {
+			result.Content = pretty.String()
+		}
+	default:
+		result.Content = string(body)
+	}
+
+	if len(result.Content) > opts.MaxLength {
+		result.Content = result.Content[:opts.MaxLength] + "\n\n[Content truncated at " + fmt.Sprintf("%d", opts.MaxLength) + " characters]"
+		result.Truncated = true
+	}
+
+	return result, nil
+}
+
+func normalizeGitHubURL(raw string) string {
+	if !strings.Contains(raw, "github.com") {
+		return raw
+	}
+	raw = strings.Replace(raw, "github.com/", "raw.githubusercontent.com/", 1)
+	raw = strings.Replace(raw, "/blob/", "/", 1)
+	return raw
+}
+
+func extractTitle(html []byte) string {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(html))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(doc.Find("title").First().Text())
+}
+
+func extractText(html []byte) string {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(html))
+	if err != nil {
+		return string(html)
+	}
+	return strings.TrimSpace(doc.Find("body").Text())
+}
+
+func checkSSRF(ctx context.Context, rawURL string) error {
+	// Parse host from URL.
+	host := rawURL
+	if idx := strings.Index(host, "://"); idx >= 0 {
+		host = host[idx+3:]
+	}
+	if idx := strings.Index(host, "/"); idx >= 0 {
+		host = host[:idx]
+	}
+	if idx := strings.Index(host, ":"); idx >= 0 {
+		host = host[:idx]
+	}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return fmt.Errorf("dns lookup failed for %q: %w", host, err)
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() || ip.IP.IsPrivate() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsLinkLocalMulticast() {
+			return fmt.Errorf("blocked request to private/loopback IP %s for host %q", ip.IP, host)
+		}
+	}
+
+	return nil
+}

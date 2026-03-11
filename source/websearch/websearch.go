@@ -11,7 +11,8 @@ import (
 )
 
 type WebSearch struct {
-	cfg Config
+	cfg      Config
+	skipSSRF bool // for testing only
 }
 
 func New(cfg Config) *WebSearch {
