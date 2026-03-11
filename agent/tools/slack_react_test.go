@@ -95,6 +95,15 @@ func TestSlackReactTool_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestSlackReactTool_InvalidAction(t *testing.T) {
+	tool := NewSlackReactTool(SlackToolDeps{Client: &mockSlackAPI{}, Interactor: &mockInteractor{}})
+	input, _ := json.Marshal(slackReactInput{Channel: "C123", TS: "111", Emoji: "thumbsup", Action: "delete"})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error for invalid action")
+	}
+}
+
 func TestSlackReactTool_ResolveError(t *testing.T) {
 	api := &mockSlackAPI{channels: []slack.Channel{}}
 	inter := &mockInteractor{approveAll: true}
