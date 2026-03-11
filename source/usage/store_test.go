@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
@@ -119,6 +120,60 @@ func TestQueryFilterByDateRange(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Fatalf("got %d results, want 0", len(results))
+	}
+}
+
+func TestQueryMonthlyGrouping(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	Record(db, UsageRecord{Provider: "anthropic", Model: "claude-sonnet-4-6", InputTokens: 100, OutputTokens: 50})
+	Record(db, UsageRecord{Provider: "anthropic", Model: "claude-sonnet-4-6", InputTokens: 200, OutputTokens: 80})
+
+	results, err := Query(db, QueryOpts{GroupBy: "monthly"})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1 (grouped by month)", len(results))
+	}
+	if results[0].InputTokens != 300 {
+		t.Errorf("aggregated input = %d, want 300", results[0].InputTokens)
+	}
+	// Date should be YYYY-MM format.
+	if len(results[0].Date) != 7 {
+		t.Errorf("expected YYYY-MM date format, got %q", results[0].Date)
+	}
+}
+
+func TestRecorderWritesToDB(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	recorder := NewRecorder(db, "anthropic", "cli", "sess-1")
+	recorder.RecordUsage("claude-sonnet-4-6", provider.Usage{
+		InputTokens:      500,
+		OutputTokens:     100,
+		CacheReadTokens:  400,
+		CacheWriteTokens: 50,
+	})
+
+	results, err := Query(db, QueryOpts{})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].InputTokens != 500 {
+		t.Errorf("input = %d, want 500", results[0].InputTokens)
+	}
+	if results[0].CacheReadTokens != 400 {
+		t.Errorf("cache_read = %d, want 400", results[0].CacheReadTokens)
 	}
 }
 
