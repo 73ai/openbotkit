@@ -285,6 +285,23 @@ func (c *toggleScopeChecker) HasScopes(_ string, _ []string) (bool, error) {
 	return c.hasAfterSignal, nil
 }
 
+func TestGWSExecute_KeywordNotWrite(t *testing.T) {
+	tool, inter, runner := setupGWSTest(t, false, nil)
+	runner.outputs["calendar events.delete --id 123"] = "deleted"
+
+	input, _ := json.Marshal(gwsInput{Command: "calendar events.delete --id 123"})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != "deleted" {
+		t.Errorf("result = %q", result)
+	}
+	if len(inter.approvals) > 0 {
+		t.Error("keyword 'delete' without '+' prefix should not trigger approval")
+	}
+}
+
 func TestGWSExecute_EmptyCommand(t *testing.T) {
 	tool, _, _ := setupGWSTest(t, false, nil)
 	input, _ := json.Marshal(gwsInput{Command: ""})

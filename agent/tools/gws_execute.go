@@ -147,28 +147,9 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 }
 
 func (g *GWSExecuteTool) isWriteCommand(args []string) bool {
-	if g.manifest == nil {
-		return false
-	}
-	// Check if any manifest entry marks this service as a write operation.
-	// The gws convention uses '+' prefix for write operations (e.g., +send).
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "+") {
 			return true
-		}
-	}
-	// Also check manifest skill entries for write flag.
-	cmd := strings.Join(args, " ")
-	for _, entry := range g.manifest.Skills {
-		if entry.Source == "gws" && entry.Write {
-			// Match by service name.
-			if len(args) > 0 && len(entry.Scopes) > 0 && args[0] == entry.Scopes[0] {
-				if strings.Contains(cmd, "insert") || strings.Contains(cmd, "create") ||
-					strings.Contains(cmd, "update") || strings.Contains(cmd, "delete") ||
-					strings.Contains(cmd, "send") || strings.Contains(cmd, "patch") {
-					return true
-				}
-			}
 		}
 	}
 	return false
