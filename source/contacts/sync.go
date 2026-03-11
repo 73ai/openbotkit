@@ -3,6 +3,7 @@ package contacts
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/priyanshujain/openbotkit/store"
 )
@@ -23,7 +24,9 @@ func Sync(contactsDB *store.DB, sourceDBs map[string]*store.DB, opts SyncOptions
 				total.Errors++
 			} else {
 				merge(total, r)
-				_ = SaveSyncState(contactsDB, "whatsapp", "")
+				if err := SaveSyncState(contactsDB, "whatsapp", ""); err != nil {
+				slog.Warn("contacts: save whatsapp sync state", "error", err)
+			}
 			}
 		}
 	}
@@ -37,7 +40,9 @@ func Sync(contactsDB *store.DB, sourceDBs map[string]*store.DB, opts SyncOptions
 				total.Errors++
 			} else {
 				merge(total, r)
-				_ = SaveSyncState(contactsDB, "gmail", "")
+				if err := SaveSyncState(contactsDB, "gmail", ""); err != nil {
+				slog.Warn("contacts: save gmail sync state", "error", err)
+			}
 			}
 		}
 	}
@@ -51,7 +56,9 @@ func Sync(contactsDB *store.DB, sourceDBs map[string]*store.DB, opts SyncOptions
 				total.Errors++
 			} else {
 				merge(total, r)
-				_ = SaveSyncState(contactsDB, "imessage", "")
+				if err := SaveSyncState(contactsDB, "imessage", ""); err != nil {
+				slog.Warn("contacts: save imessage sync state", "error", err)
+			}
 			}
 		}
 	}
@@ -64,7 +71,9 @@ func Sync(contactsDB *store.DB, sourceDBs map[string]*store.DB, opts SyncOptions
 			total.Errors++
 		} else {
 			merge(total, r)
-			_ = SaveSyncState(contactsDB, "applecontacts", "")
+			if err := SaveSyncState(contactsDB, "applecontacts", ""); err != nil {
+			slog.Warn("contacts: save applecontacts sync state", "error", err)
+		}
 		}
 	}
 
@@ -79,12 +88,7 @@ func shouldSync(opts SyncOptions, source string) bool {
 	if len(opts.Sources) == 0 {
 		return true
 	}
-	for _, s := range opts.Sources {
-		if s == source {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(opts.Sources, source)
 }
 
 func merge(total, r *SyncResult) {
