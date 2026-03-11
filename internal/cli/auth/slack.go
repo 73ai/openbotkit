@@ -58,6 +58,8 @@ var slackLoginCmd = &cobra.Command{
 
 func slackLoginDesktop() error {
 	fmt.Println("Extracting credentials from Slack Desktop...")
+	fmt.Println("Note: macOS will ask for permission to access \"Slack Safe Storage\" in your keychain.")
+	fmt.Println("Click \"Always Allow\" so you won't be prompted again.")
 	creds, err := desktop.Extract()
 	if err != nil {
 		return fmt.Errorf("desktop extraction failed: %w", err)
