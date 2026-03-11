@@ -15,19 +15,22 @@ import (
 const slackBaseURL = "https://slack.com/api"
 
 type Client struct {
-	token   string
-	cookie  string
-	baseURL string
-	http    *http.Client
+	token    string
+	cookie   string
+	baseURL  string
+	http     *http.Client
+	resolver *Resolver
 }
 
 func NewClient(token, cookie string) *Client {
-	return &Client{
+	c := &Client{
 		token:   token,
 		cookie:  cookie,
 		baseURL: slackBaseURL,
 		http:    &http.Client{Timeout: 30 * time.Second},
 	}
+	c.resolver = NewResolver(c)
+	return c
 }
 
 func (c *Client) isBrowserToken() bool {
@@ -368,16 +371,14 @@ func (c *Client) RemoveReaction(ctx context.Context, channel, ts, emoji string) 
 	return err
 }
 
-// ResolveChannel resolves a channel reference to an ID using a Resolver.
+// ResolveChannel resolves a channel reference to an ID using the client's Resolver.
 func (c *Client) ResolveChannel(ctx context.Context, ref string) (string, error) {
-	r := NewResolver(c)
-	return r.ResolveChannel(ctx, ref)
+	return c.resolver.ResolveChannel(ctx, ref)
 }
 
-// ResolveUser resolves a user reference to an ID using a Resolver.
+// ResolveUser resolves a user reference to an ID using the client's Resolver.
 func (c *Client) ResolveUser(ctx context.Context, ref string) (string, error) {
-	r := NewResolver(c)
-	return r.ResolveUser(ctx, ref)
+	return c.resolver.ResolveUser(ctx, ref)
 }
 
 // AuthTest validates the current credentials and returns team/user info.

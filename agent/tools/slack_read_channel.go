@@ -16,7 +16,7 @@ type SlackReadChannelTool struct {
 func NewSlackReadChannelTool(deps SlackToolDeps) *SlackReadChannelTool {
 	return &SlackReadChannelTool{
 		deps:     deps,
-		resolver: slack.NewResolver(deps.Client),
+		resolver: deps.SlackResolver(),
 	}
 }
 

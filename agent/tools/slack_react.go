@@ -16,7 +16,7 @@ type SlackReactTool struct {
 func NewSlackReactTool(deps SlackToolDeps) *SlackReactTool {
 	return &SlackReactTool{
 		deps:     deps,
-		resolver: slack.NewResolver(deps.Client),
+		resolver: deps.SlackResolver(),
 	}
 }
 
@@ -67,6 +67,9 @@ func (t *SlackReactTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 	if in.Action == "" {
 		in.Action = "add"
+	}
+	if in.Action != "add" && in.Action != "remove" {
+		return "", fmt.Errorf("action must be \"add\" or \"remove\", got %q", in.Action)
 	}
 
 	channelID, err := t.resolver.ResolveChannel(ctx, in.Channel)

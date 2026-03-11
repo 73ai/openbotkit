@@ -16,7 +16,7 @@ type SlackEditTool struct {
 func NewSlackEditTool(deps SlackToolDeps) *SlackEditTool {
 	return &SlackEditTool{
 		deps:     deps,
-		resolver: slack.NewResolver(deps.Client),
+		resolver: deps.SlackResolver(),
 	}
 }
 
@@ -65,10 +65,7 @@ func (t *SlackEditTool) Execute(ctx context.Context, input json.RawMessage) (str
 		return "", err
 	}
 
-	preview := in.Text
-	if len(preview) > 100 {
-		preview = preview[:100] + "..."
-	}
+	preview := truncateUTF8(in.Text, 100)
 	desc := fmt.Sprintf("Edit message in %s: %s", in.Channel, preview)
 
 	return GuardedWrite(ctx, t.deps.Interactor, desc, func() (string, error) {

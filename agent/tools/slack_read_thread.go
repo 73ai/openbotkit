@@ -16,7 +16,7 @@ type SlackReadThreadTool struct {
 func NewSlackReadThreadTool(deps SlackToolDeps) *SlackReadThreadTool {
 	return &SlackReadThreadTool{
 		deps:     deps,
-		resolver: slack.NewResolver(deps.Client),
+		resolver: deps.SlackResolver(),
 	}
 }
 

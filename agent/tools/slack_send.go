@@ -16,7 +16,7 @@ type SlackSendTool struct {
 func NewSlackSendTool(deps SlackToolDeps) *SlackSendTool {
 	return &SlackSendTool{
 		deps:     deps,
-		resolver: slack.NewResolver(deps.Client),
+		resolver: deps.SlackResolver(),
 	}
 }
 
@@ -65,10 +65,7 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 		return "", err
 	}
 
-	preview := in.Text
-	if len(preview) > 100 {
-		preview = preview[:100] + "..."
-	}
+	preview := truncateUTF8(in.Text, 100)
 	desc := fmt.Sprintf("Send message to %s: %s", in.Channel, preview)
 
 	return GuardedWrite(ctx, t.deps.Interactor, desc, func() (string, error) {
@@ -76,6 +73,10 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf(`{"ts":"%s"}`, ts), nil
+		resp := struct {
+			TS string `json:"ts"`
+		}{TS: ts}
+		data, _ := json.Marshal(resp)
+		return string(data), nil
 	})
 }
