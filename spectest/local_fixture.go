@@ -120,7 +120,7 @@ func availableProviders(t *testing.T) []providerCase {
 		cases = append(cases, providerCase{
 			Name:     "openai",
 			Provider: openai.New(key),
-			Model:    "gpt-4o-mini",
+			Model:    "gpt-4.1-mini",
 		})
 	}
 
