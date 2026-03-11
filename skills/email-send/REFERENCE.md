@@ -12,6 +12,18 @@ obk gmail send --to <address> --subject <subject> --body <body> [--cc <address>]
 obk gmail drafts create --to <address> --subject <subject> --body <body> [--cc <address>] [--bcc <address>] [--account <email>]
 ```
 
+## Finding the recipient
+
+Search unified contacts to resolve a person's email address:
+
+```bash
+# Search by name to find their email
+obk contacts search "David"
+
+# Then send to the email from results
+obk gmail send --to "david@example.com" --subject "..." --body "..."
+```
+
 ## Finding the account
 
 If the user has multiple Gmail accounts, look up which to use:
