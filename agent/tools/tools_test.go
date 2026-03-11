@@ -199,6 +199,28 @@ func (s *stubTool) Description() string                                         
 func (s *stubTool) InputSchema() json.RawMessage                                     { return json.RawMessage(`{"type":"object"}`) }
 func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (string, error) { return s.output, nil }
 
+func TestBashBlocksGWS(t *testing.T) {
+	b := NewBashTool(5 * time.Second)
+	_, err := b.Execute(context.Background(), json.RawMessage(`{"command":"gws calendar events.list"}`))
+	if err == nil {
+		t.Fatal("expected error for gws command in bash")
+	}
+	if !strings.Contains(err.Error(), "gws_execute") {
+		t.Errorf("error = %q, expected gws_execute reference", err.Error())
+	}
+}
+
+func TestBashAllowsEchoGWS(t *testing.T) {
+	b := NewBashTool(5 * time.Second)
+	result, err := b.Execute(context.Background(), json.RawMessage(`{"command":"echo gws is great"}`))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(result, "gws is great") {
+		t.Errorf("result = %q", result)
+	}
+}
+
 func TestRegistryExactlyAtLimit(t *testing.T) {
 	r := NewRegistry()
 	r.Register(&stubTool{name: "exact", output: strings.Repeat("x", 524288)})
@@ -259,6 +281,27 @@ func TestRegistryUnknownTool(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown tool") {
 		t.Errorf("error = %q, expected unknown tool error", err.Error())
+	}
+}
+
+func TestBuildBaseSystemPrompt_GWSInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "gws_execute"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if !strings.Contains(prompt, "Google Workspace") {
+		t.Error("prompt missing gws_execute instructions")
+	}
+	if !strings.Contains(prompt, "gws_execute") {
+		t.Error("prompt missing gws_execute tool reference")
+	}
+}
+
+func TestBuildBaseSystemPrompt_NoGWSInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&stubTool{name: "bash"})
+	prompt := BuildBaseSystemPrompt(reg)
+	if strings.Contains(prompt, "Google Workspace") {
+		t.Error("prompt should not contain gws instructions without gws_execute")
 	}
 }
 

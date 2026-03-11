@@ -44,6 +44,17 @@ The sub-agent has its own tools (bash, file ops, skills) but cannot spawn furthe
 `)
 	}
 
+	// GWS section — only if gws_execute tool is registered.
+	if reg.Has("gws_execute") {
+		b.WriteString(`
+## Google Workspace
+Use the gws_execute tool for all Google Workspace operations (Calendar, Drive, Docs, Sheets, Tasks, Contacts).
+Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
+The tool handles authentication, scope checks, and approval for write operations automatically.
+When a tool result includes "user notified", keep your response brief — the user already got the details.
+`)
+	}
+
 	// Skills section.
 	b.WriteString(`
 ## Skills

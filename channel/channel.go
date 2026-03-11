@@ -12,4 +12,7 @@ type Channel interface {
 	// RequestApproval asks the user to approve an action.
 	// Returns true if approved, false if denied.
 	RequestApproval(action string) (bool, error)
+
+	// SendLink sends a message with a clickable link.
+	SendLink(text string, url string) error
 }

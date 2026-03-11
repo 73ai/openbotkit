@@ -13,9 +13,13 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/priyanshujain/openbotkit/agent/tools"
+	"github.com/priyanshujain/openbotkit/channel"
 	tgchannel "github.com/priyanshujain/openbotkit/channel/telegram"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/memory"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
@@ -38,6 +42,9 @@ type Server struct {
 
 	waMu   sync.Mutex
 	waAuth *whatsAppAuth
+
+	scopeWaiter *google.ScopeWaiter
+	google      *google.Google
 }
 
 func New(cfg *config.Config, addr string) *Server {
@@ -52,7 +59,19 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("server requires authentication credentials; set OBK_AUTH_USERNAME and OBK_AUTH_PASSWORD env vars or configure auth in config.yaml")
 	}
 
+	s.scopeWaiter = google.NewScopeWaiter()
+	s.google = google.New(google.Config{
+		CredentialsFile: s.cfg.GoogleCredentialsFile(),
+		TokenDBPath:     s.cfg.GoogleTokenDBPath(),
+	})
+
 	s.migrateDBs()
+
+	go func() {
+		if err := skills.RefreshGWSSkills(s.cfg); err != nil {
+			slog.Warn("gws skill refresh failed", "error", err)
+		}
+	}()
 
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -131,7 +150,18 @@ func (s *Server) startTelegram(ctx context.Context) error {
 
 	ch := tgchannel.NewChannel(bot, ownerID)
 	poller := tgchannel.NewPoller(bot, ownerID, ch)
-	sm := tgchannel.NewSessionManager(s.cfg, ch, p, providerName, modelName)
+
+	interactor := channel.NewInteractor(ch)
+	account := s.resolveAccount()
+	bridge := tools.NewTokenBridge(s.google, account)
+
+	sm := tgchannel.NewSessionManager(s.cfg, ch, p, providerName, modelName, tgchannel.SessionManagerDeps{
+		Interactor:  interactor,
+		ScopeWaiter: s.scopeWaiter,
+		TokenBridge: bridge,
+		GoogleAuth:  s.google,
+		Account:     account,
+	})
 
 	go poller.Run(ctx)
 	go sm.Run(ctx)

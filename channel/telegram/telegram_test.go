@@ -81,6 +81,39 @@ func TestReceive_EOFOnClose(t *testing.T) {
 	}
 }
 
+func TestSendLink_SendsURLButton(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	if err := ch.SendLink("Open Google", "https://google.com"); err != nil {
+		t.Fatalf("SendLink: %v", err)
+	}
+
+	bot.mu.Lock()
+	defer bot.mu.Unlock()
+	if len(bot.sent) != 1 {
+		t.Fatalf("expected 1 sent message, got %d", len(bot.sent))
+	}
+	msg, ok := bot.sent[0].(tgbotapi.MessageConfig)
+	if !ok {
+		t.Fatalf("expected MessageConfig, got %T", bot.sent[0])
+	}
+	if msg.ReplyMarkup == nil {
+		t.Fatal("expected inline keyboard markup")
+	}
+	kb, ok := msg.ReplyMarkup.(tgbotapi.InlineKeyboardMarkup)
+	if !ok {
+		t.Fatalf("expected InlineKeyboardMarkup, got %T", msg.ReplyMarkup)
+	}
+	if len(kb.InlineKeyboard) != 1 || len(kb.InlineKeyboard[0]) != 1 {
+		t.Fatal("expected 1 row with 1 button")
+	}
+	btn := kb.InlineKeyboard[0][0]
+	if btn.URL == nil || *btn.URL != "https://google.com" {
+		t.Errorf("button URL = %v, want https://google.com", btn.URL)
+	}
+}
+
 func TestRequestApproval_SendsKeyboard(t *testing.T) {
 	bot := &mockBot{notify: make(chan struct{}, 1)}
 	ch := NewChannel(bot, 123)

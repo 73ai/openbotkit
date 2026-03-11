@@ -53,6 +53,18 @@ func (c *Channel) Receive() (string, error) {
 	return text, nil
 }
 
+func (c *Channel) SendLink(text string, url string) error {
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL(text, url),
+		),
+	)
+	msg := tgbotapi.NewMessage(c.chatID, text)
+	msg.ReplyMarkup = keyboard
+	_, err := c.bot.Send(msg)
+	return err
+}
+
 func (c *Channel) RequestApproval(action string) (bool, error) {
 	c.approvalMu.Lock()
 	c.approvalCh = make(chan approvalResponse, 1)

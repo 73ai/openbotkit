@@ -163,6 +163,82 @@ func (g *Google) RevokeScopes(ctx context.Context, account string, scopes []stri
 	return store.SaveToken(account, tok, remaining)
 }
 
+// AccessToken returns a fresh access token string for the given account.
+// Transparently refreshes expired tokens via dbTokenSource.
+func (g *Google) AccessToken(ctx context.Context, account string) (string, error) {
+	store, err := NewTokenStore(g.cfg.TokenDBPath)
+	if err != nil {
+		return "", fmt.Errorf("open token store: %w", err)
+	}
+	defer store.Close()
+
+	tok, scopes, err := store.LoadToken(account)
+	if err != nil {
+		return "", fmt.Errorf("load token: %w", err)
+	}
+
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	if err != nil {
+		return "", err
+	}
+
+	baseSource := oauthCfg.TokenSource(ctx, tok)
+	persistSource := newDBTokenSource(account, store, baseSource, tok)
+	fresh, err := persistSource.Token()
+	if err != nil {
+		return "", fmt.Errorf("refresh token: %w", err)
+	}
+	return fresh.AccessToken, nil
+}
+
+// ExchangeCode exchanges an OAuth callback code for a token and saves it.
+func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes []string) error {
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	if err != nil {
+		return err
+	}
+
+	tok, err := oauthCfg.Exchange(ctx, code)
+	if err != nil {
+		return fmt.Errorf("exchange token: %w", err)
+	}
+
+	store, err := NewTokenStore(g.cfg.TokenDBPath)
+	if err != nil {
+		return fmt.Errorf("open token store: %w", err)
+	}
+	defer store.Close()
+
+	allScopes := scopes
+	if account != "" {
+		_, existing, loadErr := store.LoadToken(account)
+		if loadErr == nil {
+			allScopes = mergeScopes(existing, scopes)
+		}
+	}
+
+	return store.SaveToken(account, tok, allScopes)
+}
+
+// AuthURL generates an OAuth consent URL for incremental scope grant.
+// The state parameter correlates with a ScopeWaiter.
+func (g *Google) AuthURL(account string, scopes []string, state string) (string, error) {
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	if err != nil {
+		return "", err
+	}
+
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	if account != "" {
+		opts = append(opts,
+			oauth2.SetAuthURLParam("login_hint", account),
+			oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+		)
+	}
+
+	return oauthCfg.AuthCodeURL(state, opts...), nil
+}
+
 func (g *Google) Accounts(ctx context.Context) ([]string, error) {
 	store, err := NewTokenStore(g.cfg.TokenDBPath)
 	if err != nil {

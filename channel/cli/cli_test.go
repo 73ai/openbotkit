@@ -42,6 +42,22 @@ func TestReceiveEOF(t *testing.T) {
 	}
 }
 
+func TestSendLink(t *testing.T) {
+	var buf bytes.Buffer
+	ch := New(strings.NewReader(""), &buf)
+
+	if err := ch.SendLink("Click here", "https://example.com"); err != nil {
+		t.Fatalf("SendLink: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "Click here") {
+		t.Errorf("output missing text: %q", got)
+	}
+	if !strings.Contains(got, "https://example.com") {
+		t.Errorf("output missing URL: %q", got)
+	}
+}
+
 func TestRequestApproval_Yes(t *testing.T) {
 	var buf bytes.Buffer
 	ch := New(strings.NewReader("y\n"), &buf)

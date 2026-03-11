@@ -12,7 +12,9 @@ import (
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/memory"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
@@ -29,20 +31,48 @@ type SessionManager struct {
 	providerName string
 	model        string
 
+	interactor  tools.Interactor
+	scopeWaiter *google.ScopeWaiter
+	tokenBridge *tools.TokenBridge
+	googleAuth  *google.Google
+	account     string
+	manifest    *skills.Manifest
+
 	mu        sync.Mutex
 	sessionID string
 	timer     *time.Timer
 	messages  []string // user messages collected in this session
 }
 
-func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, providerName, model string) *SessionManager {
-	return &SessionManager{
+// SessionManagerDeps holds optional GWS-related dependencies.
+type SessionManagerDeps struct {
+	Interactor  tools.Interactor
+	ScopeWaiter *google.ScopeWaiter
+	TokenBridge *tools.TokenBridge
+	GoogleAuth  *google.Google
+	Account     string
+}
+
+func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, providerName, model string, deps ...SessionManagerDeps) *SessionManager {
+	sm := &SessionManager{
 		cfg:          cfg,
 		channel:      ch,
 		provider:     p,
 		providerName: providerName,
 		model:        model,
 	}
+	if len(deps) > 0 {
+		d := deps[0]
+		sm.interactor = d.Interactor
+		sm.scopeWaiter = d.ScopeWaiter
+		sm.tokenBridge = d.TokenBridge
+		sm.googleAuth = d.GoogleAuth
+		sm.account = d.Account
+	}
+	if sm.gwsEnabled() {
+		sm.manifest, _ = skills.LoadManifest()
+	}
+	return sm
 }
 
 func (sm *SessionManager) Run(ctx context.Context) {
@@ -182,8 +212,26 @@ func (sm *SessionManager) buildLLM() (memory.LLM, error) {
 	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
+func (sm *SessionManager) gwsEnabled() bool {
+	return sm.cfg.Integrations != nil && sm.cfg.Integrations.GWS != nil && sm.cfg.Integrations.GWS.Enabled
+}
+
 func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 	toolReg := tools.NewStandardRegistry()
+
+	if sm.gwsEnabled() && sm.interactor != nil {
+		toolReg.Register(tools.NewGWSExecuteTool(tools.GWSToolConfig{
+			Interactor:   sm.interactor,
+			ScopeChecker: &tools.GoogleScopeChecker{TokenDBPath: sm.cfg.GoogleTokenDBPath()},
+			Bridge:       sm.tokenBridge,
+			ScopeWaiter:  sm.scopeWaiter,
+			Google:       sm.googleAuth,
+			Account:      sm.account,
+			Manifest:     sm.manifest,
+			Runner:       tools.NewGWSRunner(),
+		}))
+	}
+
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
 		Model:       sm.model,

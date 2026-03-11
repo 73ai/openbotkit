@@ -37,6 +37,12 @@ func (c *Channel) Receive() (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
+// SendLink prints the text and URL to the output.
+func (c *Channel) SendLink(text string, url string) error {
+	_, err := fmt.Fprintf(c.writer, "%s\n%s\n", text, url)
+	return err
+}
+
 // RequestApproval prompts the user for yes/no confirmation.
 func (c *Channel) RequestApproval(action string) (bool, error) {
 	fmt.Fprintf(c.writer, "Approve: %s [y/n] ", action)

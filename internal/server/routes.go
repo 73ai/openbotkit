@@ -18,6 +18,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/gmail/sync", auth(http.HandlerFunc(s.handleGmailSync)))
 	mux.Handle("POST /api/whatsapp/send", auth(http.HandlerFunc(s.handleWhatsAppSend)))
 
+	mux.HandleFunc("GET /auth/google/callback", s.handleGoogleAuthCallback)
+
 	mux.Handle("GET /auth/whatsapp", auth(http.HandlerFunc(s.handleWhatsAppAuthPage)))
 	mux.Handle("GET /auth/whatsapp/api/qr", auth(http.HandlerFunc(s.handleWhatsAppAuthQR)))
 }
