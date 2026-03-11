@@ -63,6 +63,19 @@ func (d *DelegateTaskTool) InputSchema() json.RawMessage {
 			"type": "string",
 			"description": "The task to delegate to the external agent"
 		},
+		"steps": {
+			"type": "array",
+			"items": {"type": "string"},
+			"description": "Optional ordered steps for the agent to follow"
+		},
+		"output_format": {
+			"type": "string",
+			"description": "Desired output format (e.g. markdown, json, plain)"
+		},
+		"max_budget_usd": {
+			"type": "number",
+			"description": "Maximum API cost budget in USD (Claude only)"
+		},
 		"agent": {
 			"type": "string",
 			"enum": %s,
@@ -78,9 +91,12 @@ func (d *DelegateTaskTool) InputSchema() json.RawMessage {
 }
 
 type delegateTaskInput struct {
-	Task  string `json:"task"`
-	Agent string `json:"agent,omitempty"`
-	Async bool   `json:"async,omitempty"`
+	Task         string   `json:"task"`
+	Steps        []string `json:"steps,omitempty"`
+	OutputFormat string   `json:"output_format,omitempty"`
+	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
+	Agent        string   `json:"agent,omitempty"`
+	Async        bool     `json:"async,omitempty"`
 }
 
 func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -97,17 +113,42 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		return "", err
 	}
 
+	prompt := buildPrompt(in.Task, in.Steps, in.OutputFormat)
 	preview := truncateUTF8(in.Task, 80)
 	desc := fmt.Sprintf("Delegate to %s: %s", kind, preview)
 
+	var runOpts []RunOption
+	if in.MaxBudgetUSD > 0 {
+		runOpts = append(runOpts, WithMaxBudget(in.MaxBudgetUSD))
+	}
+
 	// Async mode: if tracker is set and async requested, run in background.
 	if in.Async && d.tracker != nil {
-		return d.executeAsync(ctx, runner, kind, in.Task, preview, desc)
+		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, runOpts)
 	}
 
 	return GuardedWrite(ctx, d.interactor, desc, func() (string, error) {
-		return runner.Run(ctx, in.Task, d.timeout)
+		return runner.Run(ctx, prompt, d.timeout, runOpts...)
 	})
+}
+
+// buildPrompt combines task, steps, and output format into a single prompt.
+func buildPrompt(task string, steps []string, outputFormat string) string {
+	if len(steps) == 0 && outputFormat == "" {
+		return task
+	}
+	var b strings.Builder
+	b.WriteString(task)
+	if len(steps) > 0 {
+		b.WriteString("\n\nSteps:\n")
+		for i, s := range steps {
+			fmt.Fprintf(&b, "%d. %s\n", i+1, s)
+		}
+	}
+	if outputFormat != "" {
+		fmt.Fprintf(&b, "\nOutput format: %s\n", outputFormat)
+	}
+	return b.String()
 }
 
 func (d *DelegateTaskTool) executeAsync(
@@ -115,6 +156,7 @@ func (d *DelegateTaskTool) executeAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, desc string,
+	runOpts []RunOption,
 ) (string, error) {
 	taskID, err := generateTaskID()
 	if err != nil {
@@ -139,7 +181,7 @@ func (d *DelegateTaskTool) executeAsync(
 		return "denied_by_user", nil
 	}
 
-	go d.runAsync(runner, kind, task, preview, taskID)
+	go d.runAsync(runner, kind, task, preview, taskID, runOpts)
 
 	resp := struct {
 		TaskID string `json:"task_id"`
@@ -153,11 +195,12 @@ func (d *DelegateTaskTool) runAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, taskID string,
+	runOpts []RunOption,
 ) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.timeout)
 	defer cancel()
 
-	output, err := runner.Run(ctx, task, d.timeout)
+	output, err := runner.Run(ctx, task, d.timeout, runOpts...)
 	if err != nil {
 		d.tracker.Fail(taskID, err.Error())
 		d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))

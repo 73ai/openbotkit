@@ -467,3 +467,55 @@ func TestDelegateTask_SyncIgnoresTracker(t *testing.T) {
 		t.Error("tracker should have no tasks for sync execution")
 	}
 }
+
+func TestDelegateTask_BuildPromptSimple(t *testing.T) {
+	p := buildPrompt("research Go", nil, "")
+	if p != "research Go" {
+		t.Errorf("prompt = %q", p)
+	}
+}
+
+func TestDelegateTask_BuildPromptWithSteps(t *testing.T) {
+	p := buildPrompt("research Go", []string{"find features", "summarize"}, "")
+	if !strings.Contains(p, "1. find features") {
+		t.Errorf("prompt missing step 1: %q", p)
+	}
+	if !strings.Contains(p, "2. summarize") {
+		t.Errorf("prompt missing step 2: %q", p)
+	}
+}
+
+func TestDelegateTask_BuildPromptWithOutputFormat(t *testing.T) {
+	p := buildPrompt("research Go", nil, "markdown")
+	if !strings.Contains(p, "Output format: markdown") {
+		t.Errorf("prompt missing output format: %q", p)
+	}
+}
+
+func TestDelegateTask_BuildPromptFull(t *testing.T) {
+	p := buildPrompt("research Go", []string{"step A"}, "json")
+	if !strings.Contains(p, "research Go") {
+		t.Error("missing task")
+	}
+	if !strings.Contains(p, "1. step A") {
+		t.Error("missing step")
+	}
+	if !strings.Contains(p, "Output format: json") {
+		t.Error("missing output format")
+	}
+}
+
+func TestDelegateTask_MaxBudget(t *testing.T) {
+	r := NewAgentRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})
+	args := r.buildArgs(runOptions{maxBudgetUSD: 0.50})
+	found := false
+	for i, a := range args {
+		if a == "--max-budget-usd" && i+1 < len(args) && args[i+1] == "0.50" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("args missing --max-budget-usd 0.50: %v", args)
+	}
+}

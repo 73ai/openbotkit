@@ -16,7 +16,7 @@ type mockAgentRunner struct {
 	timeout time.Duration
 }
 
-func (m *mockAgentRunner) Run(_ context.Context, prompt string, timeout time.Duration) (string, error) {
+func (m *mockAgentRunner) Run(_ context.Context, prompt string, timeout time.Duration, _ ...RunOption) (string, error) {
 	m.called = true
 	m.prompt = prompt
 	m.timeout = timeout
@@ -43,7 +43,7 @@ func newBlockingRunner(output string, err error) *blockingAgentRunner {
 	}
 }
 
-func (b *blockingAgentRunner) Run(ctx context.Context, _ string, _ time.Duration) (string, error) {
+func (b *blockingAgentRunner) Run(ctx context.Context, _ string, _ time.Duration, _ ...RunOption) (string, error) {
 	close(b.called)
 	select {
 	case <-b.release:
@@ -82,7 +82,7 @@ func TestDetectAgents_Priority(t *testing.T) {
 
 func TestAgentRunner_BuildsClaudeArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})
-	args := r.buildArgs()
+	args := r.buildArgs(runOptions{})
 	want := []string{"--print", "--output-format", "text"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
@@ -96,7 +96,7 @@ func TestAgentRunner_BuildsClaudeArgs(t *testing.T) {
 
 func TestAgentRunner_BuildsGeminiArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentGemini, Binary: "/usr/local/bin/gemini"})
-	args := r.buildArgs()
+	args := r.buildArgs(runOptions{})
 	want := []string{"-p"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)

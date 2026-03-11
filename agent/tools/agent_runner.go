@@ -37,9 +37,21 @@ func DetectAgents() []AgentInfo {
 	return found
 }
 
+// RunOption configures an agent run.
+type RunOption func(*runOptions)
+
+type runOptions struct {
+	maxBudgetUSD float64
+}
+
+// WithMaxBudget sets the maximum API cost budget (Claude only).
+func WithMaxBudget(usd float64) RunOption {
+	return func(o *runOptions) { o.maxBudgetUSD = usd }
+}
+
 // AgentRunnerInterface abstracts agent CLI execution for testability.
 type AgentRunnerInterface interface {
-	Run(ctx context.Context, prompt string, timeout time.Duration) (string, error)
+	Run(ctx context.Context, prompt string, timeout time.Duration, opts ...RunOption) (string, error)
 }
 
 // AgentRunner executes an external AI CLI agent.
@@ -53,11 +65,15 @@ func NewAgentRunner(info AgentInfo) *AgentRunner {
 }
 
 // Run executes the CLI with the given prompt and timeout, returning stdout.
-func (r *AgentRunner) Run(ctx context.Context, prompt string, timeout time.Duration) (string, error) {
+func (r *AgentRunner) Run(ctx context.Context, prompt string, timeout time.Duration, opts ...RunOption) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	args := r.buildArgs()
+	var ro runOptions
+	for _, o := range opts {
+		o(&ro)
+	}
+	args := r.buildArgs(ro)
 	cmd := exec.CommandContext(ctx, r.info.Binary, args...)
 	cmd.Env = r.buildEnv()
 	cmd.Stdin = strings.NewReader(prompt)
@@ -79,10 +95,14 @@ func (r *AgentRunner) Run(ctx context.Context, prompt string, timeout time.Durat
 	return stdout.String(), nil
 }
 
-func (r *AgentRunner) buildArgs() []string {
+func (r *AgentRunner) buildArgs(opts runOptions) []string {
 	switch r.info.Kind {
 	case AgentClaude:
-		return []string{"--print", "--output-format", "text"}
+		args := []string{"--print", "--output-format", "text"}
+		if opts.maxBudgetUSD > 0 {
+			args = append(args, "--max-budget-usd", fmt.Sprintf("%.2f", opts.maxBudgetUSD))
+		}
+		return args
 	case AgentGemini:
 		return []string{"-p"}
 	default:
