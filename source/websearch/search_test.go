@@ -3,6 +3,7 @@ package websearch
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -473,5 +474,14 @@ func TestSearchEmptyQuery(t *testing.T) {
 	_, err = ws.Search(context.Background(), "   ", SearchOptions{})
 	if err == nil {
 		t.Fatal("expected error for whitespace-only query")
+	}
+}
+
+func TestSearchQueryTooLong(t *testing.T) {
+	ws := New(Config{})
+	long := strings.Repeat("a", maxQueryLength+1)
+	_, err := ws.Search(context.Background(), long, SearchOptions{})
+	if err == nil {
+		t.Fatal("expected error for too-long query")
 	}
 }

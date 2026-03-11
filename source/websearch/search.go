@@ -13,11 +13,15 @@ import (
 const (
 	defaultMaxResults = 10
 	defaultRegion     = "us-en"
+	maxQueryLength    = 2000
 )
 
 func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("empty search query")
+	}
+	if len(query) > maxQueryLength {
+		return nil, fmt.Errorf("query too long (%d chars, max %d)", len(query), maxQueryLength)
 	}
 
 	if opts.MaxResults <= 0 {
@@ -161,6 +165,9 @@ func filterEngines(engines []Engine, allowed []string) []Engine {
 func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, errors.New("empty search query")
+	}
+	if len(query) > maxQueryLength {
+		return nil, fmt.Errorf("query too long (%d chars, max %d)", len(query), maxQueryLength)
 	}
 
 	if opts.MaxResults <= 0 {
