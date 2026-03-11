@@ -55,3 +55,19 @@ func TestNewClientWithProxy(t *testing.T) {
 		t.Error("proxy not configured on h1 transport")
 	}
 }
+
+func TestFallbackTransport(t *testing.T) {
+	// The fallbackTransport uses concrete *http2.Transport and *http.Transport
+	// types, so we can't inject mock round trippers. Instead, verify that
+	// NewChromeTransport sets up both transports correctly (h2 with DialTLSContext,
+	// h1 with DialTLSContext) so the fallback path is available at runtime.
+	tr := NewChromeTransport()
+	fb := tr.(*fallbackTransport)
+
+	if fb.h2.DialTLSContext == nil {
+		t.Error("h2 transport should have DialTLSContext set")
+	}
+	if fb.h1.DialTLSContext == nil {
+		t.Error("h1 transport should have DialTLSContext set")
+	}
+}

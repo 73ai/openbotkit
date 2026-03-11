@@ -265,6 +265,41 @@ gmail:
 	}
 }
 
+func TestWebSearchDataDSN(t *testing.T) {
+	cfg := Default()
+	dsn := cfg.WebSearchDataDSN()
+	if !strings.HasSuffix(dsn, filepath.Join("websearch", "data.db")) {
+		t.Fatalf("expected path ending in websearch/data.db, got %q", dsn)
+	}
+}
+
+func TestWebSearchDataDSNCustom(t *testing.T) {
+	cfg := Default()
+	cfg.WebSearch.Storage.DSN = "postgres://localhost/ws"
+	dsn := cfg.WebSearchDataDSN()
+	if dsn != "postgres://localhost/ws" {
+		t.Fatalf("expected custom DSN, got %q", dsn)
+	}
+}
+
+func TestApplyDefaultsWebSearch(t *testing.T) {
+	cfg := &Config{}
+	cfg.applyDefaults()
+
+	if cfg.WebSearch == nil {
+		t.Fatal("applyDefaults should create WebSearch config")
+	}
+	if cfg.WebSearch.Storage.Driver != "sqlite" {
+		t.Fatalf("expected sqlite, got %q", cfg.WebSearch.Storage.Driver)
+	}
+	if cfg.WebSearch.Timeout != "15s" {
+		t.Fatalf("expected 15s timeout, got %q", cfg.WebSearch.Timeout)
+	}
+	if cfg.WebSearch.CacheTTL != "15m" {
+		t.Fatalf("expected 15m cache_ttl, got %q", cfg.WebSearch.CacheTTL)
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
