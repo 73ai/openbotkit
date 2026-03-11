@@ -56,9 +56,6 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 // EachProvider runs fn as a subtest for every available LLM provider.
 // A separate judge provider is chosen for evaluating responses to avoid
 // self-evaluation bias (e.g., Gemini judging its own output).
-// EachProvider runs fn as a subtest for every available LLM provider.
-// A separate judge provider is chosen for evaluating responses to avoid
-// self-evaluation bias (e.g., Gemini judging its own output).
 // Set OBK_TEST_PROVIDER to restrict to a single provider (e.g. "gemini").
 func EachProvider(t *testing.T, fn func(t *testing.T, fx *LocalFixture)) {
 	t.Helper()
