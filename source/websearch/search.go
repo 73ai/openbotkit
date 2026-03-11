@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -285,13 +284,4 @@ func filterNewsEngines(engines []NewsEngine, allowed []string) []NewsEngine {
 		}
 	}
 	return out
-}
-
-func normalizeURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
-	}
-	u.Fragment = ""
-	return strings.TrimSuffix(u.String(), "/")
 }

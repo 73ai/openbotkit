@@ -1,6 +1,7 @@
 package websearch
 
 import (
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -70,4 +71,13 @@ func tokenScore(text string, tokens []string, weight int) int {
 		}
 	}
 	return score
+}
+
+func normalizeURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	u.Fragment = ""
+	return strings.TrimSuffix(u.String(), "/")
 }
