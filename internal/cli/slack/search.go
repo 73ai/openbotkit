@@ -3,6 +3,7 @@ package slack
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ var searchCmd = &cobra.Command{
 			limit = 10
 		}
 
-		query := args[0]
+		query := strings.Join(args, " ")
 		result, err := client.SearchMessages(cmd.Context(), query, slacksrc.SearchOptions{Count: limit})
 		if err != nil {
 			return fmt.Errorf("search: %w", err)
