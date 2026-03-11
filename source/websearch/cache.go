@@ -65,16 +65,16 @@ func putSearchCache(db *store.DB, key, query, category string, results []Result)
 	db.Exec(q, key, query, category, string(data))
 }
 
-func getFetchCache(db *store.DB, url string, ttl time.Duration) (*FetchResult, bool) {
+func getFetchCache(db *store.DB, url, format string, ttl time.Duration) (*FetchResult, bool) {
 	if db == nil {
 		return nil, false
 	}
 
-	var title, content, format string
+	var title, content, storedFormat string
 	var statusCode int
 	var fetchedAt time.Time
 	q := db.Rebind("SELECT title, content, format, status_code, fetched_at FROM fetch_cache WHERE url = ?")
-	err := db.QueryRow(q, url).Scan(&title, &content, &format, &statusCode, &fetchedAt)
+	err := db.QueryRow(q, url).Scan(&title, &content, &storedFormat, &statusCode, &fetchedAt)
 	if err != nil {
 		return nil, false
 	}
@@ -82,6 +82,10 @@ func getFetchCache(db *store.DB, url string, ttl time.Duration) (*FetchResult, b
 	if time.Since(fetchedAt) > ttl {
 		delQ := db.Rebind("DELETE FROM fetch_cache WHERE url = ?")
 		db.Exec(delQ, url)
+		return nil, false
+	}
+
+	if storedFormat != format {
 		return nil, false
 	}
 

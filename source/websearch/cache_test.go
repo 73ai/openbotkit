@@ -120,7 +120,7 @@ func TestFetchCacheRoundTrip(t *testing.T) {
 
 	putFetchCache(db, result, "markdown")
 
-	got, ok := getFetchCache(db, "https://example.com", 15*time.Minute)
+	got, ok := getFetchCache(db, "https://example.com", "markdown", 15*time.Minute)
 	if !ok {
 		t.Fatal("expected cache hit")
 	}
@@ -135,6 +135,17 @@ func TestFetchCacheRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFetchCacheFormatMismatch(t *testing.T) {
+	db := openTestDB(t)
+
+	putFetchCache(db, &FetchResult{URL: "https://example.com", Title: "T", Content: "# Hello", StatusCode: 200}, "markdown")
+
+	_, ok := getFetchCache(db, "https://example.com", "text", 15*time.Minute)
+	if ok {
+		t.Error("expected cache miss for different format")
+	}
+}
+
 func TestFetchCacheTTLExpiry(t *testing.T) {
 	db := openTestDB(t)
 
@@ -142,7 +153,7 @@ func TestFetchCacheTTLExpiry(t *testing.T) {
 
 	db.Exec("UPDATE fetch_cache SET fetched_at = datetime('now', '-1 hour') WHERE url = ?", "https://test.com")
 
-	_, ok := getFetchCache(db, "https://test.com", 30*time.Minute)
+	_, ok := getFetchCache(db, "https://test.com", "markdown", 30*time.Minute)
 	if ok {
 		t.Error("expected cache miss after TTL expiry")
 	}
@@ -150,7 +161,7 @@ func TestFetchCacheTTLExpiry(t *testing.T) {
 
 func TestFetchCacheNilDB(t *testing.T) {
 	putFetchCache(nil, &FetchResult{URL: "https://test.com"}, "markdown")
-	_, ok := getFetchCache(nil, "https://test.com", 15*time.Minute)
+	_, ok := getFetchCache(nil, "https://test.com", "markdown", 15*time.Minute)
 	if ok {
 		t.Error("nil DB should return cache miss")
 	}

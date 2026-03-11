@@ -46,7 +46,7 @@ func (w *WebSearch) Fetch(ctx context.Context, rawURL string, opts FetchOptions)
 	rawURL = normalizeGitHubURL(rawURL)
 
 	if !opts.NoCache {
-		if cached, ok := getFetchCache(w.db, rawURL, w.cacheTTL()); ok {
+		if cached, ok := getFetchCache(w.db, rawURL, opts.Format, w.cacheTTL()); ok {
 			return cached, nil
 		}
 	}
