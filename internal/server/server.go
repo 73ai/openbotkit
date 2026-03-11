@@ -13,6 +13,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/priyanshujain/openbotkit/agent/tools"
+	"github.com/priyanshujain/openbotkit/channel"
 	tgchannel "github.com/priyanshujain/openbotkit/channel/telegram"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/memory"
@@ -141,7 +143,18 @@ func (s *Server) startTelegram(ctx context.Context) error {
 
 	ch := tgchannel.NewChannel(bot, ownerID)
 	poller := tgchannel.NewPoller(bot, ownerID, ch)
-	sm := tgchannel.NewSessionManager(s.cfg, ch, p, providerName, modelName)
+
+	interactor := channel.NewInteractor(ch)
+	account := s.resolveAccount()
+	bridge := tools.NewTokenBridge(s.google, account)
+
+	sm := tgchannel.NewSessionManager(s.cfg, ch, p, providerName, modelName, tgchannel.SessionManagerDeps{
+		Interactor:  interactor,
+		ScopeWaiter: s.scopeWaiter,
+		TokenBridge: bridge,
+		GoogleAuth:  s.google,
+		Account:     account,
+	})
 
 	go poller.Run(ctx)
 	go sm.Run(ctx)

@@ -13,6 +13,7 @@ import (
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/memory"
+	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
@@ -29,20 +30,44 @@ type SessionManager struct {
 	providerName string
 	model        string
 
+	interactor  tools.Interactor
+	scopeWaiter *google.ScopeWaiter
+	tokenBridge *tools.TokenBridge
+	googleAuth  *google.Google
+	account     string
+
 	mu        sync.Mutex
 	sessionID string
 	timer     *time.Timer
 	messages  []string // user messages collected in this session
 }
 
-func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, providerName, model string) *SessionManager {
-	return &SessionManager{
+// SessionManagerDeps holds optional GWS-related dependencies.
+type SessionManagerDeps struct {
+	Interactor  tools.Interactor
+	ScopeWaiter *google.ScopeWaiter
+	TokenBridge *tools.TokenBridge
+	GoogleAuth  *google.Google
+	Account     string
+}
+
+func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, providerName, model string, deps ...SessionManagerDeps) *SessionManager {
+	sm := &SessionManager{
 		cfg:          cfg,
 		channel:      ch,
 		provider:     p,
 		providerName: providerName,
 		model:        model,
 	}
+	if len(deps) > 0 {
+		d := deps[0]
+		sm.interactor = d.Interactor
+		sm.scopeWaiter = d.ScopeWaiter
+		sm.tokenBridge = d.TokenBridge
+		sm.googleAuth = d.GoogleAuth
+		sm.account = d.Account
+	}
+	return sm
 }
 
 func (sm *SessionManager) Run(ctx context.Context) {
