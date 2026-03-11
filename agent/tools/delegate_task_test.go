@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -524,5 +525,294 @@ func TestDelegateTask_MaxBudget(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("args missing --max-budget-usd 0.50: %v", args)
+	}
+}
+
+// mockStreamRunner is a test double for StreamRunnerInterface.
+type mockStreamRunner struct {
+	output string
+	err    error
+	events []StreamEvent
+}
+
+func (m *mockStreamRunner) RunStream(_ context.Context, _ string, _ time.Duration, onEvent func(StreamEvent)) (string, error) {
+	for _, evt := range m.events {
+		if onEvent != nil {
+			onEvent(evt)
+		}
+	}
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.output, nil
+}
+
+func TestDelegateTask_AsyncStreamingCompleted(t *testing.T) {
+	inter := newSyncMockInteractor(true)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	tool.streamRunners[AgentClaude] = &mockStreamRunner{
+		output: "streamed result",
+		events: []StreamEvent{
+			{Type: "text", Content: "partial"},
+			{Type: "result", Content: "streamed result"},
+		},
+	}
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "stream task", Async: true})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var resp struct{ TaskID string `json:"task_id"` }
+	json.Unmarshal([]byte(result), &resp)
+
+	// Wait for completion notification.
+	select {
+	case <-inter.notifyCh:
+		// May get progress or completion; drain until completion.
+		for {
+			notified := inter.getNotified()
+			for _, n := range notified {
+				if strings.Contains(n, "Task completed") {
+					goto done
+				}
+			}
+			select {
+			case <-inter.notifyCh:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for completion")
+			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notification")
+	}
+done:
+	rec, ok := tracker.Get(resp.TaskID)
+	if !ok {
+		t.Fatal("task not found")
+	}
+	if rec.Status != TaskCompleted {
+		t.Errorf("status = %q", rec.Status)
+	}
+	if rec.Output != "streamed result" {
+		t.Errorf("output = %q", rec.Output)
+	}
+}
+
+func TestDelegateTask_AsyncStreamingFailed(t *testing.T) {
+	inter := newSyncMockInteractor(true)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	tool.streamRunners[AgentClaude] = &mockStreamRunner{
+		err: errors.New("stream crashed"),
+	}
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "fail stream", Async: true})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var resp struct{ TaskID string `json:"task_id"` }
+	json.Unmarshal([]byte(result), &resp)
+
+	select {
+	case <-inter.notifyCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notification")
+	}
+
+	rec, ok := tracker.Get(resp.TaskID)
+	if !ok {
+		t.Fatal("task not found")
+	}
+	if rec.Status != TaskFailed {
+		t.Errorf("status = %q", rec.Status)
+	}
+}
+
+func TestDelegateTask_ProgressThrottling(t *testing.T) {
+	inter := newSyncMockInteractor(true)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	// Create many rapid events — only one progress notification should fire
+	// (the first one, since all events happen within a single instant).
+	events := make([]StreamEvent, 50)
+	for i := range events {
+		events[i] = StreamEvent{Type: "text", Content: fmt.Sprintf("chunk %d", i)}
+	}
+	tool.streamRunners[AgentClaude] = &mockStreamRunner{
+		output: "final",
+		events: events,
+	}
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "throttle test", Async: true})
+	tool.Execute(context.Background(), input)
+
+	// Wait for completion.
+	select {
+	case <-inter.notifyCh:
+		// Drain all notifications.
+		<-time.After(200 * time.Millisecond)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out")
+	}
+
+	notified := inter.getNotified()
+	progressCount := 0
+	for _, n := range notified {
+		if strings.Contains(n, "progress") {
+			progressCount++
+		}
+	}
+	// With 50 rapid events and 30s throttle, only 1 progress notification should fire.
+	if progressCount != 1 {
+		t.Errorf("expected 1 progress notification, got %d: %v", progressCount, notified)
+	}
+}
+
+func TestDelegateTask_ProgressIgnoresToolUseEvents(t *testing.T) {
+	inter := newSyncMockInteractor(true)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	tool.streamRunners[AgentClaude] = &mockStreamRunner{
+		output: "done",
+		events: []StreamEvent{
+			{Type: "tool_use", Content: "bash"},
+			{Type: "tool_use", Content: "file_read"},
+		},
+	}
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "tool_use only", Async: true})
+	tool.Execute(context.Background(), input)
+
+	select {
+	case <-inter.notifyCh:
+		<-time.After(200 * time.Millisecond)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out")
+	}
+
+	notified := inter.getNotified()
+	for _, n := range notified {
+		if strings.Contains(n, "progress") {
+			t.Errorf("tool_use events should not trigger progress: %v", notified)
+			break
+		}
+	}
+}
+
+func TestDelegateTask_NoAgentsAvailable(t *testing.T) {
+	inter := &mockInteractor{approveAll: true}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     nil,
+		Timeout:    5 * time.Second,
+	})
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "should fail"})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error with no agents")
+	}
+	if !strings.Contains(err.Error(), "no agents available") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+func TestDelegateTask_AsyncTrackerStartError(t *testing.T) {
+	inter := newSyncMockInteractor(true)
+	tracker := NewTaskTracker()
+	// Fill tracker to max.
+	tracker.Start("t1", "task1", AgentClaude)
+	tracker.Start("t2", "task2", AgentClaude)
+	tracker.Start("t3", "task3", AgentClaude)
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	tool.streamRunners[AgentClaude] = nil
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "over limit", Async: true})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error when tracker is full")
+	}
+	// No approval should have been requested.
+	inter.mu.Lock()
+	approvalCount := len(inter.approvals)
+	inter.mu.Unlock()
+	if approvalCount != 0 {
+		t.Errorf("expected no approvals, got %d", approvalCount)
+	}
+}
+
+func TestDelegateTask_AsyncDenied(t *testing.T) {
+	inter := newSyncMockInteractor(false)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "/usr/local/bin/claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+	})
+	runner := &mockAgentRunner{output: "should not run"}
+	tool.runners[AgentClaude] = runner
+	tool.streamRunners[AgentClaude] = nil
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "denied async", Async: true})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != "denied_by_user" {
+		t.Errorf("result = %q", result)
+	}
+	if runner.called {
+		t.Error("runner should not have been called")
+	}
+	// Task should be marked as failed in tracker.
+	tasks := tracker.List()
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task in tracker, got %d", len(tasks))
+	}
+	if tasks[0].Status != TaskFailed {
+		t.Errorf("status = %q, want failed", tasks[0].Status)
+	}
+}
+
+func TestDelegateTask_MalformedJSON(t *testing.T) {
+	tool, _, _ := setupDelegateTest(t, true)
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{bad json`))
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
 	}
 }

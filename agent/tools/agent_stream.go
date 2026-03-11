@@ -18,6 +18,11 @@ type StreamEvent struct {
 	Content string
 }
 
+// StreamRunnerInterface abstracts streaming agent execution for testability.
+type StreamRunnerInterface interface {
+	RunStream(ctx context.Context, prompt string, timeout time.Duration, onEvent func(StreamEvent)) (string, error)
+}
+
 // StreamRunner executes an external AI CLI with streaming NDJSON output.
 type StreamRunner struct {
 	info AgentInfo

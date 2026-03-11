@@ -147,3 +147,34 @@ func TestTaskTracker_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestTaskTracker_DuplicateID(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("dup", "first task", AgentClaude)
+	tr.Start("dup", "second task", AgentClaude)
+	rec, _ := tr.Get("dup")
+	if rec.Task != "second task" {
+		t.Errorf("Task = %q, expected second task to overwrite", rec.Task)
+	}
+}
+
+func TestTaskTracker_GetReturnsCopy(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "task", AgentClaude)
+	rec, _ := tr.Get("t1")
+	rec.Status = TaskCompleted // mutate the copy
+	original, _ := tr.Get("t1")
+	if original.Status != TaskRunning {
+		t.Error("modifying Get result should not affect tracker state")
+	}
+}
+
+func TestTaskTracker_CompleteNonexistent(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Complete("ghost", "output") // should not panic
+}
+
+func TestTaskTracker_FailNonexistent(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Fail("ghost", "error") // should not panic
+}

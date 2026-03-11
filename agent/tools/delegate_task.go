@@ -28,7 +28,7 @@ type DelegateTaskTool struct {
 	agents        []AgentInfo
 	timeout       time.Duration
 	runners       map[AgentKind]AgentRunnerInterface
-	streamRunners map[AgentKind]*StreamRunner
+	streamRunners map[AgentKind]StreamRunnerInterface
 	tracker       *TaskTracker
 }
 
@@ -39,17 +39,17 @@ func NewDelegateTaskTool(cfg DelegateTaskConfig) *DelegateTaskTool {
 		timeout = defaultDelegateTimeout
 	}
 	runners := make(map[AgentKind]AgentRunnerInterface, len(cfg.Agents))
-	streamRunners := make(map[AgentKind]*StreamRunner, len(cfg.Agents))
+	sRunners := make(map[AgentKind]StreamRunnerInterface, len(cfg.Agents))
 	for _, a := range cfg.Agents {
 		runners[a.Kind] = NewAgentRunner(a)
-		streamRunners[a.Kind] = NewStreamRunner(a)
+		sRunners[a.Kind] = NewStreamRunner(a)
 	}
 	return &DelegateTaskTool{
 		interactor:    cfg.Interactor,
 		agents:        cfg.Agents,
 		timeout:       timeout,
 		runners:       runners,
-		streamRunners: streamRunners,
+		streamRunners: sRunners,
 		tracker:       cfg.Tracker,
 	}
 }
@@ -207,7 +207,8 @@ func (d *DelegateTaskTool) runAsync(
 	defer cancel()
 
 	// Try streaming runner for progress reporting.
-	if sr, ok := d.streamRunners[kind]; ok && sr != nil {
+	sr, ok := d.streamRunners[kind]
+	if ok && sr != nil {
 		var lastNotify time.Time
 		onEvent := func(evt StreamEvent) {
 			if time.Since(lastNotify) > progressThrottle && (evt.Type == "result" || evt.Type == "text") {
