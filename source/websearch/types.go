@@ -11,6 +11,8 @@ type Result struct {
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
 	Source  string `json:"source"`
+	Date    string `json:"date,omitempty"`
+	Image   string `json:"image,omitempty"`
 }
 
 type SearchResult struct {
