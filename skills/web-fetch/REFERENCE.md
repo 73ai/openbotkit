@@ -10,7 +10,6 @@ obk websearch fetch "url" [flags]
 |------|-------|---------|-------------|
 | `--format` | `-f` | markdown | Output format: markdown, text |
 | `--max-length` | | 100000 | Maximum content length in characters |
-| `--no-cache` | | false | Skip cache |
 
 ## Output
 
@@ -23,8 +22,7 @@ JSON to stdout:
   "content": "# Example Domain\n\nThis domain is for use in illustrative examples...",
   "content_type": "text/html; charset=UTF-8",
   "status_code": 200,
-  "truncated": false,
-  "cached": false
+  "truncated": false
 }
 ```
 
@@ -37,11 +35,3 @@ JSON to stdout:
 - **SSRF Protection**: Blocks requests to private/loopback IP addresses
 - **Content Truncation**: Long pages are truncated at `--max-length` with a marker
 
-## Fetch Cache
-
-Query cached pages via `obk db websearch`:
-
-```bash
-# Recently fetched pages
-obk db websearch "SELECT url, title, format, created_at FROM fetch_cache ORDER BY created_at DESC LIMIT 10;"
-```

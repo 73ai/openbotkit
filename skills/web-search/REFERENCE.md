@@ -12,7 +12,6 @@ obk websearch search "query" [flags]
 | `--backend` | `-b` | auto | Search backend: auto, duckduckgo, wikipedia |
 | `--time-limit` | `-t` | | Time limit: d (day), w (week), m (month) |
 | `--region` | `-r` | us-en | Region for search results |
-| `--no-cache` | | false | Skip cache |
 
 ## Output
 
@@ -32,8 +31,7 @@ JSON to stdout:
   "metadata": {
     "backends": ["wikipedia", "duckduckgo"],
     "search_time_ms": 450,
-    "total_results": 5,
-    "cached": false
+    "total_results": 5
   }
 }
 ```
