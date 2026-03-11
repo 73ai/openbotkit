@@ -127,7 +127,30 @@ func TestSlackSearchTool_Name(t *testing.T) {
 	if tool.Name() != "slack_search" {
 		t.Errorf("Name() = %q", tool.Name())
 	}
+	if tool.Description() == "" {
+		t.Error("empty description")
+	}
 	if !json.Valid(tool.InputSchema()) {
 		t.Error("invalid input schema")
+	}
+}
+
+func TestSlackSearchTool_InvalidJSON(t *testing.T) {
+	tool := NewSlackSearchTool(SlackToolDeps{Client: &mockSlackAPI{}})
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{invalid`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestSlackSearchTool_DefaultLimit(t *testing.T) {
+	api := &mockSlackAPI{
+		searchMessagesResult: &slack.SearchResult{Messages: []slack.Message{}},
+	}
+	tool := NewSlackSearchTool(SlackToolDeps{Client: api})
+	input, _ := json.Marshal(slackSearchInput{Query: "test"})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -45,3 +45,34 @@ func TestSlackReadThreadTool_Name(t *testing.T) {
 		t.Errorf("Name() = %q", tool.Name())
 	}
 }
+
+func TestSlackReadThreadTool_Metadata(t *testing.T) {
+	tool := NewSlackReadThreadTool(SlackToolDeps{Client: &mockSlackAPI{}})
+	if tool.Name() != "slack_read_thread" {
+		t.Errorf("Name() = %q", tool.Name())
+	}
+	if tool.Description() == "" {
+		t.Error("empty description")
+	}
+	if !json.Valid(tool.InputSchema()) {
+		t.Error("invalid schema")
+	}
+}
+
+func TestSlackReadThreadTool_InvalidJSON(t *testing.T) {
+	tool := NewSlackReadThreadTool(SlackToolDeps{Client: &mockSlackAPI{}})
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{bad`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestSlackReadThreadTool_ResolveError(t *testing.T) {
+	api := &mockSlackAPI{channels: []slack.Channel{}}
+	tool := NewSlackReadThreadTool(SlackToolDeps{Client: api})
+	input, _ := json.Marshal(slackReadThreadInput{Channel: "#nonexistent", ThreadTS: "111"})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error for unresolvable channel")
+	}
+}
