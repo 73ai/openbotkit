@@ -7,7 +7,10 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -70,29 +73,55 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 	})
 
 	start := time.Now()
-	var allResults []Result
-	var backends []string
-	var lastErr error
 
+	type engineResult struct {
+		name    string
+		results []Result
+	}
+
+	var (
+		mu         sync.Mutex
+		collected  []engineResult
+		lastErr    error
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
 	for _, eng := range engines {
 		if !w.health.IsHealthy(eng.Name()) {
 			slog.Info("skipping unhealthy backend", "engine", eng.Name())
 			continue
 		}
-		results, err := eng.Search(ctx, query, opts)
-		if err != nil {
-			lastErr = err
-			w.health.RecordFailure(eng.Name())
-			slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
-			continue
-		}
-		w.health.RecordSuccess(eng.Name())
-		allResults = append(allResults, results...)
-		backends = append(backends, eng.Name())
+		g.Go(func() error {
+			results, err := eng.Search(gctx, query, opts)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				lastErr = err
+				w.health.RecordFailure(eng.Name())
+				slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
+				return nil // don't cancel other goroutines
+			}
+			w.health.RecordSuccess(eng.Name())
+			collected = append(collected, engineResult{name: eng.Name(), results: results})
+			return nil
+		})
+	}
+	g.Wait()
+
+	if len(collected) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("all backends failed: %w", lastErr)
 	}
 
-	if len(allResults) == 0 && lastErr != nil {
-		return nil, fmt.Errorf("all backends failed: %w", lastErr)
+	// Maintain priority order for deterministic ranking.
+	sort.Slice(collected, func(i, j int) bool {
+		return priorityOf(collected[i].name, engines) > priorityOf(collected[j].name, engines)
+	})
+
+	var allResults []Result
+	var backends []string
+	for _, c := range collected {
+		allResults = append(allResults, c.results...)
+		backends = append(backends, c.name)
 	}
 
 	allResults = rankResults(allResults, query)
@@ -215,29 +244,55 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 	})
 
 	start := time.Now()
-	var allResults []Result
-	var backends []string
-	var lastErr error
 
+	type newsResult struct {
+		name    string
+		results []Result
+	}
+
+	var (
+		mu        sync.Mutex
+		collected []newsResult
+		lastErr   error
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
 	for _, eng := range engines {
 		if !w.health.IsHealthy(eng.Name()) {
 			slog.Info("skipping unhealthy news backend", "engine", eng.Name())
 			continue
 		}
-		results, err := eng.News(ctx, query, opts)
-		if err != nil {
-			lastErr = err
-			w.health.RecordFailure(eng.Name())
-			slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
-			continue
-		}
-		w.health.RecordSuccess(eng.Name())
-		allResults = append(allResults, results...)
-		backends = append(backends, eng.Name())
+		g.Go(func() error {
+			results, err := eng.News(gctx, query, opts)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				lastErr = err
+				w.health.RecordFailure(eng.Name())
+				slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
+				return nil
+			}
+			w.health.RecordSuccess(eng.Name())
+			collected = append(collected, newsResult{name: eng.Name(), results: results})
+			return nil
+		})
+	}
+	g.Wait()
+
+	if len(collected) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("all news backends failed: %w", lastErr)
 	}
 
-	if len(allResults) == 0 && lastErr != nil {
-		return nil, fmt.Errorf("all news backends failed: %w", lastErr)
+	// Maintain priority order for deterministic ranking.
+	sort.Slice(collected, func(i, j int) bool {
+		return newsEngPriority(collected[i].name, engines) > newsEngPriority(collected[j].name, engines)
+	})
+
+	var allResults []Result
+	var backends []string
+	for _, c := range collected {
+		allResults = append(allResults, c.results...)
+		backends = append(backends, c.name)
 	}
 
 	allResults = rankResults(allResults, query)
@@ -274,6 +329,24 @@ func buildNewsEngines(client HTTPDoer, backend string, configured []string) []Ne
 	default:
 		return nil
 	}
+}
+
+func priorityOf(name string, engines []Engine) int {
+	for _, e := range engines {
+		if e.Name() == name {
+			return e.Priority()
+		}
+	}
+	return 0
+}
+
+func newsEngPriority(name string, engines []NewsEngine) int {
+	for _, e := range engines {
+		if e.Name() == name {
+			return e.Priority()
+		}
+	}
+	return 0
 }
 
 func filterNewsEngines(engines []NewsEngine, allowed []string) []NewsEngine {
