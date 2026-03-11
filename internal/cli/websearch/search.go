@@ -45,8 +45,7 @@ var searchCmd = &cobra.Command{
 			NoCache:    noCache,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		return json.NewEncoder(os.Stdout).Encode(result)
