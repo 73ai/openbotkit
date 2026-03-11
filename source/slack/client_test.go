@@ -197,3 +197,234 @@ func TestClient_AddReaction(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClient_SearchFiles(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"files": map[string]any{
+				"total": 1,
+				"page":  1,
+				"pages": 1,
+				"matches": []map[string]any{
+					{"id": "F1", "name": "report.pdf"},
+				},
+			},
+		})
+	})
+
+	result, err := c.SearchFiles(context.Background(), "report", SearchOptions{Count: 5, Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 {
+		t.Errorf("total = %d", result.Total)
+	}
+	if len(result.Files) != 1 || result.Files[0].Name != "report.pdf" {
+		t.Errorf("files = %+v", result.Files)
+	}
+}
+
+func TestClient_ConversationsReplies(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("channel") != "C123" {
+			t.Errorf("channel = %q", r.FormValue("channel"))
+		}
+		if r.FormValue("ts") != "111.222" {
+			t.Errorf("ts = %q", r.FormValue("ts"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"messages": []map[string]any{
+				{"ts": "111.222", "text": "parent"},
+				{"ts": "333.444", "text": "reply", "thread_ts": "111.222"},
+			},
+		})
+	})
+
+	msgs, err := c.ConversationsReplies(context.Background(), "C123", "111.222", HistoryOptions{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+	if msgs[1].Text != "reply" {
+		t.Errorf("reply text = %q", msgs[1].Text)
+	}
+}
+
+func TestClient_ConversationsList(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"channels": []map[string]any{
+				{"id": "C1", "name": "general"},
+				{"id": "C2", "name": "random"},
+			},
+			"response_metadata": map[string]any{"next_cursor": ""},
+		})
+	})
+
+	channels, err := c.ConversationsList(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(channels) != 2 {
+		t.Fatalf("expected 2 channels, got %d", len(channels))
+	}
+	if channels[0].Name != "general" {
+		t.Errorf("first channel = %q", channels[0].Name)
+	}
+}
+
+func TestClient_UsersList(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"members": []map[string]any{
+				{"id": "U1", "name": "alice"},
+				{"id": "U2", "name": "bob"},
+			},
+			"response_metadata": map[string]any{"next_cursor": ""},
+		})
+	})
+
+	users, err := c.UsersList(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+	if users[0].Name != "alice" {
+		t.Errorf("first user = %q", users[0].Name)
+	}
+}
+
+func TestClient_UsersInfo(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("user") != "U123" {
+			t.Errorf("user = %q", r.FormValue("user"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok":   true,
+			"user": map[string]any{"id": "U123", "name": "alice"},
+		})
+	})
+
+	user, err := c.UsersInfo(context.Background(), "U123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Name != "alice" {
+		t.Errorf("name = %q", user.Name)
+	}
+}
+
+func TestClient_UpdateMessage(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("channel") != "C123" {
+			t.Errorf("channel = %q", r.FormValue("channel"))
+		}
+		if r.FormValue("ts") != "111.222" {
+			t.Errorf("ts = %q", r.FormValue("ts"))
+		}
+		if r.FormValue("text") != "updated text" {
+			t.Errorf("text = %q", r.FormValue("text"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	})
+
+	err := c.UpdateMessage(context.Background(), "C123", "111.222", "updated text")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_DeleteMessage(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("channel") != "C123" {
+			t.Errorf("channel = %q", r.FormValue("channel"))
+		}
+		if r.FormValue("ts") != "111.222" {
+			t.Errorf("ts = %q", r.FormValue("ts"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	})
+
+	err := c.DeleteMessage(context.Background(), "C123", "111.222")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_RemoveReaction(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("name") != "thumbsdown" {
+			t.Errorf("emoji = %q", r.FormValue("name"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	})
+
+	err := c.RemoveReaction(context.Background(), "C123", "1234.5678", "thumbsdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_ResolveChannel(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"channels": []map[string]any{
+				{"id": "C123", "name": "general"},
+			},
+			"response_metadata": map[string]any{"next_cursor": ""},
+		})
+	})
+
+	id, err := c.ResolveChannel(context.Background(), "#general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "C123" {
+		t.Errorf("resolved = %q", id)
+	}
+}
+
+func TestClient_ResolveUser(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"members": []map[string]any{
+				{"id": "U123", "name": "alice"},
+			},
+			"response_metadata": map[string]any{"next_cursor": ""},
+		})
+	})
+
+	id, err := c.ResolveUser(context.Background(), "@alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "U123" {
+		t.Errorf("resolved = %q", id)
+	}
+}
+
+func TestClient_HTTP500(t *testing.T) {
+	c := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	})
+
+	_, err := c.ConversationsHistory(context.Background(), "C123", HistoryOptions{})
+	if err == nil {
+		t.Fatal("expected error for HTTP 500")
+	}
+}
