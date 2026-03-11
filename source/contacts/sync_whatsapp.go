@@ -97,8 +97,8 @@ func syncWhatsAppInteractions(contactsDB, waDB *store.DB, contactID int64, jid s
 	var count int
 	var lastAtRaw sql.NullString
 	err := waDB.QueryRow(
-		waDB.Rebind("SELECT COUNT(*), MAX(timestamp) FROM whatsapp_messages WHERE sender_jid = ? OR chat_jid = ?"),
-		jid, jid,
+		waDB.Rebind("SELECT COUNT(*), MAX(timestamp) FROM whatsapp_messages WHERE sender_jid = ?"),
+		jid,
 	).Scan(&count, &lastAtRaw)
 	if err != nil {
 		return err
