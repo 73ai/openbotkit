@@ -16,6 +16,8 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/remote"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
+	"github.com/priyanshujain/openbotkit/source/slack/desktop"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
 )
@@ -126,8 +128,9 @@ var setupCmd = &cobra.Command{
 					return err
 				}
 			case "slack":
-				fmt.Println("\n  -- Slack Setup --")
-				fmt.Println("  Run: obk auth slack login")
+				if err := setupSlack(cfg); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -162,7 +165,7 @@ var setupCmd = &cobra.Command{
 			case "applenotes":
 				fmt.Println("    - Apple Notes is ready (synced during setup)")
 			case "slack":
-				fmt.Println("    - Run: obk auth slack login")
+				fmt.Println("    - Slack is ready! Try: obk slack channels")
 			}
 		}
 		return nil
@@ -418,6 +421,47 @@ func setupAppleNotes(cfg *config.Config) error {
 	}
 
 	fmt.Printf("  Synced %d notes\n", result.Synced)
+	return nil
+}
+
+func setupSlack(cfg *config.Config) error {
+	fmt.Println("\n  -- Slack Setup --")
+
+	if runtime.GOOS == "darwin" {
+		fmt.Println("  Detecting Slack Desktop credentials...")
+		fmt.Println("  macOS will ask for permission to access \"Slack Safe Storage\" in your keychain.")
+		fmt.Println("  Click \"Always Allow\" so you won't be prompted again.")
+		fmt.Println()
+
+		creds, err := desktop.Extract()
+		if err == nil {
+			workspace := strings.ToLower(strings.ReplaceAll(creds.TeamName, " ", "-"))
+			if err := slacksrc.SaveCredentials(workspace, creds.Token, creds.Cookie); err != nil {
+				return fmt.Errorf("save credentials: %w", err)
+			}
+
+			if cfg.Slack == nil {
+				cfg.Slack = &config.SlackConfig{}
+			}
+			if cfg.Slack.Workspaces == nil {
+				cfg.Slack.Workspaces = make(map[string]config.SlackWorkspace)
+			}
+			cfg.Slack.Workspaces[workspace] = config.SlackWorkspace{
+				TeamID:   creds.TeamID,
+				TeamName: creds.TeamName,
+				AuthMode: "desktop",
+			}
+			if cfg.Slack.DefaultWorkspace == "" {
+				cfg.Slack.DefaultWorkspace = workspace
+			}
+			fmt.Printf("  Authenticated with workspace %q (team: %s)\n", workspace, creds.TeamName)
+			return nil
+		}
+		fmt.Printf("  Desktop auto-detect failed: %v\n", err)
+		fmt.Println("  Falling back to manual token entry.")
+	}
+
+	fmt.Println("  Run: obk auth slack login")
 	return nil
 }
 
