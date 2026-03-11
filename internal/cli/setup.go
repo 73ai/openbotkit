@@ -69,6 +69,7 @@ var setupCmd = &cobra.Command{
 		sourceOptions = append(sourceOptions, huh.NewOption("Slack", "slack"))
 		if runtime.GOOS == "darwin" {
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
+			sourceOptions = append(sourceOptions, huh.NewOption("Apple Contacts", "applecontacts"))
 		}
 
 		err = huh.NewForm(
