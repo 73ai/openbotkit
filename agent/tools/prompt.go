@@ -59,9 +59,10 @@ When a tool result includes "user notified", keep your response brief — the us
 	if reg.Has("delegate_task") {
 		b.WriteString(`
 ## Task Delegation
-Use delegate_task for complex, time-consuming tasks: deep research, analysis, code generation, multi-step reasoning.
-Do NOT delegate simple tasks — just do them directly with your existing tools.
-The external agent runs locally and incurs API costs — use judiciously.
+Use delegate_task for complex tasks: research, analysis, code generation.
+Set async=true for tasks that will take more than a minute — the user will be notified when done.
+Use check_task to retrieve results of background tasks.
+Do NOT delegate simple tasks — just do them directly.
 `)
 	}
 
