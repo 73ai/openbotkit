@@ -17,6 +17,7 @@ import (
 	"github.com/priyanshujain/openbotkit/channel"
 	tgchannel "github.com/priyanshujain/openbotkit/channel/telegram"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
@@ -65,6 +66,12 @@ func (s *Server) Run(ctx context.Context) error {
 	})
 
 	s.migrateDBs()
+
+	go func() {
+		if err := skills.RefreshGWSSkills(s.cfg); err != nil {
+			slog.Warn("gws skill refresh failed", "error", err)
+		}
+	}()
 
 	mux := http.NewServeMux()
 	s.routes(mux)
