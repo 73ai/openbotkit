@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,6 +43,52 @@ func TestParseStreamLine_InvalidJSON(t *testing.T) {
 	evt := parseStreamLine(line)
 	if evt.Type != "" {
 		t.Errorf("expected empty event for invalid JSON, got Type=%q", evt.Type)
+	}
+}
+
+func TestParseStreamLine_GeminiMessage(t *testing.T) {
+	line := []byte(`{"type":"message","role":"assistant","content":"Hello","delta":true}`)
+	evt := parseStreamLine(line)
+	if evt.Type != "text" {
+		t.Errorf("Type = %q, want text", evt.Type)
+	}
+	if evt.Content != "Hello" {
+		t.Errorf("Content = %q", evt.Content)
+	}
+}
+
+func TestParseStreamLine_GeminiResult(t *testing.T) {
+	line := []byte(`{"type":"result","status":"success","stats":{"total_tokens":100}}`)
+	evt := parseStreamLine(line)
+	if evt.Type != "result" {
+		t.Errorf("Type = %q, want result", evt.Type)
+	}
+}
+
+func TestParseStreamLine_GeminiUserMessage(t *testing.T) {
+	line := []byte(`{"type":"message","role":"user","content":"prompt"}`)
+	evt := parseStreamLine(line)
+	if evt.Type == "text" {
+		t.Error("user messages should not be parsed as text events")
+	}
+}
+
+func TestParseStreamLine_CodexItemCompleted(t *testing.T) {
+	line := []byte(`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Hello"}}`)
+	evt := parseStreamLine(line)
+	if evt.Type != "text" {
+		t.Errorf("Type = %q, want text", evt.Type)
+	}
+	if evt.Content != "Hello" {
+		t.Errorf("Content = %q", evt.Content)
+	}
+}
+
+func TestParseStreamLine_CodexReasoningIgnored(t *testing.T) {
+	line := []byte(`{"type":"item.completed","item":{"type":"reasoning","text":"thinking..."}}`)
+	evt := parseStreamLine(line)
+	if evt.Type == "text" {
+		t.Error("reasoning items should not be parsed as text events")
 	}
 }
 
@@ -166,5 +213,61 @@ func TestStreamRunner_RealClaude(t *testing.T) {
 	}
 	if eventCount == 0 {
 		t.Error("expected at least one event")
+	}
+}
+
+func TestStreamRunner_RealGemini(t *testing.T) {
+	if _, err := exec.LookPath("gemini"); err != nil {
+		t.Skip("gemini not on PATH")
+	}
+	agents := DetectAgents()
+	var info AgentInfo
+	for _, a := range agents {
+		if a.Kind == AgentGemini {
+			info = a
+			break
+		}
+	}
+	r := NewStreamRunner(info)
+	var eventCount int
+	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", 30*time.Second, func(evt StreamEvent) {
+		eventCount++
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "Permission") || strings.Contains(err.Error(), "denied") || strings.Contains(err.Error(), "auth") {
+			t.Skipf("gemini auth not configured: %v", err)
+		}
+		t.Fatalf("RunStream: %v", err)
+	}
+	if out == "" {
+		t.Error("expected non-empty output")
+	}
+}
+
+func TestStreamRunner_RealCodex(t *testing.T) {
+	if _, err := exec.LookPath("codex"); err != nil {
+		t.Skip("codex not on PATH")
+	}
+	agents := DetectAgents()
+	var info AgentInfo
+	for _, a := range agents {
+		if a.Kind == AgentCodex {
+			info = a
+			break
+		}
+	}
+	r := NewStreamRunner(info)
+	var eventCount int
+	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", 30*time.Second, func(evt StreamEvent) {
+		eventCount++
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "auth") || strings.Contains(err.Error(), "API key") || strings.Contains(err.Error(), "login") {
+			t.Skipf("codex auth not configured: %v", err)
+		}
+		t.Fatalf("RunStream: %v", err)
+	}
+	if out == "" {
+		t.Error("expected non-empty output")
 	}
 }

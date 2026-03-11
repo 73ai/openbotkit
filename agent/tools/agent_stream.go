@@ -128,11 +128,17 @@ func (r *StreamRunner) buildEnv() []string {
 	return env
 }
 
-// streamJSON is the minimal structure of a Claude stream-json event.
+// streamJSON is a unified structure for parsing streaming events from all CLIs.
 type streamJSON struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
 	Result  string `json:"result"`
+	Role    string `json:"role"`
+	Delta   bool   `json:"delta"`
+	Item    struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"item"`
 }
 
 func parseStreamLine(line []byte) StreamEvent {
@@ -140,13 +146,24 @@ func parseStreamLine(line []byte) StreamEvent {
 	if err := json.Unmarshal(line, &sj); err != nil {
 		return StreamEvent{}
 	}
+	if sj.Type == "" {
+		return StreamEvent{}
+	}
+
+	// Gemini: {"type":"message","role":"assistant","content":"Hello","delta":true}
+	if sj.Type == "message" && sj.Role == "assistant" {
+		return StreamEvent{Type: "text", Content: sj.Content}
+	}
+
+	// Codex: {"type":"item.completed","item":{"type":"agent_message","text":"Hello"}}
+	if sj.Type == "item.completed" && sj.Item.Type == "agent_message" {
+		return StreamEvent{Type: "text", Content: sj.Item.Text}
+	}
+
+	// Claude/Gemini: {"type":"text"|"result", "content":"...", "result":"..."}
 	content := sj.Content
 	if content == "" {
 		content = sj.Result
 	}
-	typ := sj.Type
-	if typ == "" {
-		return StreamEvent{}
-	}
-	return StreamEvent{Type: typ, Content: content}
+	return StreamEvent{Type: sj.Type, Content: content}
 }
