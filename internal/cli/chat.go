@@ -6,12 +6,15 @@ import (
 	"io"
 	"os"
 
+	"log/slog"
+
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/tools"
 	clicli "github.com/priyanshujain/openbotkit/channel/cli"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
 	"github.com/priyanshujain/openbotkit/store"
 
@@ -66,6 +69,8 @@ var chatCmd = &cobra.Command{
 			defer histDB.Close()
 		}
 
+		ch := clicli.New(os.Stdin, os.Stdout)
+
 		// Build tool registry.
 		toolReg := tools.NewStandardRegistry()
 		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
@@ -74,6 +79,9 @@ var chatCmd = &cobra.Command{
 			ToolFactory: tools.NewStandardRegistry,
 			System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
 		}))
+
+		// Register Slack tools if configured.
+		registerSlackTools(cfg, toolReg, ch)
 
 		// Set up usage recording.
 		usageRecorder := openUsageRecorder(cfg, providerName, "cli", sessionID)
@@ -91,7 +99,6 @@ var chatCmd = &cobra.Command{
 			agentOpts = append(agentOpts, agent.WithUsageRecorder(usageRecorder))
 		}
 		a := agent.New(p, modelName, toolReg, agentOpts...)
-		ch := clicli.New(os.Stdin, os.Stdout)
 
 		fmt.Println("OpenBotKit Chat (Ctrl+D to exit)")
 		fmt.Println()
@@ -176,6 +183,36 @@ func generateSessionID() string {
 	var b [16]byte
 	rand.Read(b[:])
 	return fmt.Sprintf("obk-chat-%x", b[:])
+}
+
+// cliInteractor adapts a CLI channel to the tools.Interactor interface.
+type cliInteractor struct {
+	ch *clicli.Channel
+}
+
+func (c *cliInteractor) Notify(msg string) error              { return c.ch.Send(msg) }
+func (c *cliInteractor) NotifyLink(text, url string) error    { return c.ch.SendLink(text, url) }
+func (c *cliInteractor) RequestApproval(desc string) (bool, error) { return c.ch.RequestApproval(desc) }
+
+func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Channel) {
+	if cfg.Slack == nil || cfg.Slack.DefaultWorkspace == "" {
+		return
+	}
+	creds, err := slacksrc.LoadCredentials(cfg.Slack.DefaultWorkspace)
+	if err != nil {
+		slog.Debug("slack tools not loaded: no credentials", "workspace", cfg.Slack.DefaultWorkspace)
+		return
+	}
+	client := slacksrc.NewClient(creds.Token, creds.Cookie)
+	inter := &cliInteractor{ch: ch}
+	deps := tools.SlackToolDeps{Client: client, Interactor: inter, Workspace: cfg.Slack.DefaultWorkspace}
+
+	reg.Register(tools.NewSlackSearchTool(deps))
+	reg.Register(tools.NewSlackReadChannelTool(deps))
+	reg.Register(tools.NewSlackReadThreadTool(deps))
+	reg.Register(tools.NewSlackSendTool(deps))
+	reg.Register(tools.NewSlackEditTool(deps))
+	reg.Register(tools.NewSlackReactTool(deps))
 }
 
 func init() {

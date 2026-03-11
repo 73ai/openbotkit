@@ -368,6 +368,18 @@ func (c *Client) RemoveReaction(ctx context.Context, channel, ts, emoji string) 
 	return err
 }
 
+// ResolveChannel resolves a channel reference to an ID using a Resolver.
+func (c *Client) ResolveChannel(ctx context.Context, ref string) (string, error) {
+	r := NewResolver(c)
+	return r.ResolveChannel(ctx, ref)
+}
+
+// ResolveUser resolves a user reference to an ID using a Resolver.
+func (c *Client) ResolveUser(ctx context.Context, ref string) (string, error) {
+	r := NewResolver(c)
+	return r.ResolveUser(ctx, ref)
+}
+
 // AuthTest validates the current credentials and returns team/user info.
 func (c *Client) AuthTest(ctx context.Context) (teamID, teamName, userID string, err error) {
 	body, err := c.call(ctx, "auth.test", nil)
