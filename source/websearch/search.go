@@ -29,13 +29,30 @@ func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions
 		opts.Region = defaultRegion
 	}
 
+	if !opts.NoCache {
+		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit)
+		if cached, ok := getSearchCache(w.db, key, w.cacheTTL()); ok {
+			return cached, nil
+		}
+	}
+
 	client := w.httpClient()
 	engines := buildEngines(client, opts.Backend)
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown backend: %q", opts.Backend)
 	}
 
-	return w.searchWithEngines(ctx, query, opts, engines)
+	result, err := w.searchWithEngines(ctx, query, opts, engines)
+	if err != nil {
+		return nil, err
+	}
+
+	if !opts.NoCache {
+		key := cacheKey(query, "web", opts.Backend, opts.Region, opts.TimeLimit)
+		putSearchCache(w.db, key, query, "web", result.Results)
+	}
+
+	return result, nil
 }
 
 func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts SearchOptions, engines []Engine) (*SearchResult, error) {
@@ -127,13 +144,30 @@ func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) 
 		opts.Region = defaultRegion
 	}
 
+	if !opts.NoCache {
+		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit)
+		if cached, ok := getSearchCache(w.db, key, w.cacheTTL()); ok {
+			return cached, nil
+		}
+	}
+
 	client := w.httpClient()
 	engines := buildNewsEngines(client, opts.Backend)
 	if len(engines) == 0 {
 		return nil, fmt.Errorf("unknown or non-news backend: %q", opts.Backend)
 	}
 
-	return w.newsWithEngines(ctx, query, opts, engines)
+	result, err := w.newsWithEngines(ctx, query, opts, engines)
+	if err != nil {
+		return nil, err
+	}
+
+	if !opts.NoCache {
+		key := cacheKey(query, "news", opts.Backend, opts.Region, opts.TimeLimit)
+		putSearchCache(w.db, key, query, "news", result.Results)
+	}
+
+	return result, nil
 }
 
 func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts SearchOptions, engines []NewsEngine) (*SearchResult, error) {
