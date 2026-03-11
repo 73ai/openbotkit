@@ -34,7 +34,11 @@ func (y *Yandex) Search(ctx context.Context, query string, opts SearchOptions) (
 	q.Set("text", query)
 	q.Set("web", "1")
 	q.Set("searchid", fmt.Sprintf("%07d", rand.IntN(10000000)))
-	q.Set("p", "0")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("p", fmt.Sprintf("%d", page-1))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)

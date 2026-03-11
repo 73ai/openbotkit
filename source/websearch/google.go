@@ -38,7 +38,11 @@ func (g *Google) Search(ctx context.Context, query string, opts SearchOptions) (
 	}
 	q := u.Query()
 	q.Set("q", query)
-	q.Set("start", "0")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("start", fmt.Sprintf("%d", (page-1)*10))
 	q.Set("hl", "en")
 	if tbs, ok := googleTimeLimits[opts.TimeLimit]; ok {
 		q.Set("tbs", tbs)

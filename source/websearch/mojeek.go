@@ -31,7 +31,11 @@ func (m *Mojeek) Search(ctx context.Context, query string, opts SearchOptions) (
 	}
 	q := u.Query()
 	q.Set("q", query)
-	q.Set("s", "0")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("s", fmt.Sprintf("%d", (page-1)*10+1))
 	q.Set("safe", "1")
 	u.RawQuery = q.Encode()
 

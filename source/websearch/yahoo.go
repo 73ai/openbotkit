@@ -35,7 +35,11 @@ func (y *Yahoo) Search(ctx context.Context, query string, opts SearchOptions) ([
 	}
 	q := u.Query()
 	q.Set("p", query)
-	q.Set("b", "1")
+	page := opts.Page
+	if page <= 1 {
+		page = 1
+	}
+	q.Set("b", fmt.Sprintf("%d", (page-1)*7+1))
 	if opts.TimeLimit != "" {
 		q.Set("btf", opts.TimeLimit)
 	}
