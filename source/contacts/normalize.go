@@ -16,9 +16,6 @@ func NormalizePhone(raw string) string {
 	if s == "" {
 		return ""
 	}
-	if !strings.HasPrefix(raw, "+") {
-		return "+" + s
-	}
 	return "+" + s
 }
 
