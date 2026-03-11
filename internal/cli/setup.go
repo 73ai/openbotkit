@@ -16,6 +16,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/remote"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	"github.com/priyanshujain/openbotkit/source/slack/desktop"
 	"github.com/priyanshujain/openbotkit/store"
@@ -69,6 +70,7 @@ var setupCmd = &cobra.Command{
 		sourceOptions = append(sourceOptions, huh.NewOption("Slack", "slack"))
 		if runtime.GOOS == "darwin" {
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
+			sourceOptions = append(sourceOptions, huh.NewOption("Apple Contacts", "applecontacts"))
 		}
 
 		err = huh.NewForm(
@@ -123,6 +125,10 @@ var setupCmd = &cobra.Command{
 				if err := setupAppleNotes(cfg); err != nil {
 					return err
 				}
+			case "applecontacts":
+				if err := setupAppleContacts(cfg); err != nil {
+					return err
+				}
 			case "models":
 				if err := setupModels(cfg); err != nil {
 					return err
@@ -164,6 +170,8 @@ var setupCmd = &cobra.Command{
 				fmt.Println("    - Run: obk auth whatsapp login")
 			case "applenotes":
 				fmt.Println("    - Apple Notes is ready (synced during setup)")
+			case "applecontacts":
+				fmt.Println("    - Apple Contacts is ready (synced during setup)")
 			case "slack":
 				fmt.Println("    - Slack is ready! Try: obk slack channels")
 			}
@@ -395,12 +403,23 @@ func setupGWS(cfg *config.Config, services []string) error {
 }
 
 func setupAppleNotes(cfg *config.Config) error {
+	fmt.Println("\n  Setting up Apple Notes...")
+	fmt.Println("  macOS will ask for permission to access Notes.")
+	fmt.Println("  Click \"OK\" to grant access.")
+	fmt.Println()
+
+	if err := ansrc.CheckPermission(); err != nil {
+		fmt.Println("  Permission denied or Notes not accessible.")
+		fmt.Println("  Grant access in System Settings > Privacy & Security > Automation.")
+		fmt.Println("  Then re-run: obk setup")
+		return fmt.Errorf("apple notes permission: %w", err)
+	}
+
+	fmt.Println("  Permission granted. Running initial sync...")
+
 	if err := config.EnsureSourceDir("applenotes"); err != nil {
 		return fmt.Errorf("create applenotes dir: %w", err)
 	}
-
-	fmt.Println("\n  Setting up Apple Notes...")
-	fmt.Println("  Running initial sync (this may take a few seconds)...")
 
 	db, err := store.Open(store.Config{
 		Driver: cfg.AppleNotes.Storage.Driver,
@@ -421,6 +440,49 @@ func setupAppleNotes(cfg *config.Config) error {
 	}
 
 	fmt.Printf("  Synced %d notes\n", result.Synced)
+	return nil
+}
+
+func setupAppleContacts(cfg *config.Config) error {
+	fmt.Println("\n  Setting up Apple Contacts...")
+	fmt.Println("  macOS will ask for permission to access Contacts.")
+	fmt.Println("  Click \"OK\" to grant access.")
+	fmt.Println()
+
+	if err := contactsrc.CheckAppleContactsPermission(); err != nil {
+		fmt.Println("  Permission denied or Contacts not accessible.")
+		fmt.Println("  Grant access in System Settings > Privacy & Security > Automation.")
+		fmt.Println("  Then re-run: obk setup")
+		return fmt.Errorf("apple contacts permission: %w", err)
+	}
+
+	fmt.Println("  Permission granted. Running initial sync...")
+
+	if err := config.EnsureSourceDir("contacts"); err != nil {
+		return fmt.Errorf("create contacts dir: %w", err)
+	}
+
+	db, err := store.Open(store.Config{
+		Driver: cfg.Contacts.Storage.Driver,
+		DSN:    cfg.ContactsDataDSN(),
+	})
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	result, err := contactsrc.Sync(db, nil, contactsrc.SyncOptions{
+		Sources: []string{"applecontacts"},
+	})
+	if err != nil {
+		return fmt.Errorf("apple contacts sync: %w", err)
+	}
+
+	if err := config.LinkSource("contacts"); err != nil {
+		return fmt.Errorf("link source: %w", err)
+	}
+
+	fmt.Printf("  Synced %d contacts (%d new, %d linked)\n", result.Created+result.Linked, result.Created, result.Linked)
 	return nil
 }
 

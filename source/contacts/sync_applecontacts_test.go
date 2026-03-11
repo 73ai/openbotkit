@@ -4,6 +4,12 @@ package contacts
 
 import "testing"
 
+func TestCheckAppleContactsPermission_Integration(t *testing.T) {
+	if err := CheckAppleContactsPermission(); err != nil {
+		t.Logf("permission check failed (may need to grant access): %v", err)
+	}
+}
+
 func TestFetchAppleContacts_Integration(t *testing.T) {
 	people, err := fetchAppleContacts()
 	if err != nil {

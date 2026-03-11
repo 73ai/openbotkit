@@ -115,6 +115,15 @@ end tell`, acFieldSep, acFieldSep, acFieldSep, acFieldSep, acRecordSep)
 	return people, nil
 }
 
+func CheckAppleContactsPermission() error {
+	cmd := exec.Command("osascript", "-e", `tell application "Contacts" to count of people`)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("osascript: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
 func importApplePerson(db *store.DB, p applePerson, result *SyncResult) error {
 	// Try to find existing contact by any phone or email.
 	var contactID int64

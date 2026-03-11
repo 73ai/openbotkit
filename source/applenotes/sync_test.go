@@ -9,6 +9,12 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
+func TestCheckPermission_Integration(t *testing.T) {
+	if err := CheckPermission(); err != nil {
+		t.Logf("permission check failed (may need to grant access): %v", err)
+	}
+}
+
 func TestFetchAllNotes_Integration(t *testing.T) {
 	notes, err := FetchAllNotes()
 	if err != nil {

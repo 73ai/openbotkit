@@ -183,6 +183,11 @@ func isRecentlyDeletedFolder(name string) bool {
 	return recentlyDeletedNames[strings.ToLower(name)]
 }
 
+func CheckPermission() error {
+	_, err := runAppleScript(`tell application "Notes" to count of notes`)
+	return err
+}
+
 func parseAppleScriptDate(s string) time.Time {
 	// AppleScript date format varies by locale. Common formats:
 	formats := []string{
