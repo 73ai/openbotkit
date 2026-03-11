@@ -254,6 +254,5 @@ func normalizeURL(raw string) string {
 		return raw
 	}
 	u.Fragment = ""
-	u.RawQuery = ""
 	return strings.TrimSuffix(u.String(), "/")
 }
