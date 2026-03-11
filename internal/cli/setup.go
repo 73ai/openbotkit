@@ -396,12 +396,23 @@ func setupGWS(cfg *config.Config, services []string) error {
 }
 
 func setupAppleNotes(cfg *config.Config) error {
+	fmt.Println("\n  Setting up Apple Notes...")
+	fmt.Println("  macOS will ask for permission to access Notes.")
+	fmt.Println("  Click \"OK\" to grant access.")
+	fmt.Println()
+
+	if err := ansrc.CheckPermission(); err != nil {
+		fmt.Println("  Permission denied or Notes not accessible.")
+		fmt.Println("  Grant access in System Settings > Privacy & Security > Automation.")
+		fmt.Println("  Then re-run: obk setup")
+		return fmt.Errorf("apple notes permission: %w", err)
+	}
+
+	fmt.Println("  Permission granted. Running initial sync...")
+
 	if err := config.EnsureSourceDir("applenotes"); err != nil {
 		return fmt.Errorf("create applenotes dir: %w", err)
 	}
-
-	fmt.Println("\n  Setting up Apple Notes...")
-	fmt.Println("  Running initial sync (this may take a few seconds)...")
 
 	db, err := store.Open(store.Config{
 		Driver: cfg.AppleNotes.Storage.Driver,
