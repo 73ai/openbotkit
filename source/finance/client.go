@@ -2,20 +2,17 @@ package finance
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"sync"
 
-	utls "github.com/refraction-networking/utls"
-	"golang.org/x/net/http2"
+	"github.com/priyanshujain/openbotkit/internal/browser"
 )
 
 const (
@@ -39,7 +36,7 @@ func NewClient() *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
 		http: &http.Client{
-			Transport: newChromeTransport(),
+			Transport: browser.NewChromeTransport(),
 			Jar:       jar,
 		},
 		cookieURL: defaultCookieURL,
@@ -163,42 +160,3 @@ func (c *Client) fetchQuotes(ctx context.Context, symbols []string) ([]Quote, er
 	return result.QuoteResponse.Result, nil
 }
 
-// fallbackTransport tries HTTP/2 first, falls back to HTTP/1.1 on error.
-type fallbackTransport struct {
-	h2 *http2.Transport
-	h1 *http.Transport
-}
-
-func (t *fallbackTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := t.h2.RoundTrip(req)
-	if err == nil {
-		return resp, nil
-	}
-	return t.h1.RoundTrip(req)
-}
-
-func newChromeTransport() http.RoundTripper {
-	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-		if err != nil {
-			return nil, err
-		}
-		host, _, _ := net.SplitHostPort(addr)
-		tlsConn := utls.UClient(conn, &utls.Config{ServerName: host}, utls.HelloChrome_Auto)
-		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
-			return nil, err
-		}
-		return tlsConn, nil
-	}
-
-	h2 := &http2.Transport{
-		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-			return dial(ctx, network, addr)
-		},
-	}
-	h1 := &http.Transport{
-		DialTLSContext: dial,
-	}
-	return &fallbackTransport{h2: h2, h1: h1}
-}

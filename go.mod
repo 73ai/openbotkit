@@ -9,6 +9,7 @@ require (
 	github.com/lib/pq v1.11.2
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-sqlite3 v1.14.34
+	github.com/refraction-networking/utls v1.8.2
 	github.com/riverqueue/river v0.31.0
 	github.com/riverqueue/river/riverdriver/riversqlite v0.31.0
 	github.com/riverqueue/river/rivertype v0.31.0
@@ -16,6 +17,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20260227112304-c9652e4448a2
+	golang.org/x/net v0.50.0
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/time v0.14.0
 	google.golang.org/api v0.269.0
@@ -103,7 +105,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
-	github.com/refraction-networking/utls v1.8.2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/riverqueue/river/riverdriver v0.31.0 // indirect
 	github.com/riverqueue/river/rivershared v0.31.0 // indirect
@@ -136,7 +137,6 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
-	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
