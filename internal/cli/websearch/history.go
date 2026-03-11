@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/priyanshujain/openbotkit/config"
+	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
 	"github.com/priyanshujain/openbotkit/store"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,10 @@ var historyCmd = &cobra.Command{
 			return fmt.Errorf("open db: %w", err)
 		}
 		defer db.Close()
+
+		if err := wssrc.Migrate(db); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
 
 		limit, _ := cmd.Flags().GetInt("limit")
 
