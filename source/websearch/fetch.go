@@ -145,6 +145,10 @@ func extractText(html []byte) string {
 	return strings.TrimSpace(doc.Find("body").Text())
 }
 
+// fetchClient returns a raw http.Client with SSRF protection (private IP blocking).
+// This is separate from httpClient() which uses httpclient.Client with UA rotation
+// and rate limiting for search engines — fetch needs SSRF guards since it hits
+// arbitrary user-provided URLs.
 func (w *WebSearch) fetchClient() *http.Client {
 	transport := &http.Transport{}
 
