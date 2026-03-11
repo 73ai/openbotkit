@@ -316,7 +316,7 @@ func TestQuoteTimeout(t *testing.T) {
 		w.Write([]byte("test-crumb"))
 	})
 	mux.HandleFunc("/quote", func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 		w.Write([]byte("{}"))
 	})
 	srv := httptest.NewServer(mux)
