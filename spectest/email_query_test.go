@@ -25,7 +25,7 @@ func TestSpec_FindEmailsBySender(t *testing.T) {
 		}
 
 		AssertNotEmpty(t, result)
-		AssertJudge(t, fx.Provider, fx.Model, prompt, result,
+		fx.AssertJudge(t, prompt, result,
 			"The response must list Alice's emails. It should mention both 'Meeting Tomorrow' and 'Lunch Plans' subjects. "+
 				"It should NOT include Bob's 'Project Update' email.")
 	})

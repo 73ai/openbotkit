@@ -34,7 +34,7 @@ func TestSpec_SummarizeCommunicationsAcrossSources(t *testing.T) {
 		}
 
 		AssertNotEmpty(t, result)
-		AssertJudge(t, fx.Provider, fx.Model, prompt, result,
+		fx.AssertJudge(t, prompt, result,
 			"The response must cover topics from BOTH email and WhatsApp. "+
 				"It should mention the Q3 budget review or Portland offsite from email, AND reference "+
 				"Trattoria Vecchia, TRV-8842, Nakamura prototype, or NK-2047 from WhatsApp. "+
@@ -69,7 +69,7 @@ func TestSpec_RecallMemoryAndCorrelateEmails(t *testing.T) {
 		}
 
 		AssertNotEmpty(t, result)
-		AssertJudge(t, fx.Provider, fx.Model, prompt, result,
+		fx.AssertJudge(t, prompt, result,
 			"The response must include information from BOTH memories and emails. "+
 				"From memories: Raj Patel is the tech lead at Zephyr Industries, and/or "+
 				"Project Firebird has a hard deadline of June 15, 2025. "+
