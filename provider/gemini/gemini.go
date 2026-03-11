@@ -197,21 +197,8 @@ func (g *Gemini) buildRequest(req provider.ChatRequest) map[string]any {
 	}
 	body["contents"] = contents
 
-	if len(req.Tools) > 0 {
-		var decls []map[string]any
-		for _, t := range req.Tools {
-			decl := map[string]any{
-				"name":        t.Name,
-				"description": t.Description,
-			}
-			// Parse InputSchema to extract parameters (Gemini wants the schema object directly).
-			var schema map[string]any
-			if err := json.Unmarshal(t.InputSchema, &schema); err == nil {
-				decl["parameters"] = schema
-			}
-			decls = append(decls, decl)
-		}
-		body["tools"] = []map[string]any{{"functionDeclarations": decls}}
+	if toolsVal := buildToolDeclarations(req.Tools); toolsVal != nil {
+		body["tools"] = toolsVal
 	}
 
 	if req.MaxTokens > 0 {
@@ -294,20 +281,8 @@ func (g *Gemini) createCache(ctx context.Context, req provider.ChatRequest) (str
 		}
 	}
 
-	if len(req.Tools) > 0 {
-		var decls []map[string]any
-		for _, t := range req.Tools {
-			decl := map[string]any{
-				"name":        t.Name,
-				"description": t.Description,
-			}
-			var schema map[string]any
-			if err := json.Unmarshal(t.InputSchema, &schema); err == nil {
-				decl["parameters"] = schema
-			}
-			decls = append(decls, decl)
-		}
-		cacheBody["tools"] = []map[string]any{{"functionDeclarations": decls}}
+	if toolsVal := buildToolDeclarations(req.Tools); toolsVal != nil {
+		cacheBody["tools"] = toolsVal
 	}
 
 	url, err := g.cacheURL(ctx)
@@ -401,6 +376,25 @@ func (g *Gemini) deleteCacheURL(ctx context.Context, name string) (string, error
 			g.vertexRegion, name), nil
 	}
 	return fmt.Sprintf("%s/v1beta/%s?key=%s", g.baseURL, name, g.apiKey), nil
+}
+
+func buildToolDeclarations(tools []provider.Tool) []map[string]any {
+	if len(tools) == 0 {
+		return nil
+	}
+	var decls []map[string]any
+	for _, t := range tools {
+		decl := map[string]any{
+			"name":        t.Name,
+			"description": t.Description,
+		}
+		var schema map[string]any
+		if err := json.Unmarshal(t.InputSchema, &schema); err == nil {
+			decl["parameters"] = schema
+		}
+		decls = append(decls, decl)
+	}
+	return []map[string]any{{"functionDeclarations": decls}}
 }
 
 // convertMessage translates a provider.Message into Gemini content(s).
