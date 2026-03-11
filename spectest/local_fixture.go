@@ -19,6 +19,7 @@ import (
 	"github.com/priyanshujain/openbotkit/provider/gemini"
 	"github.com/priyanshujain/openbotkit/provider/openai"
 	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
+	"github.com/priyanshujain/openbotkit/source/contacts"
 	gmail "github.com/priyanshujain/openbotkit/source/gmail"
 	"github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
@@ -55,11 +56,24 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 // EachProvider runs fn as a subtest for every available LLM provider.
 // A separate judge provider is chosen for evaluating responses to avoid
 // self-evaluation bias (e.g., Gemini judging its own output).
+// Set OBK_TEST_PROVIDER to restrict to a single provider (e.g. "gemini").
 func EachProvider(t *testing.T, fn func(t *testing.T, fx *LocalFixture)) {
 	t.Helper()
 	cases := availableProviders(t)
 	if len(cases) == 0 {
 		t.Skip("no LLM API keys set — skipping spec tests")
+	}
+	if only := os.Getenv("OBK_TEST_PROVIDER"); only != "" {
+		filtered := cases[:0]
+		for _, c := range cases {
+			if c.Name == only {
+				filtered = append(filtered, c)
+			}
+		}
+		if len(filtered) == 0 {
+			t.Skipf("OBK_TEST_PROVIDER=%s not available", only)
+		}
+		cases = filtered
 	}
 	judge := pickJudge(cases)
 	for _, tc := range cases {
@@ -86,6 +100,7 @@ func newLocalFixtureWith(t *testing.T, p provider.Provider, model string) *Local
 	createGmailDB(t, dir)
 	createWhatsAppDB(t, dir)
 	createMemoryDB(t, dir)
+	createContactsDB(t, dir)
 	installSkills(t, dir)
 	generateIndex(t)
 	buildBinary(t, dir)
@@ -153,7 +168,7 @@ func availableProviders(t *testing.T) []providerCase {
 
 func createSourceDirs(t *testing.T, dir string) {
 	t.Helper()
-	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes"} {
+	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes", "contacts"} {
 		if err := os.MkdirAll(filepath.Join(dir, src), 0700); err != nil {
 			t.Fatalf("mkdir %s: %v", src, err)
 		}
@@ -199,10 +214,23 @@ func createMemoryDB(t *testing.T, dir string) {
 	}
 }
 
+func createContactsDB(t *testing.T, dir string) {
+	t.Helper()
+	dbPath := filepath.Join(dir, "contacts", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open contacts db: %v", err)
+	}
+	defer db.Close()
+	if err := contacts.Migrate(db); err != nil {
+		t.Fatalf("migrate contacts: %v", err)
+	}
+}
+
 func installSkills(t *testing.T, dir string) {
 	t.Helper()
 	skillsDir := filepath.Join(dir, "skills")
-	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save"} {
+	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save", "contacts-search", "whatsapp-send", "email-send"} {
 		destDir := filepath.Join(skillsDir, name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			t.Fatalf("mkdir skill %s: %v", name, err)
@@ -385,6 +413,67 @@ func (f *LocalFixture) GivenMemories(t *testing.T, memories []UserMemory) {
 		}
 		if _, err := memory.Add(db, m.Content, memory.Category(cat), "manual", ""); err != nil {
 			t.Fatalf("add memory %d: %v", i, err)
+		}
+	}
+}
+
+func (f *LocalFixture) GivenContacts(t *testing.T, cfs []ContactFixture) {
+	t.Helper()
+
+	dbPath := filepath.Join(f.dir, "contacts", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open contacts db: %v", err)
+	}
+	defer db.Close()
+
+	for i, cf := range cfs {
+		contactID, err := contacts.CreateContact(db, cf.Name)
+		if err != nil {
+			t.Fatalf("create contact %d: %v", i, err)
+		}
+
+		if err := contacts.AddAlias(db, contactID, cf.Name, "test"); err != nil {
+			t.Fatalf("add alias (name) %d: %v", i, err)
+		}
+		for _, alias := range cf.Aliases {
+			if err := contacts.AddAlias(db, contactID, alias, "test"); err != nil {
+				t.Fatalf("add alias %q for contact %d: %v", alias, i, err)
+			}
+		}
+
+		if cf.WhatsAppJID != "" {
+			if err := contacts.UpsertIdentity(db, &contacts.Identity{
+				ContactID:     contactID,
+				Source:        "whatsapp",
+				IdentityType:  "wa_jid",
+				IdentityValue: cf.WhatsAppJID,
+				DisplayName:   cf.Name,
+			}); err != nil {
+				t.Fatalf("upsert wa_jid for contact %d: %v", i, err)
+			}
+		}
+		for _, phone := range cf.Phones {
+			if err := contacts.UpsertIdentity(db, &contacts.Identity{
+				ContactID:     contactID,
+				Source:        "test",
+				IdentityType:  "phone",
+				IdentityValue: phone,
+				DisplayName:   cf.Name,
+			}); err != nil {
+				t.Fatalf("upsert phone for contact %d: %v", i, err)
+			}
+		}
+		for _, email := range cf.Emails {
+			if err := contacts.UpsertIdentity(db, &contacts.Identity{
+				ContactID:     contactID,
+				Source:        "test",
+				IdentityType:  "email",
+				IdentityValue: email,
+				DisplayName:   cf.Name,
+			}); err != nil {
+				t.Fatalf("upsert email for contact %d: %v", i, err)
+			}
 		}
 	}
 }
