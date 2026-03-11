@@ -16,6 +16,7 @@ require (
 	github.com/riverqueue/river/riverdriver/riversqlite v0.31.0
 	github.com/riverqueue/river/rivertype v0.31.0
 	github.com/spf13/cobra v1.9.1
+	github.com/syndtr/goleveldb v1.0.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20260227112304-c9652e4448a2
@@ -75,6 +76,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.12 // indirect
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
