@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/store"
@@ -108,5 +109,29 @@ func putFetchCache(db *store.DB, result *FetchResult, format string) {
 		ON CONFLICT(url) DO UPDATE SET title = excluded.title, content = excluded.content,
 		content_type = excluded.content_type, format = excluded.format, status_code = excluded.status_code, fetched_at = CURRENT_TIMESTAMP`)
 	db.Exec(q, result.URL, result.Title, result.Content, result.ContentType, format, result.StatusCode)
+}
+
+func putSearchHistory(db *store.DB, query, category string, resultCount int, backends []string, searchMs int64) {
+	if db == nil {
+		return
+	}
+
+	backendsStr := strings.Join(backends, ",")
+	q := db.Rebind(`INSERT INTO search_history (query, category, result_count, backends, search_ms) VALUES (?, ?, ?, ?, ?)`)
+	db.Exec(q, query, category, resultCount, backendsStr, searchMs)
+}
+
+func clearAllCaches(db *store.DB) error {
+	if db == nil {
+		return nil
+	}
+
+	if _, err := db.Exec("DELETE FROM search_cache"); err != nil {
+		return fmt.Errorf("clear search cache: %w", err)
+	}
+	if _, err := db.Exec("DELETE FROM fetch_cache"); err != nil {
+		return fmt.Errorf("clear fetch cache: %w", err)
+	}
+	return nil
 }
 
