@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -63,7 +64,9 @@ func putSearchCache(db *store.DB, key, query, category string, results []Result)
 
 	q := db.Rebind(`INSERT INTO search_cache (cache_key, query, category, results) VALUES (?, ?, ?, ?)
 		ON CONFLICT(cache_key) DO UPDATE SET results = excluded.results, created_at = CURRENT_TIMESTAMP`)
-	db.Exec(q, key, query, category, string(data))
+	if _, err := db.Exec(q, key, query, category, string(data)); err != nil {
+		slog.Warn("failed to write search cache", "error", err)
+	}
 }
 
 func getFetchCache(db *store.DB, url, format string, ttl time.Duration) (*FetchResult, bool) {
@@ -108,7 +111,9 @@ func putFetchCache(db *store.DB, result *FetchResult, format string) {
 	q := db.Rebind(`INSERT INTO fetch_cache (url, title, content, content_type, format, status_code) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(url) DO UPDATE SET title = excluded.title, content = excluded.content,
 		content_type = excluded.content_type, format = excluded.format, status_code = excluded.status_code, fetched_at = CURRENT_TIMESTAMP`)
-	db.Exec(q, result.URL, result.Title, result.Content, result.ContentType, format, result.StatusCode)
+	if _, err := db.Exec(q, result.URL, result.Title, result.Content, result.ContentType, format, result.StatusCode); err != nil {
+		slog.Warn("failed to write fetch cache", "error", err)
+	}
 }
 
 func putSearchHistory(db *store.DB, query, category string, resultCount int, backends []string, searchMs int64) {
@@ -118,7 +123,9 @@ func putSearchHistory(db *store.DB, query, category string, resultCount int, bac
 
 	backendsStr := strings.Join(backends, ",")
 	q := db.Rebind(`INSERT INTO search_history (query, category, result_count, backends, search_ms) VALUES (?, ?, ?, ?, ?)`)
-	db.Exec(q, query, category, resultCount, backendsStr, searchMs)
+	if _, err := db.Exec(q, query, category, resultCount, backendsStr, searchMs); err != nil {
+		slog.Warn("failed to write search history", "error", err)
+	}
 }
 
 func (w *WebSearch) ClearCaches() error {
