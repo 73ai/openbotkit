@@ -224,10 +224,13 @@ func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
 		return
 	}
 	inter := &cliInteractor{ch: ch}
+	tracker := tools.NewTaskTracker()
 	reg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
 		Interactor: inter,
 		Agents:     agents,
+		Tracker:    tracker,
 	}))
+	reg.Register(tools.NewCheckTaskTool(tracker))
 }
 
 func init() {

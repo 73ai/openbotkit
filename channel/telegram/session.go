@@ -260,10 +260,13 @@ func (sm *SessionManager) registerDelegateTool(reg *tools.Registry) {
 	if len(agents) == 0 || sm.interactor == nil {
 		return
 	}
+	tracker := tools.NewTaskTracker()
 	reg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
 		Interactor: sm.interactor,
 		Agents:     agents,
+		Tracker:    tracker,
 	}))
+	reg.Register(tools.NewCheckTaskTool(tracker))
 }
 
 func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
