@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -345,37 +344,25 @@ func setupGWS(cfg *config.Config, services []string) error {
 		fmt.Printf("  gws found at %s\n", gwsPath)
 	}
 
-	credPath := cfg.GoogleCredentialsFile()
-	home, err := os.UserHomeDir()
+	// Authenticate via obk's own OAuth instead of gws auth login.
+	scopes := gwsScopesForServices(services)
+	gp := google.New(google.Config{
+		CredentialsFile: cfg.GoogleCredentialsFile(),
+		TokenDBPath:     cfg.GoogleTokenDBPath(),
+	})
+
+	// Use existing account if one exists (incremental grant).
+	accounts, _ := gp.Accounts(context.Background())
+	var account string
+	if len(accounts) > 0 {
+		account = accounts[0]
+	}
+
+	email, err := gp.GrantScopes(context.Background(), account, scopes)
 	if err != nil {
-		return fmt.Errorf("get home directory: %w", err)
+		return fmt.Errorf("google auth: %w", err)
 	}
-	gwsCredDir := filepath.Join(home, ".config", "gws")
-	gwsCredPath := filepath.Join(gwsCredDir, "client_secret.json")
-
-	if err := os.MkdirAll(gwsCredDir, 0700); err != nil {
-		return fmt.Errorf("create gws config dir: %w", err)
-	}
-
-	credData, err := os.ReadFile(credPath)
-	if err != nil {
-		return fmt.Errorf("read credentials: %w", err)
-	}
-	if err := os.WriteFile(gwsCredPath, credData, 0600); err != nil {
-		return fmt.Errorf("copy credentials to gws: %w", err)
-	}
-	fmt.Printf("  Shared credentials with gws (%s)\n", gwsCredPath)
-
-	scopeArg := strings.Join(services, ",")
-	fmt.Println("\n  Opening browser for Google Workspace access...")
-	authCmd := exec.Command(gwsPath, "auth", "login", "--scopes", scopeArg)
-	authCmd.Stdout = os.Stdout
-	authCmd.Stderr = os.Stderr
-	authCmd.Stdin = os.Stdin
-	if err := authCmd.Run(); err != nil {
-		return fmt.Errorf("gws auth login: %w", err)
-	}
-	fmt.Println("  Google Workspace authenticated.")
+	fmt.Printf("  Google Workspace authenticated as %s\n", email)
 
 	if cfg.Integrations == nil {
 		cfg.Integrations = &config.IntegrationsConfig{}
@@ -435,6 +422,25 @@ func isGWSService(s string) bool {
 		}
 	}
 	return false
+}
+
+// gwsScopesForServices maps service names to Google OAuth scopes.
+func gwsScopesForServices(services []string) []string {
+	scopeMap := map[string]string{
+		"calendar": "https://www.googleapis.com/auth/calendar",
+		"drive":    "https://www.googleapis.com/auth/drive",
+		"docs":     "https://www.googleapis.com/auth/documents",
+		"sheets":   "https://www.googleapis.com/auth/spreadsheets",
+		"tasks":    "https://www.googleapis.com/auth/tasks",
+		"people":   "https://www.googleapis.com/auth/contacts",
+	}
+	var scopes []string
+	for _, svc := range services {
+		if s, ok := scopeMap[svc]; ok {
+			scopes = append(scopes, s)
+		}
+	}
+	return scopes
 }
 
 func cleanPath(s string) string {
