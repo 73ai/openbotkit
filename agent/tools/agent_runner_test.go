@@ -107,6 +107,18 @@ func TestAgentRunner_BuildsGeminiArgs(t *testing.T) {
 	}
 }
 
+func TestAgentRunner_BuildsCodexArgs(t *testing.T) {
+	r := NewAgentRunner(AgentInfo{Kind: AgentCodex, Binary: "/usr/local/bin/codex"})
+	args := r.buildArgs(runOptions{})
+	want := []string{"exec"}
+	if len(args) != len(want) {
+		t.Fatalf("args = %v, want %v", args, want)
+	}
+	if args[0] != "exec" {
+		t.Errorf("args[0] = %q, want %q", args[0], "exec")
+	}
+}
+
 func TestAgentRunner_StripsCLAUDECODE(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
 	r := NewAgentRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})

@@ -111,6 +111,8 @@ func (r *AgentRunner) buildArgs(opts runOptions) []string {
 		return args
 	case AgentGemini:
 		return []string{"-p"}
+	case AgentCodex:
+		return []string{"exec"}
 	default:
 		return nil
 	}

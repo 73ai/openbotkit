@@ -113,6 +113,8 @@ func (r *StreamRunner) buildStreamArgs(opts runOptions) []string {
 		return args
 	case AgentGemini:
 		return []string{"-o", "stream-json"}
+	case AgentCodex:
+		return []string{"exec", "--json"}
 	default:
 		return nil
 	}

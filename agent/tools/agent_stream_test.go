@@ -81,6 +81,20 @@ func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 	}
 }
 
+func TestStreamRunner_BuildsCodexStreamArgs(t *testing.T) {
+	r := NewStreamRunner(AgentInfo{Kind: AgentCodex, Binary: "/usr/local/bin/codex"})
+	args := r.buildStreamArgs(runOptions{})
+	want := []string{"exec", "--json"}
+	if len(args) != len(want) {
+		t.Fatalf("args = %v, want %v", args, want)
+	}
+	for i, a := range args {
+		if a != want[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, want[i])
+		}
+	}
+}
+
 func TestStreamRunner_BuildsClaudeStreamArgsWithBudget(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentClaude, Binary: "/usr/local/bin/claude"})
 	args := r.buildStreamArgs(runOptions{maxBudgetUSD: 0.50})
