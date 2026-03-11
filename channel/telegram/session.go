@@ -64,11 +64,14 @@ func (sm *SessionManager) Run(ctx context.Context) {
 func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
 	sm.touchSession()
 
-	a, err := sm.newAgent()
+	a, recorder, err := sm.newAgent()
 	if err != nil {
 		slog.Error("telegram session: create agent", "error", err)
 		sm.channel.Send(fmt.Sprintf("Error: %v", err))
 		return
+	}
+	if recorder != nil {
+		defer recorder.Close()
 	}
 
 	response, err := a.Run(ctx, text)
@@ -179,7 +182,7 @@ func (sm *SessionManager) buildLLM() (memory.LLM, error) {
 	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
-func (sm *SessionManager) newAgent() (*agent.Agent, error) {
+func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 	toolReg := tools.NewStandardRegistry()
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
@@ -193,10 +196,11 @@ func (sm *SessionManager) newAgent() (*agent.Agent, error) {
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	opts := []agent.Option{agent.WithSystemBlocks(blocks)}
-	if recorder := sm.openUsageRecorder(); recorder != nil {
+	recorder := sm.openUsageRecorder()
+	if recorder != nil {
 		opts = append(opts, agent.WithUsageRecorder(recorder))
 	}
-	return agent.New(sm.provider, sm.model, toolReg, opts...), nil
+	return agent.New(sm.provider, sm.model, toolReg, opts...), recorder, nil
 }
 
 func (sm *SessionManager) userMemoriesPrompt() string {

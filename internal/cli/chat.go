@@ -77,6 +77,9 @@ var chatCmd = &cobra.Command{
 
 		// Set up usage recording.
 		usageRecorder := openUsageRecorder(cfg, providerName, "cli", sessionID)
+		if usageRecorder != nil {
+			defer usageRecorder.Close()
+		}
 
 		// Build system prompt with structured blocks for cache optimization.
 		identity := "You are a personal AI assistant powered by OpenBotKit.\n"

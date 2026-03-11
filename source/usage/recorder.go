@@ -25,6 +25,11 @@ func NewRecorder(db *store.DB, providerName, channel, sessionID string) *Recorde
 	}
 }
 
+// Close releases the underlying database connection.
+func (r *Recorder) Close() {
+	r.db.Close()
+}
+
 func (r *Recorder) RecordUsage(model string, usage provider.Usage) {
 	err := Record(r.db, UsageRecord{
 		Provider:         r.provider,
