@@ -232,6 +232,110 @@ func TestSearchMetadata(t *testing.T) {
 	}
 }
 
+type mockNewsEngine struct {
+	name     string
+	priority int
+	results  []Result
+	err      error
+}
+
+func (m *mockNewsEngine) Name() string  { return m.name }
+func (m *mockNewsEngine) Priority() int { return m.priority }
+func (m *mockNewsEngine) News(_ context.Context, _ string, _ SearchOptions) ([]Result, error) {
+	return m.results, m.err
+}
+
+func TestNewsPriorityOrder(t *testing.T) {
+	engines := []NewsEngine{
+		&mockNewsEngine{name: "low", priority: 1, results: []Result{
+			{Title: "Low News", URL: "https://low.com/news", Source: "low"},
+		}},
+		&mockNewsEngine{name: "high", priority: 2, results: []Result{
+			{Title: "High News", URL: "https://high.com/news", Source: "high"},
+		}},
+	}
+
+	ws := New(Config{})
+	result, err := ws.newsWithEngines(context.Background(), "test", SearchOptions{MaxResults: 10}, engines)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(result.Results))
+	}
+	if result.Results[0].Source != "high" {
+		t.Errorf("expected high-priority first, got %q", result.Results[0].Source)
+	}
+}
+
+func TestNewsDedup(t *testing.T) {
+	engines := []NewsEngine{
+		&mockNewsEngine{name: "a", priority: 2, results: []Result{
+			{Title: "News", URL: "https://example.com/news", Source: "a"},
+		}},
+		&mockNewsEngine{name: "b", priority: 1, results: []Result{
+			{Title: "News", URL: "https://example.com/news", Source: "b"},
+		}},
+	}
+
+	ws := New(Config{})
+	result, err := ws.newsWithEngines(context.Background(), "test", SearchOptions{MaxResults: 10}, engines)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Results) != 1 {
+		t.Fatalf("expected 1 result after dedup, got %d", len(result.Results))
+	}
+}
+
+func TestNewsFallbackOnError(t *testing.T) {
+	engines := []NewsEngine{
+		&mockNewsEngine{name: "failing", priority: 2, err: errors.New("failed")},
+		&mockNewsEngine{name: "working", priority: 1, results: []Result{
+			{Title: "News", URL: "https://works.com/news", Source: "working"},
+		}},
+	}
+
+	ws := New(Config{})
+	result, err := ws.newsWithEngines(context.Background(), "test", SearchOptions{MaxResults: 10}, engines)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(result.Results))
+	}
+}
+
+func TestNewsBackendSelection(t *testing.T) {
+	t.Run("auto uses duckduckgo+yahoo", func(t *testing.T) {
+		engines := buildNewsEngines(nil, "auto")
+		if len(engines) != 2 {
+			t.Errorf("expected 2 news engines for auto, got %d", len(engines))
+		}
+	})
+
+	t.Run("duckduckgo only", func(t *testing.T) {
+		engines := buildNewsEngines(nil, "duckduckgo")
+		if len(engines) != 1 || engines[0].Name() != "duckduckgo" {
+			t.Errorf("expected only duckduckgo news engine")
+		}
+	})
+
+	t.Run("yahoo only", func(t *testing.T) {
+		engines := buildNewsEngines(nil, "yahoo")
+		if len(engines) != 1 || engines[0].Name() != "yahoo" {
+			t.Errorf("expected only yahoo news engine")
+		}
+	})
+
+	t.Run("unsupported returns nil", func(t *testing.T) {
+		engines := buildNewsEngines(nil, "wikipedia")
+		if engines != nil {
+			t.Errorf("expected nil for non-news backend")
+		}
+	})
+}
+
 func TestSearchEmptyQuery(t *testing.T) {
 	ws := New(Config{})
 	_, err := ws.Search(context.Background(), "", SearchOptions{})

@@ -115,6 +115,91 @@ func buildEngines(client *http.Client, backend string) []Engine {
 	}
 }
 
+func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) (*SearchResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, errors.New("empty search query")
+	}
+
+	if opts.MaxResults <= 0 {
+		opts.MaxResults = defaultMaxResults
+	}
+	if opts.Region == "" {
+		opts.Region = defaultRegion
+	}
+
+	client := w.httpClient()
+	engines := buildNewsEngines(client, opts.Backend)
+	if len(engines) == 0 {
+		return nil, fmt.Errorf("unknown or non-news backend: %q", opts.Backend)
+	}
+
+	return w.newsWithEngines(ctx, query, opts, engines)
+}
+
+func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts SearchOptions, engines []NewsEngine) (*SearchResult, error) {
+	if opts.MaxResults <= 0 {
+		opts.MaxResults = defaultMaxResults
+	}
+
+	sort.Slice(engines, func(i, j int) bool {
+		return engines[i].Priority() > engines[j].Priority()
+	})
+
+	start := time.Now()
+	var allResults []Result
+	var backends []string
+	var lastErr error
+
+	for _, eng := range engines {
+		results, err := eng.News(ctx, query, opts)
+		if err != nil {
+			lastErr = err
+			slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
+			continue
+		}
+		allResults = append(allResults, results...)
+		backends = append(backends, eng.Name())
+	}
+
+	if len(allResults) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("all news backends failed: %w", lastErr)
+	}
+
+	allResults = dedup(allResults)
+
+	if len(allResults) > opts.MaxResults {
+		allResults = allResults[:opts.MaxResults]
+	}
+
+	elapsed := time.Since(start).Milliseconds()
+
+	return &SearchResult{
+		Query:   query,
+		Results: allResults,
+		Metadata: SearchMetadata{
+			Backends:     backends,
+			SearchTimeMs: elapsed,
+			TotalResults: len(allResults),
+		},
+	}, nil
+}
+
+func buildNewsEngines(client *http.Client, backend string) []NewsEngine {
+	switch backend {
+	case "", "auto":
+		return []NewsEngine{
+			NewDuckDuckGo(client),
+			NewYahoo(client),
+		}
+	case "duckduckgo":
+		return []NewsEngine{NewDuckDuckGo(client)}
+	case "yahoo":
+		return []NewsEngine{NewYahoo(client)}
+	default:
+		return nil
+	}
+}
+
 func dedup(results []Result) []Result {
 	seen := make(map[string]bool)
 	var out []Result
