@@ -30,9 +30,18 @@ type UserMemory struct {
 	Category string // identity, preference, relationship, project
 }
 
+type ContactFixture struct {
+	Name        string
+	Phones      []string
+	Emails      []string
+	WhatsAppJID string
+	Aliases     []string
+}
+
 type Fixture interface {
 	Agent(t *testing.T) *agent.Agent
 	GivenEmails(t *testing.T, emails []Email)
 	GivenWhatsAppMessages(t *testing.T, messages []WhatsAppMessage)
 	GivenMemories(t *testing.T, memories []UserMemory)
+	GivenContacts(t *testing.T, contacts []ContactFixture)
 }
