@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -112,7 +111,7 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 	}, nil
 }
 
-func buildEngines(client *http.Client, backend string, configured []string) []Engine {
+func buildEngines(client HTTPDoer, backend string, configured []string) []Engine {
 	switch backend {
 	case "", "auto":
 		all := []Engine{
@@ -252,7 +251,7 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 	}, nil
 }
 
-func buildNewsEngines(client *http.Client, backend string, configured []string) []NewsEngine {
+func buildNewsEngines(client HTTPDoer, backend string, configured []string) []NewsEngine {
 	switch backend {
 	case "", "auto":
 		all := []NewsEngine{

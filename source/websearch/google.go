@@ -20,11 +20,11 @@ var googleTimeLimits = map[string]string{
 }
 
 type Google struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 }
 
-func NewGoogle(client *http.Client) *Google {
+func NewGoogle(client HTTPDoer) *Google {
 	return &Google{client: client, baseURL: googleURL}
 }
 
@@ -49,7 +49,6 @@ func (g *Google) Search(ctx context.Context, query string, opts SearchOptions) (
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := g.client.Do(req)

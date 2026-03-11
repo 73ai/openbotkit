@@ -13,11 +13,11 @@ import (
 const mojeekURL = "https://www.mojeek.com/search"
 
 type Mojeek struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 }
 
-func NewMojeek(client *http.Client) *Mojeek {
+func NewMojeek(client HTTPDoer) *Mojeek {
 	return &Mojeek{client: client, baseURL: mojeekURL}
 }
 
@@ -39,7 +39,6 @@ func (m *Mojeek) Search(ctx context.Context, query string, opts SearchOptions) (
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	if opts.Region != "" {

@@ -14,11 +14,11 @@ import (
 const yandexURL = "https://yandex.com/search/site/"
 
 type Yandex struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 }
 
-func NewYandex(client *http.Client) *Yandex {
+func NewYandex(client HTTPDoer) *Yandex {
 	return &Yandex{client: client, baseURL: yandexURL}
 }
 
@@ -41,7 +41,6 @@ func (y *Yandex) Search(ctx context.Context, query string, opts SearchOptions) (
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := y.client.Do(req)

@@ -16,12 +16,12 @@ const (
 )
 
 type Yahoo struct {
-	client  *http.Client
+	client  HTTPDoer
 	baseURL string
 	newsURL string
 }
 
-func NewYahoo(client *http.Client) *Yahoo {
+func NewYahoo(client HTTPDoer) *Yahoo {
 	return &Yahoo{client: client, baseURL: yahooSearchURL, newsURL: yahooNewsURL}
 }
 
@@ -45,7 +45,6 @@ func (y *Yahoo) Search(ctx context.Context, query string, opts SearchOptions) ([
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", chromeUserAgent)
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := y.client.Do(req)

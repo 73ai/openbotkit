@@ -17,11 +17,11 @@ const (
 )
 
 type Wikipedia struct {
-	client    *http.Client
+	client    HTTPDoer
 	searchURL string
 }
 
-func NewWikipedia(client *http.Client) *Wikipedia {
+func NewWikipedia(client HTTPDoer) *Wikipedia {
 	return &Wikipedia{client: client, searchURL: wikiOpenSearchURL}
 }
 
