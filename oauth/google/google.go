@@ -163,6 +163,34 @@ func (g *Google) RevokeScopes(ctx context.Context, account string, scopes []stri
 	return store.SaveToken(account, tok, remaining)
 }
 
+// AccessToken returns a fresh access token string for the given account.
+// Transparently refreshes expired tokens via dbTokenSource.
+func (g *Google) AccessToken(ctx context.Context, account string) (string, error) {
+	store, err := NewTokenStore(g.cfg.TokenDBPath)
+	if err != nil {
+		return "", fmt.Errorf("open token store: %w", err)
+	}
+	defer store.Close()
+
+	tok, scopes, err := store.LoadToken(account)
+	if err != nil {
+		return "", fmt.Errorf("load token: %w", err)
+	}
+
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	if err != nil {
+		return "", err
+	}
+
+	baseSource := oauthCfg.TokenSource(ctx, tok)
+	persistSource := newDBTokenSource(account, store, baseSource, tok)
+	fresh, err := persistSource.Token()
+	if err != nil {
+		return "", fmt.Errorf("refresh token: %w", err)
+	}
+	return fresh.AccessToken, nil
+}
+
 // ExchangeCode exchanges an OAuth callback code for a token and saves it.
 func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes []string) error {
 	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)

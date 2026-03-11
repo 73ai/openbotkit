@@ -88,6 +88,36 @@ func TestExchangeCode_MergesScopes(t *testing.T) {
 	}
 }
 
+func TestAccessToken_ValidToken(t *testing.T) {
+	dir := t.TempDir()
+	credPath := writeTestCredentials(t)
+	dbPath := filepath.Join(dir, "tokens.db")
+
+	store, err := NewTokenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := &oauth2.Token{
+		AccessToken:  "my-access-token",
+		RefreshToken: "my-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	if err := store.SaveToken("user@example.com", tok, []string{"openid", "email"}); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	g := New(Config{CredentialsFile: credPath, TokenDBPath: dbPath})
+	got, err := g.AccessToken(context.Background(), "user@example.com")
+	if err != nil {
+		t.Fatalf("AccessToken: %v", err)
+	}
+	if got != "my-access-token" {
+		t.Errorf("AccessToken = %q, want %q", got, "my-access-token")
+	}
+}
+
 func TestAuthURL_NoAccount(t *testing.T) {
 	credPath := writeTestCredentials(t)
 	g := New(Config{CredentialsFile: credPath})
