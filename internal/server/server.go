@@ -22,6 +22,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
@@ -185,6 +186,7 @@ func (s *Server) migrateDBs() {
 		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
 		{"gmail", s.cfg.Gmail.Storage.Driver, s.cfg.GmailDataDSN(), gmailsrc.Migrate},
 		{"usage", s.cfg.Usage.Storage.Driver, s.cfg.UsageDataDSN(), usagesrc.Migrate},
+		{"contacts", s.cfg.Contacts.Storage.Driver, s.cfg.ContactsDataDSN(), contactsrc.Migrate},
 	}
 	for _, m := range migrations {
 		db, err := store.Open(store.Config{Driver: m.driver, DSN: m.dsn})
