@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -16,9 +17,11 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
+var xoxdRe = regexp.MustCompile(`xoxd-[a-zA-Z0-9%/+=_-]+`)
+
 const (
 	slackKeychainService = "Slack Safe Storage"
-	slackKeychainAccount = "Slack"
+	slackKeychainAccount = "Slack Key"
 	pbkdf2Iterations     = 1003
 	pbkdf2KeyLen         = 16
 )
@@ -124,6 +127,12 @@ func decryptCookie(encrypted, key []byte) (string, error) {
 		if padLen > 0 && padLen <= aes.BlockSize && padLen <= len(plaintext) {
 			plaintext = plaintext[:len(plaintext)-padLen]
 		}
+	}
+
+	// The first CBC block may be corrupted. Extract the xoxd- token from
+	// wherever it appears in the decrypted output (matching agent-slack).
+	if match := xoxdRe.FindString(string(plaintext)); match != "" {
+		return match, nil
 	}
 
 	return string(plaintext), nil
