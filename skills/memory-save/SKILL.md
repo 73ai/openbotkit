@@ -1,9 +1,9 @@
 ---
 name: memory-save
-description: Recall and list saved personal facts, preferences, and relationships; save new memories
+description: Save personal facts about the user (memories, preferences, relationships)
 allowed-tools: Bash(obk *)
 ---
 
-Recall and manage user memories via `obk memory list` and `obk memory add`.
+Save user memories using `obk memory add` commands.
 
 Read the REFERENCE.md in this skill's directory for full command usage and examples.
