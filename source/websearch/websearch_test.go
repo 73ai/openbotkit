@@ -30,6 +30,30 @@ func TestWebSearchStatusNoDB(t *testing.T) {
 	}
 }
 
+func TestWithDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	defer os.Remove(dbPath)
+
+	ws := New(Config{}, WithDB(db))
+	if ws.db == nil {
+		t.Fatal("expected db to be set")
+	}
+}
+
+func TestNewWithoutOptions(t *testing.T) {
+	ws := New(Config{})
+	if ws.db != nil {
+		t.Fatal("expected db to be nil")
+	}
+}
+
 func TestWebSearchStatusWithDB(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")

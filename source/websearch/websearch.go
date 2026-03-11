@@ -14,11 +14,24 @@ const chromeUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWe
 
 type WebSearch struct {
 	cfg      Config
+	db       *store.DB
 	skipSSRF bool // for testing only
 }
 
-func New(cfg Config) *WebSearch {
-	return &WebSearch{cfg: cfg}
+type Option func(*WebSearch)
+
+func WithDB(db *store.DB) Option {
+	return func(w *WebSearch) {
+		w.db = db
+	}
+}
+
+func New(cfg Config, opts ...Option) *WebSearch {
+	w := &WebSearch{cfg: cfg}
+	for _, opt := range opts {
+		opt(w)
+	}
+	return w
 }
 
 func (w *WebSearch) Name() string {
@@ -35,6 +48,17 @@ func (w *WebSearch) Status(_ context.Context, db *store.DB) (*source.Status, err
 		}
 	}
 	return st, nil
+}
+
+const defaultCacheTTL = 15 * time.Minute
+
+func (w *WebSearch) cacheTTL() time.Duration {
+	if w.cfg.WebSearch != nil && w.cfg.WebSearch.CacheTTL != "" {
+		if d, err := time.ParseDuration(w.cfg.WebSearch.CacheTTL); err == nil {
+			return d
+		}
+	}
+	return defaultCacheTTL
 }
 
 func (w *WebSearch) httpClient() *http.Client {
