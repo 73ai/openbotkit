@@ -92,6 +92,34 @@ func TestResolveAccount_NoAccounts(t *testing.T) {
 	}
 }
 
+func TestHandleGoogleAuthCallback_NoAccount(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tokens.db")
+	credPath := filepath.Join(dir, "credentials.json")
+	os.WriteFile(credPath, []byte(testCredsJSON), 0600)
+
+	store, _ := google.NewTokenStore(dbPath)
+	store.Close()
+
+	waiter := google.NewScopeWaiter()
+	s := &Server{
+		cfg:         &config.Config{},
+		scopeWaiter: waiter,
+		google: google.New(google.Config{
+			CredentialsFile: credPath,
+			TokenDBPath:     dbPath,
+		}),
+	}
+	s.ctx = context.Background()
+
+	req := httptest.NewRequest("GET", "/auth/google/callback?code=abc&state=unknown-state", nil)
+	rec := httptest.NewRecorder()
+	s.handleGoogleAuthCallback(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for empty account", rec.Code)
+	}
+}
+
 const testCredsJSON = `{
 	"installed": {
 		"client_id": "test.apps.googleusercontent.com",
