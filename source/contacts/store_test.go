@@ -244,6 +244,42 @@ func TestMergeContacts(t *testing.T) {
 	}
 }
 
+func TestMergeContactsWithConflicts(t *testing.T) {
+	db := testDB(t)
+	keepID, _ := CreateContact(db, "Keep")
+	mergeID, _ := CreateContact(db, "Merge")
+
+	// Both contacts share the same phone identity (UNIQUE conflict on merge).
+	_ = UpsertIdentity(db, &Identity{ContactID: keepID, Source: "wa", IdentityType: "phone", IdentityValue: "+1"})
+	_ = UpsertIdentity(db, &Identity{ContactID: mergeID, Source: "wa", IdentityType: "phone", IdentityValue: "+1"})
+	// Both have the same alias (UNIQUE conflict on merge).
+	_ = AddAlias(db, keepID, "Same Name", "test")
+	_ = AddAlias(db, mergeID, "Same Name", "test")
+	// Both have interactions on the same channel.
+	now := time.Now()
+	_ = UpsertInteraction(db, keepID, "whatsapp", 10, &now)
+	_ = UpsertInteraction(db, mergeID, "whatsapp", 5, &now)
+	// mergeID also has a unique email.
+	_ = UpsertIdentity(db, &Identity{ContactID: mergeID, Source: "gmail", IdentityType: "email", IdentityValue: "m@test.com"})
+
+	if err := MergeContacts(db, keepID, mergeID); err != nil {
+		t.Fatalf("merge with conflicts: %v", err)
+	}
+
+	kept, _ := GetContact(db, keepID)
+	if len(kept.Identities) != 2 {
+		t.Errorf("kept identities = %d, want 2 (phone + email)", len(kept.Identities))
+	}
+	if len(kept.Interactions) != 1 {
+		t.Errorf("kept interactions = %d, want 1", len(kept.Interactions))
+	}
+
+	merged, _ := GetContact(db, mergeID)
+	if merged != nil {
+		t.Error("merged contact should be deleted")
+	}
+}
+
 func TestSyncState(t *testing.T) {
 	db := testDB(t)
 	ts, cursor, err := GetSyncState(db, "whatsapp")

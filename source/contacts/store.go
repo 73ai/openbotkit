@@ -161,17 +161,53 @@ func UpsertInteraction(db *store.DB, contactID int64, channel string, count int,
 }
 
 func MergeContacts(db *store.DB, keepID, mergeID int64) error {
-	updates := []string{
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("merge contacts: begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Delete duplicate identities that would violate UNIQUE(source, identity_type, identity_value).
+	if _, err := tx.Exec(db.Rebind(`DELETE FROM contact_identities WHERE contact_id = ? AND EXISTS (
+		SELECT 1 FROM contact_identities k WHERE k.contact_id = ?
+		AND k.source = contact_identities.source
+		AND k.identity_type = contact_identities.identity_type
+		AND k.identity_value = contact_identities.identity_value)`), mergeID, keepID); err != nil {
+		return fmt.Errorf("merge: dedup identities: %w", err)
+	}
+	// Delete duplicate aliases that would violate UNIQUE(contact_id, alias_lower).
+	if _, err := tx.Exec(db.Rebind(`DELETE FROM contact_aliases WHERE contact_id = ? AND alias_lower IN (
+		SELECT alias_lower FROM contact_aliases WHERE contact_id = ?)`), mergeID, keepID); err != nil {
+		return fmt.Errorf("merge: dedup aliases: %w", err)
+	}
+	// Delete duplicate interactions that would violate UNIQUE(contact_id, channel).
+	if _, err := tx.Exec(db.Rebind(`DELETE FROM contact_interactions WHERE contact_id = ? AND channel IN (
+		SELECT channel FROM contact_interactions WHERE contact_id = ?)`), mergeID, keepID); err != nil {
+		return fmt.Errorf("merge: dedup interactions: %w", err)
+	}
+
+	// Move remaining rows to keepID.
+	for _, q := range []string{
 		"UPDATE contact_identities SET contact_id = ? WHERE contact_id = ?",
 		"UPDATE contact_aliases SET contact_id = ? WHERE contact_id = ?",
 		"UPDATE contact_interactions SET contact_id = ? WHERE contact_id = ?",
-	}
-	for _, q := range updates {
-		if _, err := db.Exec(db.Rebind(q), keepID, mergeID); err != nil {
+	} {
+		if _, err := tx.Exec(db.Rebind(q), keepID, mergeID); err != nil {
 			return fmt.Errorf("merge contacts: %w", err)
 		}
 	}
-	return DeleteContact(db, mergeID)
+
+	// Delete the merged contact and its remaining child rows.
+	for _, table := range []string{"contact_interactions", "contact_aliases", "contact_identities"} {
+		if _, err := tx.Exec(db.Rebind(fmt.Sprintf("DELETE FROM %s WHERE contact_id = ?", table)), mergeID); err != nil {
+			return fmt.Errorf("merge: delete %s: %w", table, err)
+		}
+	}
+	if _, err := tx.Exec(db.Rebind("DELETE FROM contacts WHERE id = ?"), mergeID); err != nil {
+		return fmt.Errorf("merge: delete contact: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 func GetSyncState(db *store.DB, source string) (*time.Time, string, error) {
