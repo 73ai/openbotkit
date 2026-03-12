@@ -86,9 +86,16 @@ func Disable(db *store.DB, id int64) error {
 }
 
 func Delete(db *store.DB, id int64) error {
-	_, err := db.Exec(db.Rebind("DELETE FROM schedules WHERE id = ?"), id)
+	res, err := db.Exec(db.Rebind("DELETE FROM schedules WHERE id = ?"), id)
 	if err != nil {
 		return fmt.Errorf("delete schedule: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("schedule %d not found", id)
 	}
 	return nil
 }
