@@ -68,7 +68,12 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 	preview := truncateUTF8(in.Text, 100)
 	desc := fmt.Sprintf("Send message to %s: %s", in.Channel, preview)
 
-	return GuardedWrite(ctx, t.deps.Interactor, desc, func() (string, error) {
+	var opts []GuardOption
+	if t.deps.ApprovalRules != nil {
+		opts = append(opts, WithApprovalRules(t.deps.ApprovalRules, "slack_send", input))
+	}
+
+	return GuardedAction(ctx, t.deps.Interactor, RiskMedium, desc, func() (string, error) {
 		ts, err := t.deps.Client.PostMessage(ctx, channelID, in.Text, in.ThreadTS)
 		if err != nil {
 			return "", err
@@ -78,5 +83,5 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 		}{TS: ts}
 		data, _ := json.Marshal(resp)
 		return string(data), nil
-	})
+	}, opts...)
 }

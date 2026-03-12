@@ -5,9 +5,10 @@ import (
 )
 
 type SlackToolDeps struct {
-	Client     slack.API
-	Resolver   *slack.Resolver
-	Interactor Interactor
+	Client        slack.API
+	Resolver      *slack.Resolver
+	Interactor    Interactor
+	ApprovalRules *ApprovalRuleSet
 }
 
 // SlackResolver returns the shared Resolver, creating one if needed.

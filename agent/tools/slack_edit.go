@@ -68,10 +68,15 @@ func (t *SlackEditTool) Execute(ctx context.Context, input json.RawMessage) (str
 	preview := truncateUTF8(in.Text, 100)
 	desc := fmt.Sprintf("Edit message in %s: %s", in.Channel, preview)
 
-	return GuardedWrite(ctx, t.deps.Interactor, desc, func() (string, error) {
+	var opts []GuardOption
+	if t.deps.ApprovalRules != nil {
+		opts = append(opts, WithApprovalRules(t.deps.ApprovalRules, "slack_edit", input))
+	}
+
+	return GuardedAction(ctx, t.deps.Interactor, RiskMedium, desc, func() (string, error) {
 		if err := t.deps.Client.UpdateMessage(ctx, channelID, in.TS, in.Text); err != nil {
 			return "", err
 		}
 		return `{"ok":true}`, nil
-	})
+	}, opts...)
 }

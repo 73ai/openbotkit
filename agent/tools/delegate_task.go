@@ -14,10 +14,11 @@ const defaultDelegateTimeout = 5 * time.Minute
 
 // DelegateTaskConfig configures the delegate_task tool.
 type DelegateTaskConfig struct {
-	Interactor Interactor
-	Agents     []AgentInfo
-	Timeout    time.Duration // default 5m
-	Tracker    *TaskTracker  // nil = sync-only (Phase 1 behavior)
+	Interactor    Interactor
+	Agents        []AgentInfo
+	Timeout       time.Duration // default 5m
+	Tracker       *TaskTracker  // nil = sync-only (Phase 1 behavior)
+	ApprovalRules *ApprovalRuleSet
 }
 
 const progressThrottle = 30 * time.Second
@@ -30,6 +31,7 @@ type DelegateTaskTool struct {
 	runners       map[AgentKind]AgentRunnerInterface
 	streamRunners map[AgentKind]StreamRunnerInterface
 	tracker       *TaskTracker
+	approvalRules *ApprovalRuleSet
 }
 
 // NewDelegateTaskTool creates a new delegate_task tool.
@@ -51,6 +53,7 @@ func NewDelegateTaskTool(cfg DelegateTaskConfig) *DelegateTaskTool {
 		runners:       runners,
 		streamRunners: sRunners,
 		tracker:       cfg.Tracker,
+		approvalRules: cfg.ApprovalRules,
 	}
 }
 
@@ -133,9 +136,14 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, runOpts)
 	}
 
-	return GuardedWrite(ctx, d.interactor, desc, func() (string, error) {
+	var guardOpts []GuardOption
+	if d.approvalRules != nil {
+		guardOpts = append(guardOpts, WithApprovalRules(d.approvalRules, "delegate_task", input))
+	}
+
+	return GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
 		return runner.Run(ctx, prompt, d.timeout, runOpts...)
-	})
+	}, guardOpts...)
 }
 
 // buildPrompt combines task, steps, and output format into a single prompt.
