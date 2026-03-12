@@ -24,8 +24,8 @@ func Create(db *store.DB, s *Schedule) (int64, error) {
 
 	res, err := db.Exec(
 		db.Rebind(`INSERT INTO schedules (type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`),
-		string(s.Type), s.CronExpr, scheduledAt, s.Task, s.Channel, string(metaJSON), s.Timezone, s.Description,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+		string(s.Type), s.CronExpr, scheduledAt, s.Task, s.Channel, string(metaJSON), s.Timezone, s.Description, 1,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert schedule: %w", err)
@@ -55,8 +55,8 @@ func List(db *store.DB) ([]Schedule, error) {
 
 func ListEnabled(db *store.DB) ([]Schedule, error) {
 	rows, err := db.Query(
-		`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
-		FROM schedules WHERE enabled = 1 ORDER BY created_at`)
+		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
+		FROM schedules WHERE enabled = ? ORDER BY created_at`), 1)
 	if err != nil {
 		return nil, fmt.Errorf("list enabled schedules: %w", err)
 	}
@@ -67,8 +67,8 @@ func ListEnabled(db *store.DB) ([]Schedule, error) {
 func ListDueOneShot(db *store.DB, now time.Time) ([]Schedule, error) {
 	rows, err := db.Query(
 		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
-		FROM schedules WHERE type = 'one_shot' AND scheduled_at <= ? AND completed_at IS NULL AND enabled = 1 ORDER BY scheduled_at`),
-		now.UTC().Format(timeFormat),
+		FROM schedules WHERE type = 'one_shot' AND scheduled_at <= ? AND completed_at IS NULL AND enabled = ? ORDER BY scheduled_at`),
+		now.UTC().Format(timeFormat), 1,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list due one-shot: %w", err)
@@ -78,7 +78,7 @@ func ListDueOneShot(db *store.DB, now time.Time) ([]Schedule, error) {
 }
 
 func Disable(db *store.DB, id int64) error {
-	_, err := db.Exec(db.Rebind("UPDATE schedules SET enabled = 0 WHERE id = ?"), id)
+	_, err := db.Exec(db.Rebind("UPDATE schedules SET enabled = ? WHERE id = ?"), 0, id)
 	if err != nil {
 		return fmt.Errorf("disable schedule: %w", err)
 	}
@@ -95,8 +95,8 @@ func Delete(db *store.DB, id int64) error {
 
 func MarkCompleted(db *store.DB, id int64, completedAt time.Time) error {
 	_, err := db.Exec(
-		db.Rebind("UPDATE schedules SET completed_at = ?, enabled = 0 WHERE id = ?"),
-		completedAt.UTC().Format(timeFormat), id,
+		db.Rebind("UPDATE schedules SET completed_at = ?, enabled = ? WHERE id = ?"),
+		completedAt.UTC().Format(timeFormat), 0, id,
 	)
 	if err != nil {
 		return fmt.Errorf("mark completed: %w", err)
@@ -127,7 +127,7 @@ func scanSchedule(row scannable) (*Schedule, error) {
 	var s Schedule
 	var typ, cronExpr, scheduledAt, channel, metaJSON, tz sql.NullString
 	var desc, lastRunAt, lastError, createdAt, completedAt sql.NullString
-	var enabled int
+	var enabled any
 
 	err := row.Scan(
 		&s.ID, &typ, &cronExpr, &scheduledAt, &s.Task, &channel, &metaJSON,
@@ -145,7 +145,13 @@ func scanSchedule(row scannable) (*Schedule, error) {
 	s.Channel = channel.String
 	s.Timezone = tz.String
 	s.Description = desc.String
-	s.Enabled = enabled == 1
+	// Handle both SQLite (integer) and Postgres (boolean) column types.
+	switch v := enabled.(type) {
+	case int64:
+		s.Enabled = v == 1
+	case bool:
+		s.Enabled = v
+	}
 	s.LastError = lastError.String
 
 	if scheduledAt.Valid {
