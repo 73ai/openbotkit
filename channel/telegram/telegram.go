@@ -38,6 +38,8 @@ func NewChannel(bot botSender, chatID int64) *Channel {
 	}
 }
 
+func (c *Channel) ChatID() int64 { return c.chatID }
+
 func (c *Channel) Send(msg string) error {
 	m := tgbotapi.NewMessage(c.chatID, msg)
 	m.ParseMode = "Markdown"

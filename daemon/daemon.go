@@ -15,10 +15,12 @@ type Daemon struct {
 	cfg            *config.Config
 	river          *river.Client[*sql.Tx]
 	jobsDB         *sql.DB
+	scheduler      *Scheduler
 	skipAppleNotes bool
 	skipWhatsApp   bool
 	skipIMessage   bool
 	skipContacts   bool
+	skipScheduler  bool
 }
 
 type Option func(*Daemon)
@@ -37,6 +39,10 @@ func WithSkipIMessage() Option {
 
 func WithSkipContacts() Option {
 	return func(d *Daemon) { d.skipContacts = true }
+}
+
+func WithSkipScheduler() Option {
+	return func(d *Daemon) { d.skipScheduler = true }
 }
 
 func New(cfg *config.Config, opts ...Option) *Daemon {
@@ -72,6 +78,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return fmt.Errorf("start river: %w", err)
 	}
 	slog.Info("river job queue started")
+
+	if !d.skipScheduler {
+		d.scheduler = NewScheduler(d.cfg, d.river, d.jobsDB)
+		if err := d.scheduler.Start(ctx); err != nil {
+			slog.Error("scheduler start error", "error", err)
+		}
+	}
 
 	var waErrCh, anErrCh, imErrCh, ctErrCh <-chan error
 	if !d.skipWhatsApp {
@@ -111,6 +124,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 		if err := <-ctErrCh; err != nil {
 			slog.Error("contacts error during shutdown", "error", err)
 		}
+	}
+
+	if d.scheduler != nil {
+		d.scheduler.Stop()
 	}
 
 	if err := d.river.Stop(context.Background()); err != nil {

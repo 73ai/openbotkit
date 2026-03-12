@@ -26,6 +26,7 @@ import (
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
+	schedsrc "github.com/priyanshujain/openbotkit/source/scheduler"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/priyanshujain/openbotkit/store"
@@ -187,6 +188,7 @@ func (s *Server) migrateDBs() {
 		{"gmail", s.cfg.Gmail.Storage.Driver, s.cfg.GmailDataDSN(), gmailsrc.Migrate},
 		{"usage", s.cfg.Usage.Storage.Driver, s.cfg.UsageDataDSN(), usagesrc.Migrate},
 		{"contacts", s.cfg.Contacts.Storage.Driver, s.cfg.ContactsDataDSN(), contactsrc.Migrate},
+		{"scheduler", s.cfg.Scheduler.Storage.Driver, s.cfg.SchedulerDataDSN(), schedsrc.Migrate},
 	}
 	for _, m := range migrations {
 		db, err := store.Open(store.Config{Driver: m.driver, DSN: m.dsn})

@@ -27,6 +27,7 @@ import (
 
 type LocalFixture struct {
 	dir           string
+	ProviderName  string
 	Provider      provider.Provider
 	Model         string
 	JudgeProvider provider.Provider
@@ -48,6 +49,7 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 	}
 	judge := pickJudge(cases)
 	fx := newLocalFixtureWith(t, cases[0].Provider, cases[0].Model)
+	fx.ProviderName = cases[0].Name
 	fx.JudgeProvider = judge.Provider
 	fx.JudgeModel = judge.Model
 	return fx
@@ -79,6 +81,7 @@ func EachProvider(t *testing.T, fn func(t *testing.T, fx *LocalFixture)) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			fx := newLocalFixtureWith(t, tc.Provider, tc.Model)
+			fx.ProviderName = tc.Name
 			fx.JudgeProvider = judge.Provider
 			fx.JudgeModel = judge.Model
 			fn(t, fx)
@@ -168,7 +171,7 @@ func availableProviders(t *testing.T) []providerCase {
 
 func createSourceDirs(t *testing.T, dir string) {
 	t.Helper()
-	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes", "contacts"} {
+	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes", "contacts", "scheduler"} {
 		if err := os.MkdirAll(filepath.Join(dir, src), 0700); err != nil {
 			t.Fatalf("mkdir %s: %v", src, err)
 		}

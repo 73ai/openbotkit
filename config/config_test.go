@@ -165,6 +165,34 @@ func TestIsLocal_IsRemote_IsServer(t *testing.T) {
 	}
 }
 
+func TestSchedulerDataDSNDefault(t *testing.T) {
+	cfg := Default()
+	dsn := cfg.SchedulerDataDSN()
+	if !strings.HasSuffix(dsn, filepath.Join("scheduler", "data.db")) {
+		t.Fatalf("expected path ending in scheduler/data.db, got %q", dsn)
+	}
+}
+
+func TestSchedulerDataDSNCustom(t *testing.T) {
+	cfg := Default()
+	cfg.Scheduler.Storage.DSN = "postgres://localhost/sched"
+	dsn := cfg.SchedulerDataDSN()
+	if dsn != "postgres://localhost/sched" {
+		t.Fatalf("expected custom DSN, got %q", dsn)
+	}
+}
+
+func TestApplyDefaultsScheduler(t *testing.T) {
+	cfg := &Config{}
+	cfg.applyDefaults()
+	if cfg.Scheduler == nil {
+		t.Fatal("applyDefaults should create Scheduler config")
+	}
+	if cfg.Scheduler.Storage.Driver != "sqlite" {
+		t.Fatalf("expected sqlite, got %q", cfg.Scheduler.Storage.Driver)
+	}
+}
+
 func TestSourceDataDSN_ValidSources(t *testing.T) {
 	cfg := Default()
 	sources := []struct {
@@ -178,6 +206,7 @@ func TestSourceDataDSN_ValidSources(t *testing.T) {
 		{"applenotes", filepath.Join("applenotes", "data.db")},
 		{"imessage", filepath.Join("imessage", "data.db")},
 		{"websearch", filepath.Join("websearch", "data.db")},
+		{"scheduler", filepath.Join("scheduler", "data.db")},
 	}
 	for _, s := range sources {
 		t.Run(s.name, func(t *testing.T) {

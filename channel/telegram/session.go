@@ -17,6 +17,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	"github.com/priyanshujain/openbotkit/source/scheduler"
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
 	"github.com/priyanshujain/openbotkit/store"
@@ -238,6 +239,7 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, error) {
 
 	sm.registerSlackTools(toolReg)
 	sm.registerDelegateTool(toolReg)
+	sm.registerScheduleTools(toolReg)
 
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
@@ -269,6 +271,29 @@ func (sm *SessionManager) registerDelegateTool(reg *tools.Registry) {
 		Tracker:    sm.taskTracker,
 	}))
 	reg.Register(tools.NewCheckTaskTool(sm.taskTracker))
+}
+
+func (sm *SessionManager) registerScheduleTools(reg *tools.Registry) {
+	var botToken string
+	var ownerID int64
+	if sm.cfg.Channels != nil && sm.cfg.Channels.Telegram != nil {
+		botToken = sm.cfg.Channels.Telegram.BotToken
+		ownerID = sm.cfg.Channels.Telegram.OwnerID
+	}
+	if botToken == "" || ownerID == 0 {
+		return
+	}
+	deps := tools.ScheduleToolDeps{
+		Cfg:     sm.cfg,
+		Channel: "telegram",
+		ChannelMeta: scheduler.ChannelMeta{
+			BotToken: botToken,
+			OwnerID:  ownerID,
+		},
+	}
+	reg.Register(tools.NewCreateScheduleTool(deps))
+	reg.Register(tools.NewListSchedulesTool(deps))
+	reg.Register(tools.NewDeleteScheduleTool(deps))
 }
 
 func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {

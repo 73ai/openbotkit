@@ -77,6 +77,21 @@ Channel references accept: #name, C-ID, or Slack archive URL. User references ac
 `)
 	}
 
+	// Scheduled tasks section — only if schedule tools are registered.
+	if reg.Has("create_schedule") {
+		b.WriteString(`
+## Scheduled Tasks
+Use create_schedule, list_schedules, and delete_schedule to manage scheduled tasks.
+When scheduling a task:
+1. Convert the user's request into a self-contained prompt that a fresh agent can execute without conversation context
+2. Determine the user's timezone from their message or stored memories
+3. Convert times to UTC cron expressions (5-field) or UTC ISO 8601 datetimes
+4. Minimum recurring frequency: 1 hour
+For one-shot tasks, use type "one_shot" with scheduled_at in UTC.
+For recurring tasks, use type "recurring" with a UTC cron expression.
+`)
+	}
+
 	// Skills section.
 	b.WriteString(`
 ## Skills

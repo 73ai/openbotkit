@@ -38,6 +38,7 @@ func newRiverClient(ctx context.Context, cfg *config.Config) (*river.Client[*sql
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &jobs.GmailSyncWorker{Cfg: cfg})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
+	river.AddWorker(workers, &jobs.ScheduledTaskWorker{Cfg: cfg})
 
 	period, err := time.ParseDuration(cfg.Daemon.GmailSyncPeriod)
 	if err != nil {
