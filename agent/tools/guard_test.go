@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -106,6 +108,63 @@ func TestGuardedAction_HighRisk_Denied(t *testing.T) {
 	}
 	if result != "denied_by_user" {
 		t.Errorf("result = %q, want %q", result, "denied_by_user")
+	}
+}
+
+func TestGuardedAction_AutoApproveByRules(t *testing.T) {
+	rules := NewApprovalRuleSet()
+	rules.Add(ApprovalRule{ToolName: "slack_send", Pattern: "#general"})
+	inter := &mockInteractor{approveAll: false}
+	input, _ := json.Marshal(map[string]string{"channel": "#general"})
+
+	ran := false
+	result, err := GuardedAction(context.Background(), inter, RiskMedium, "send message",
+		func() (string, error) {
+			ran = true
+			return "sent", nil
+		},
+		WithApprovalRules(rules, "slack_send", input),
+	)
+	if err != nil {
+		t.Fatalf("GuardedAction: %v", err)
+	}
+	if !ran {
+		t.Error("action should have been auto-approved by rules")
+	}
+	if result != "sent" {
+		t.Errorf("result = %q, want %q", result, "sent")
+	}
+	if len(inter.approvals) != 0 {
+		t.Error("should not have requested approval when rules match")
+	}
+	if len(inter.notified) < 1 || !strings.Contains(inter.notified[0], "Auto-approved") {
+		t.Errorf("expected auto-approve notification, got %v", inter.notified)
+	}
+}
+
+func TestGuardedAction_RubberStampWarning(t *testing.T) {
+	rules := NewApprovalRuleSet()
+	inter := &mockInteractor{approveAll: true}
+
+	// Use different channels each time to avoid triggering auto-approve rules.
+	channels := []string{"#ch1", "#ch2", "#ch3", "#ch4", "#ch5", "#ch6"}
+	for _, ch := range channels {
+		input, _ := json.Marshal(map[string]string{"channel": ch})
+		_, _ = GuardedAction(context.Background(), inter, RiskMedium, "send to "+ch,
+			func() (string, error) { return "ok", nil },
+			WithApprovalRules(rules, "slack_send", input),
+		)
+	}
+
+	foundWarning := false
+	for _, n := range inter.notified {
+		if strings.Contains(n, "approved several actions quickly") {
+			foundWarning = true
+			break
+		}
+	}
+	if !foundWarning {
+		t.Error("expected rubber-stamping warning")
 	}
 }
 
