@@ -444,7 +444,7 @@ func (c *Config) ContactsDataDSN() string {
 }
 
 func (c *Config) SchedulerDataDSN() string {
-	if c.Scheduler.Storage.DSN != "" {
+	if c.Scheduler != nil && c.Scheduler.Storage.DSN != "" {
 		return c.Scheduler.Storage.DSN
 	}
 	return filepath.Join(SourceDir("scheduler"), "data.db")
