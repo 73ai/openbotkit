@@ -50,3 +50,7 @@ func EnsureProviderDir(providerName string) error {
 func JobsDBPath() string {
 	return filepath.Join(Dir(), "jobs.db")
 }
+
+func AuditDBPath() string {
+	return filepath.Join(Dir(), "audit", "data.db")
+}
