@@ -131,6 +131,8 @@ var untrustedOutputTools = map[string]bool{
 	"slack_read_channel": true,
 	"slack_read_thread":  true,
 	"slack_search":       true,
+	"web_search":         true,
+	"web_fetch":          true,
 }
 
 // IsUntrustedTool returns whether a tool's output should be wrapped
