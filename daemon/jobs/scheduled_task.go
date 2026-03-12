@@ -68,11 +68,14 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 
 	pusher, err := w.newPusher(job.Args.Channel, meta)
 	if err != nil {
-		slog.Error("scheduled task: create pusher", "error", err)
-		return nil
+		slog.Error("scheduled task: create pusher", "schedule_id", job.Args.ScheduleID, "error", err)
+		w.updateLastRun(job.Args.ScheduleID, fmt.Sprintf("create pusher: %v", err))
+		return fmt.Errorf("create pusher: %w", err)
 	}
 	if err := pusher.Push(ctx, result); err != nil {
-		slog.Error("scheduled task: push result", "error", err)
+		slog.Error("scheduled task: push result", "schedule_id", job.Args.ScheduleID, "error", err)
+		w.updateLastRun(job.Args.ScheduleID, fmt.Sprintf("push: %v", err))
+		return fmt.Errorf("push result: %w", err)
 	}
 
 	w.updateLastRun(job.Args.ScheduleID, "")
