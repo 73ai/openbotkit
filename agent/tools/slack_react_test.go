@@ -47,9 +47,9 @@ func TestSlackReactTool_RemoveApproved(t *testing.T) {
 	}
 }
 
-func TestSlackReactTool_Denied(t *testing.T) {
+func TestSlackReactTool_AutoApproves(t *testing.T) {
 	api := &mockSlackAPI{channels: []slack.Channel{{ID: "C123", Name: "general"}}}
-	inter := &mockInteractor{approveAll: false}
+	inter := &mockInteractor{approveAll: false} // approveAll=false shouldn't matter for RiskLow
 	tool := NewSlackReactTool(SlackToolDeps{Client: api, Interactor: inter})
 
 	input, _ := json.Marshal(slackReactInput{Channel: "C123", TS: "111", Emoji: "thumbsup"})
@@ -57,11 +57,14 @@ func TestSlackReactTool_Denied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result != "denied_by_user" {
-		t.Errorf("result = %q", result)
+	if result != `{"ok":true}` {
+		t.Errorf("result = %q, want ok (auto-approved)", result)
 	}
-	if api.reactedEmoji != "" {
-		t.Error("should not have reacted when denied")
+	if len(inter.approvals) != 0 {
+		t.Error("RiskLow should not request approval")
+	}
+	if api.reactedEmoji != "thumbsup" {
+		t.Error("reaction should have been auto-approved")
 	}
 }
 

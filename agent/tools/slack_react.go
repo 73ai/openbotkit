@@ -83,7 +83,7 @@ func (t *SlackReactTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 	desc := fmt.Sprintf("%s :%s: reaction in %s", action, in.Emoji, in.Channel)
 
-	return GuardedWrite(ctx, t.deps.Interactor, desc, func() (string, error) {
+	return GuardedAction(ctx, t.deps.Interactor, RiskLow, desc, func() (string, error) {
 		if in.Action == "remove" {
 			return `{"ok":true}`, t.deps.Client.RemoveReaction(ctx, channelID, in.TS, in.Emoji)
 		}
