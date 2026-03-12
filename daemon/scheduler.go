@@ -25,6 +25,7 @@ type Scheduler struct {
 	cron    *cron.Cron
 	mu      sync.Mutex
 	entries map[int64]cron.EntryID
+	ctx     context.Context
 }
 
 func NewScheduler(cfg *config.Config, riverClient *river.Client[*sql.Tx], jobsDB *sql.DB) *Scheduler {
@@ -47,6 +48,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	}
 	db.Close()
 
+	s.ctx = ctx
 	s.cron = cron.New(cron.WithLocation(time.UTC))
 	s.cron.Start()
 
@@ -161,7 +163,7 @@ func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error)
 			slog.Error("scheduler: begin tx", "error", err)
 			return
 		}
-		_, err = s.river.InsertTx(context.Background(), tx, args, &river.InsertOpts{
+		_, err = s.river.InsertTx(s.ctx, tx, args, &river.InsertOpts{
 			MaxAttempts: 2,
 		})
 		if err != nil {
