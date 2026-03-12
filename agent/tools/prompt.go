@@ -77,6 +77,16 @@ Example workflow: delegate research → check_task → gws_execute to create doc
 `)
 	}
 
+	// Web section — only if web tools are registered.
+	if reg.Has("web_search") {
+		b.WriteString(`
+## Web
+Use web_search to find information on the web. Returns titles, URLs, and snippets.
+Use web_fetch to read a specific URL and get a summary relevant to your question.
+Do NOT use bash or skills for web search/fetch — use these tools directly.
+`)
+	}
+
 	// Slack section — only if slack tools are registered.
 	if reg.Has("slack_search") {
 		b.WriteString(`

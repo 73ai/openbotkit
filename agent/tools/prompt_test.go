@@ -40,3 +40,28 @@ func TestBuildBaseSystemPrompt_OmitsScheduledTasksWhenNotRegistered(t *testing.T
 		t.Error("prompt should not include 'Scheduled Tasks' without schedule tools")
 	}
 }
+
+func TestBuildBaseSystemPrompt_WebInstructions(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(NewWebSearchTool(WebToolDeps{}))
+
+	prompt := BuildBaseSystemPrompt(reg)
+	if !strings.Contains(prompt, "## Web") {
+		t.Error("expected '## Web' section in prompt")
+	}
+	if !strings.Contains(prompt, "web_search") {
+		t.Error("expected 'web_search' mention in prompt")
+	}
+	if !strings.Contains(prompt, "web_fetch") {
+		t.Error("expected 'web_fetch' mention in prompt")
+	}
+}
+
+func TestBuildBaseSystemPrompt_NoWebInstructions(t *testing.T) {
+	reg := NewRegistry()
+
+	prompt := BuildBaseSystemPrompt(reg)
+	if strings.Contains(prompt, "## Web") {
+		t.Error("prompt should not include '## Web' without web tools")
+	}
+}
