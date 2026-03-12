@@ -103,6 +103,32 @@ func TestLogger_NilSafe(t *testing.T) {
 	}
 }
 
+func TestOpenDefault(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "audit", "data.db")
+	l := OpenDefault(dbPath)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
+	}
+	defer l.Close()
+	l.Log(Entry{Context: "test", ToolName: "bash", InputSummary: "echo hi"})
+
+	var count int
+	if err := l.db.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1", count)
+	}
+}
+
+func TestOpenDefault_BadPath(t *testing.T) {
+	l := OpenDefault("/dev/null/impossible/path.db")
+	if l != nil {
+		l.Close()
+		t.Error("expected nil for bad path")
+	}
+}
+
 func TestLogger_Close(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "close_test.db")
 	db, err := store.Open(store.SQLiteConfig(path))

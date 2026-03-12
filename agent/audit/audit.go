@@ -2,6 +2,8 @@ package audit
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/store"
@@ -26,6 +28,28 @@ type Logger struct {
 // NewLogger creates an audit logger backed by the given database.
 func NewLogger(db *store.DB) *Logger {
 	return &Logger{db: db}
+}
+
+// OpenDefault opens (or creates) the audit database at dbPath,
+// runs migrations, and returns a ready Logger.
+// Returns nil if any step fails (errors are logged via slog).
+func OpenDefault(dbPath string) *Logger {
+	dir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		slog.Debug("audit: cannot create dir", "error", err)
+		return nil
+	}
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		slog.Debug("audit: open db failed", "error", err)
+		return nil
+	}
+	if err := Migrate(db); err != nil {
+		db.Close()
+		slog.Debug("audit: migrate failed", "error", err)
+		return nil
+	}
+	return NewLogger(db)
 }
 
 // Close closes the underlying database connection.

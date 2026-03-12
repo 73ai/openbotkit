@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/priyanshujain/openbotkit/agent"
 	"github.com/priyanshujain/openbotkit/agent/audit"
@@ -208,22 +207,7 @@ func (c *cliInteractor) NotifyLink(text, url string) error    { return c.ch.Send
 func (c *cliInteractor) RequestApproval(desc string) (bool, error) { return c.ch.RequestApproval(desc) }
 
 func openAuditLogger() *audit.Logger {
-	dir := filepath.Dir(config.AuditDBPath())
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		slog.Debug("audit: cannot create dir", "error", err)
-		return nil
-	}
-	db, err := store.Open(store.SQLiteConfig(config.AuditDBPath()))
-	if err != nil {
-		slog.Debug("audit: open db failed", "error", err)
-		return nil
-	}
-	if err := audit.Migrate(db); err != nil {
-		db.Close()
-		slog.Debug("audit: migrate failed", "error", err)
-		return nil
-	}
-	return audit.NewLogger(db)
+	return audit.OpenDefault(config.AuditDBPath())
 }
 
 func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Channel) {

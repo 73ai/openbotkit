@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/riverqueue/river"
@@ -181,19 +179,7 @@ func (w *ScheduledTaskWorker) notifyFailure(ctx context.Context, ch string, meta
 }
 
 func openAuditLogger() *audit.Logger {
-	dir := filepath.Dir(config.AuditDBPath())
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil
-	}
-	db, err := store.Open(store.SQLiteConfig(config.AuditDBPath()))
-	if err != nil {
-		return nil
-	}
-	if err := audit.Migrate(db); err != nil {
-		db.Close()
-		return nil
-	}
-	return audit.NewLogger(db)
+	return audit.OpenDefault(config.AuditDBPath())
 }
 
 var _ river.Worker[ScheduledTaskArgs] = (*ScheduledTaskWorker)(nil)
