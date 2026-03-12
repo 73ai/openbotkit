@@ -3,10 +3,13 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"sort"
 	"testing"
 
+	"github.com/priyanshujain/openbotkit/agent/audit"
 	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/priyanshujain/openbotkit/store"
 )
 
 func TestNewScheduledTaskRegistry_Tools(t *testing.T) {
@@ -51,6 +54,42 @@ func TestNewScheduledTaskRegistry_BashAllowsObk(t *testing.T) {
 	// The error (if any) should be from the command failing, not from filtering.
 	if err != nil && contains(err.Error(), "command blocked") {
 		t.Errorf("expected obk to pass filter, got: %v", err)
+	}
+}
+
+func TestRegistry_AuditLogging(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "audit_test.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	if err := audit.Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	r := NewRegistry()
+	r.Register(NewBashTool(0))
+	r.SetAudit(audit.NewLogger(db), "test")
+
+	input, _ := json.Marshal(bashInput{Command: "echo hi"})
+	_, _ = r.Execute(context.Background(), provider.ToolCall{Name: "bash", Input: input})
+
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("audit log count = %d, want 1", count)
+	}
+
+	var toolName string
+	err = db.QueryRow("SELECT tool_name FROM audit_log WHERE id=1").Scan(&toolName)
+	if err != nil {
+		t.Fatalf("query row: %v", err)
+	}
+	if toolName != "bash" {
+		t.Errorf("tool_name = %q, want %q", toolName, "bash")
 	}
 }
 

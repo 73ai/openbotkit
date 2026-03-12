@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
+	"github.com/priyanshujain/openbotkit/agent/audit"
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
 )
@@ -21,12 +23,20 @@ type Tool interface {
 
 // Registry holds registered tools and implements agent.ToolExecutor.
 type Registry struct {
-	tools map[string]Tool
+	tools    map[string]Tool
+	auditor  *audit.Logger
+	auditCtx string
 }
 
 // NewRegistry creates an empty tool registry.
 func NewRegistry() *Registry {
 	return &Registry{tools: make(map[string]Tool)}
+}
+
+// SetAudit configures audit logging for tool executions.
+func (r *Registry) SetAudit(l *audit.Logger, context string) {
+	r.auditor = l
+	r.auditCtx = context
 }
 
 // Register adds a tool to the registry.
@@ -92,6 +102,20 @@ func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string,
 	if len(output) > maxOutputBytes {
 		output = output[:maxOutputBytes] + fmt.Sprintf(
 			"\n...[output truncated, showing first 512KB of %dKB]", len(output)/1024)
+	}
+	if r.auditor != nil {
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+		r.auditor.Log(audit.Entry{
+			Context:       r.auditCtx,
+			ToolName:      call.Name,
+			InputSummary:  string(call.Input),
+			OutputSummary: output,
+			Error:         errStr,
+		})
+		slog.Debug("audit logged", "tool", call.Name, "context", r.auditCtx)
 	}
 	return output, err
 }
