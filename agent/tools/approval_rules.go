@@ -10,6 +10,7 @@ const (
 	autoApproveThreshold = 3
 	rubberStampWindow    = 30 * time.Second
 	rubberStampThreshold = 5
+	maxHistoryLen        = 100
 )
 
 // ApprovalRule auto-approves matching tool actions for a session.
@@ -76,6 +77,9 @@ func (s *ApprovalRuleSet) RecordApproval(toolName string, input json.RawMessage)
 		pattern:  pattern,
 		time:     time.Now(),
 	})
+	if len(s.history) > maxHistoryLen {
+		s.history = s.history[len(s.history)-maxHistoryLen:]
+	}
 
 	count := 0
 	for _, h := range s.history {

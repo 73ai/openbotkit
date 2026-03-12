@@ -85,6 +85,20 @@ func TestApprovalRuleSet_IsRubberStamping(t *testing.T) {
 	}
 }
 
+func TestApprovalRuleSet_HistoryBounded(t *testing.T) {
+	s := NewApprovalRuleSet()
+	input, _ := json.Marshal(map[string]string{"channel": "#test"})
+	for i := 0; i < maxHistoryLen+50; i++ {
+		s.RecordApproval("slack_send", input)
+	}
+	s.mu.Lock()
+	n := len(s.history)
+	s.mu.Unlock()
+	if n > maxHistoryLen {
+		t.Errorf("history len = %d, want <= %d", n, maxHistoryLen)
+	}
+}
+
 func TestExtractPattern_SlackChannel(t *testing.T) {
 	input, _ := json.Marshal(map[string]string{"channel": "#general"})
 	if p := extractPattern("slack_send", input); p != "#general" {
