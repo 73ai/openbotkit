@@ -46,6 +46,69 @@ func (m *mockInteractor) RequestApproval(desc string) (bool, error) {
 	return m.approveAll, nil
 }
 
+func TestGuardedAction_LowRisk_AutoApproves(t *testing.T) {
+	inter := &mockInteractor{}
+	ran := false
+	result, err := GuardedAction(context.Background(), inter, RiskLow, "react :thumbsup:", func() (string, error) {
+		ran = true
+		return "ok", nil
+	})
+	if err != nil {
+		t.Fatalf("GuardedAction: %v", err)
+	}
+	if !ran {
+		t.Error("action was not executed")
+	}
+	if result != "ok" {
+		t.Errorf("result = %q, want %q", result, "ok")
+	}
+	if len(inter.approvals) != 0 {
+		t.Error("low risk should not request approval")
+	}
+	if len(inter.notified) != 1 || inter.notified[0] != "react :thumbsup:" {
+		t.Errorf("notified = %v, want description notification", inter.notified)
+	}
+}
+
+func TestGuardedAction_HighRisk_RequestsApproval(t *testing.T) {
+	inter := &mockInteractor{approveAll: true}
+	ran := false
+	result, err := GuardedAction(context.Background(), inter, RiskHigh, "send email", func() (string, error) {
+		ran = true
+		return "sent", nil
+	})
+	if err != nil {
+		t.Fatalf("GuardedAction: %v", err)
+	}
+	if !ran {
+		t.Error("action was not executed")
+	}
+	if result != "sent" {
+		t.Errorf("result = %q, want %q", result, "sent")
+	}
+	if len(inter.approvals) != 1 {
+		t.Errorf("expected 1 approval request, got %d", len(inter.approvals))
+	}
+}
+
+func TestGuardedAction_HighRisk_Denied(t *testing.T) {
+	inter := &mockInteractor{approveAll: false}
+	ran := false
+	result, err := GuardedAction(context.Background(), inter, RiskHigh, "delete all", func() (string, error) {
+		ran = true
+		return "", nil
+	})
+	if err != nil {
+		t.Fatalf("GuardedAction: %v", err)
+	}
+	if ran {
+		t.Error("action should not run when denied")
+	}
+	if result != "denied_by_user" {
+		t.Errorf("result = %q, want %q", result, "denied_by_user")
+	}
+}
+
 func TestGuardedWrite_Approved(t *testing.T) {
 	inter := &mockInteractor{approveAll: true}
 	ran := false

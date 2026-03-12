@@ -5,15 +5,25 @@ import (
 	"fmt"
 )
 
-// GuardedWrite requests user approval before executing a write action.
-// If approved, it executes the action, notifies "Done.", and returns the result.
-// If denied, it notifies "Action not performed." and returns "denied_by_user".
-func GuardedWrite(
+// GuardedAction requests user interaction based on risk level before executing.
+// RiskLow: notify and auto-approve. RiskMedium/RiskHigh: request approval.
+func GuardedAction(
 	ctx context.Context,
 	interactor Interactor,
+	risk RiskLevel,
 	description string,
 	action func() (string, error),
 ) (string, error) {
+	if risk == RiskLow {
+		if err := interactor.Notify(description); err != nil {
+			return "", fmt.Errorf("notify: %w", err)
+		}
+		result, err := action()
+		if err != nil {
+			return "", err
+		}
+		return result, nil
+	}
 	approved, err := interactor.RequestApproval(description)
 	if err != nil {
 		return "", fmt.Errorf("approval: %w", err)
@@ -32,4 +42,14 @@ func GuardedWrite(
 		return "", fmt.Errorf("notify completion: %w", nerr)
 	}
 	return result, nil
+}
+
+// GuardedWrite is a backward-compatible wrapper that uses RiskMedium.
+func GuardedWrite(
+	ctx context.Context,
+	interactor Interactor,
+	description string,
+	action func() (string, error),
+) (string, error) {
+	return GuardedAction(ctx, interactor, RiskMedium, description, action)
 }
