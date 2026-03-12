@@ -28,6 +28,14 @@ func NewLogger(db *store.DB) *Logger {
 	return &Logger{db: db}
 }
 
+// Close closes the underlying database connection.
+func (l *Logger) Close() error {
+	if l == nil || l.db == nil {
+		return nil
+	}
+	return l.db.Close()
+}
+
 const maxSummaryLen = 200
 
 func truncate(s string, max int) string {

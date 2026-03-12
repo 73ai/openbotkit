@@ -74,6 +74,9 @@ var chatCmd = &cobra.Command{
 
 		// Set up audit logging.
 		auditLogger := openAuditLogger()
+		if auditLogger != nil {
+			defer auditLogger.Close()
+		}
 
 		// Build tool registry.
 		toolReg := tools.NewStandardRegistry()

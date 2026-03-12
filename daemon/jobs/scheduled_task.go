@@ -113,7 +113,9 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 	}
 
 	toolReg := tools.NewScheduledTaskRegistry()
-	if al := openAuditLogger(); al != nil {
+	al := openAuditLogger()
+	if al != nil {
+		defer al.Close()
 		toolReg.SetAudit(al, "scheduled")
 	}
 

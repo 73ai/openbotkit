@@ -98,4 +98,21 @@ func TestLogger_NilSafe(t *testing.T) {
 	var l *Logger
 	// Should not panic.
 	l.Log(Entry{ToolName: "bash"})
+	if err := l.Close(); err != nil {
+		t.Errorf("nil Close: %v", err)
+	}
+}
+
+func TestLogger_Close(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "close_test.db")
+	db, err := store.Open(store.SQLiteConfig(path))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	l := NewLogger(db)
+	if err := l.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Log after close should not panic (fire-and-forget).
+	l.Log(Entry{ToolName: "bash", Context: "test"})
 }
