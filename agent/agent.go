@@ -18,18 +18,27 @@ type UsageRecorder interface {
 	RecordUsage(model string, usage provider.Usage)
 }
 
+// Summarizer generates a condensed summary of conversation messages.
+type Summarizer interface {
+	Summarize(ctx context.Context, messages []provider.Message) (string, error)
+}
+
 // Agent orchestrates the conversation between user, LLM, and tools.
 type Agent struct {
-	provider      provider.Provider
-	model         string
-	system        string
-	systemBlocks  []provider.SystemBlock
-	executor      ToolExecutor
-	history       []provider.Message
-	maxIter       int
-	maxHistory    int
-	rateLimiter   *provider.RateLimiter
-	usageRecorder UsageRecorder
+	provider            provider.Provider
+	model               string
+	system              string
+	systemBlocks        []provider.SystemBlock
+	executor            ToolExecutor
+	history             []provider.Message
+	maxIter             int
+	maxHistory          int
+	contextWindow       int
+	compactionThreshold float64
+	lastInputTokens     int
+	summarizer          Summarizer
+	rateLimiter         *provider.RateLimiter
+	usageRecorder       UsageRecorder
 }
 
 // Option configures an Agent.
@@ -68,6 +77,21 @@ func WithUsageRecorder(r UsageRecorder) Option {
 // WithHistory seeds the agent with prior conversation messages.
 func WithHistory(msgs []provider.Message) Option {
 	return func(a *Agent) { a.history = msgs }
+}
+
+// WithContextWindow sets the model context window size in tokens.
+func WithContextWindow(tokens int) Option {
+	return func(a *Agent) { a.contextWindow = tokens }
+}
+
+// WithCompactionThreshold sets the context fill percentage that triggers compaction.
+func WithCompactionThreshold(pct float64) Option {
+	return func(a *Agent) { a.compactionThreshold = pct }
+}
+
+// WithSummarizer sets the summarizer for LLM-based compaction.
+func WithSummarizer(s Summarizer) Option {
+	return func(a *Agent) { a.summarizer = s }
 }
 
 // New creates a new Agent.
@@ -109,6 +133,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 			return "", fmt.Errorf("chat (iteration %d): %w", i, err)
 		}
 
+		a.lastInputTokens = resp.Usage.InputTokens
 		if a.usageRecorder != nil {
 			a.usageRecorder.RecordUsage(a.model, resp.Usage)
 		}
