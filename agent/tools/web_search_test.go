@@ -106,6 +106,46 @@ func TestWebSearchTool_SearchError(t *testing.T) {
 	}
 }
 
+func TestWebSearchTool_ZeroResults(t *testing.T) {
+	mock := &mockWebSearcher{
+		searchResult: &websearch.SearchResult{
+			Query:   "obscure query",
+			Results: nil,
+			Metadata: websearch.SearchMetadata{
+				Backends:     []string{"duckduckgo"},
+				SearchTimeMs: 50,
+				TotalResults: 0,
+			},
+		},
+	}
+	tool := NewWebSearchTool(WebToolDeps{WS: mock})
+
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"obscure query"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Found 0 results") {
+		t.Error("expected zero results metadata line")
+	}
+}
+
+func TestWebSearchTool_CustomMaxResults(t *testing.T) {
+	mock := &mockWebSearcher{
+		searchResult: &websearch.SearchResult{
+			Metadata: websearch.SearchMetadata{Backends: []string{"test"}},
+		},
+	}
+	tool := NewWebSearchTool(WebToolDeps{WS: mock})
+
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"test","max_results":5}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mock.lastOpts.MaxResults != 5 {
+		t.Fatalf("expected max_results=5, got %d", mock.lastOpts.MaxResults)
+	}
+}
+
 func TestWebSearchTool_DefaultMaxResults(t *testing.T) {
 	mock := &mockWebSearcher{
 		searchResult: &websearch.SearchResult{
