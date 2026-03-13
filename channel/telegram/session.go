@@ -286,6 +286,23 @@ func (sm *SessionManager) buildLLM() (memory.LLM, error) {
 	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
 
+func (sm *SessionManager) resolveContextWindow() int {
+	if sm.cfg.Models != nil && sm.cfg.Models.ContextWindow > 0 {
+		return sm.cfg.Models.ContextWindow
+	}
+	if w := provider.DefaultContextWindow(sm.model); w > 0 {
+		return w
+	}
+	return 200000
+}
+
+func (sm *SessionManager) resolveCompactionThreshold() float64 {
+	if sm.cfg.Models != nil && sm.cfg.Models.CompactionThreshold > 0 {
+		return sm.cfg.Models.CompactionThreshold
+	}
+	return 0.30
+}
+
 func (sm *SessionManager) gwsEnabled() bool {
 	return sm.cfg.Integrations != nil && sm.cfg.Integrations.GWS != nil && sm.cfg.Integrations.GWS.Enabled
 }
@@ -330,6 +347,12 @@ func (sm *SessionManager) newAgent(history []provider.Message) (*agent.Agent, *u
 	if len(history) > 0 {
 		opts = append(opts, agent.WithHistory(history))
 	}
+	opts = append(opts, agent.WithContextWindow(sm.resolveContextWindow()))
+	opts = append(opts, agent.WithCompactionThreshold(sm.resolveCompactionThreshold()))
+	opts = append(opts, agent.WithSummarizer(&agent.LLMSummarizer{
+		Provider: sm.fastProvider,
+		Model:    sm.fastModel,
+	}))
 	recorder := sm.openUsageRecorder()
 	if recorder != nil {
 		opts = append(opts, agent.WithUsageRecorder(recorder))
