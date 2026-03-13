@@ -65,6 +65,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.google = google.New(google.Config{
 		CredentialsFile: s.cfg.GoogleCredentialsFile(),
 		TokenDBPath:     s.cfg.GoogleTokenDBPath(),
+		CallbackURL:     s.cfg.GWSCallbackURL(),
 	})
 
 	s.migrateDBs()
