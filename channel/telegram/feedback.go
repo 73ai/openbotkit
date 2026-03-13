@@ -197,9 +197,12 @@ const ackModelTimeout = 3 * time.Second
 
 func (f *processingFeedback) decideAck(ctx context.Context, toolName string) ackDecision {
 	if f.provider == nil {
-		return f.fallbackDecision(toolName)
+		d := f.fallbackDecision(toolName)
+		slog.Info("feedback: ack decision", "tool", toolName, "source", "fallback", "reason", "no_provider", "action", d.Action, "text", d.Text)
+		return d
 	}
 
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, ackModelTimeout)
 	defer cancel()
 
@@ -213,19 +216,26 @@ func (f *processingFeedback) decideAck(ctx context.Context, toolName string) ack
 		MaxTokens: 100,
 	})
 	if err != nil {
-		slog.Debug("feedback: model ack failed, using fallback", "error", err)
-		return f.fallbackDecision(toolName)
+		d := f.fallbackDecision(toolName)
+		slog.Info("feedback: ack decision", "tool", toolName, "source", "fallback", "reason", "model_error", "error", err, "elapsed_ms", time.Since(start).Milliseconds(), "action", d.Action, "text", d.Text)
+		return d
 	}
 
+	raw := resp.TextContent()
 	var d ackDecision
-	if err := json.Unmarshal([]byte(resp.TextContent()), &d); err != nil {
-		slog.Debug("feedback: parse ack decision failed", "error", err)
-		return f.fallbackDecision(toolName)
+	if err := json.Unmarshal([]byte(raw), &d); err != nil {
+		fb := f.fallbackDecision(toolName)
+		slog.Info("feedback: ack decision", "tool", toolName, "source", "fallback", "reason", "parse_error", "raw", raw, "error", err, "elapsed_ms", time.Since(start).Milliseconds())
+		return fb
 	}
 
 	if d.Action == "" {
-		return f.fallbackDecision(toolName)
+		fb := f.fallbackDecision(toolName)
+		slog.Info("feedback: ack decision", "tool", toolName, "source", "fallback", "reason", "empty_action", "raw", raw, "elapsed_ms", time.Since(start).Milliseconds())
+		return fb
 	}
+
+	slog.Info("feedback: ack decision", "tool", toolName, "source", "model", "action", d.Action, "text", d.Text, "emoji", d.Emoji, "elapsed_ms", time.Since(start).Milliseconds())
 	return d
 }
 
