@@ -25,3 +25,12 @@ func TestDefaultContextWindow_Unknown(t *testing.T) {
 		t.Errorf("unknown = %d, want 0", got)
 	}
 }
+
+func TestDefaultContextWindow_PrefixMatch(t *testing.T) {
+	if got := DefaultContextWindow("claude-opus-4-6-20260301"); got != 200000 {
+		t.Errorf("claude-opus-4-6-20260301 = %d, want 200000", got)
+	}
+	if got := DefaultContextWindow("gemini-2.5-pro-preview"); got != 1048576 {
+		t.Errorf("gemini-2.5-pro-preview = %d, want 1048576", got)
+	}
+}
