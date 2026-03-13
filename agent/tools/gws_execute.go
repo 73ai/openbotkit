@@ -157,6 +157,16 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 	if err := g.scopeWaiter.Wait(state, g.authTimeout, scopes, g.account); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
+
+	// After first-time auth, discover the account from the token store.
+	if g.account == "" {
+		accounts, err := g.google.Accounts(ctx)
+		if err == nil && len(accounts) > 0 {
+			g.account = accounts[0]
+			g.bridge.SetAccount(accounts[0])
+		}
+	}
+
 	if err := g.interactor.Notify("Access granted, thanks!"); err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}
