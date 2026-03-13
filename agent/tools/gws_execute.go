@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -91,7 +92,12 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 		return "", fmt.Errorf("command is required")
 	}
 
+	slog.Info("gws_execute called", "command", in.Command)
 	args := strings.Fields(in.Command)
+	// Strip leading "gws" if present — skill examples include it but the runner adds it.
+	if len(args) > 0 && args[0] == "gws" {
+		args = args[1:]
+	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)
 
@@ -128,6 +134,7 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error) {
 	env, err := g.bridge.Env(ctx)
 	if err != nil {
+		slog.Warn("gws_execute: token error, attempting re-auth", "error", err)
 		// Token expired or refresh failed — trigger re-consent and retry.
 		service := gwsServiceFromCommand(args)
 		scopes := g.scopesForService(service)

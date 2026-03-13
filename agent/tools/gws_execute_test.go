@@ -326,6 +326,26 @@ func TestGWSExecute_ScopesForService(t *testing.T) {
 	}
 }
 
+func TestGWSExecute_StripGWSPrefix(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+	runner.outputs["calendar events list"] = `{"items":[]}`
+
+	input, _ := json.Marshal(gwsInput{Command: "gws calendar events list"})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != `{"items":[]}` {
+		t.Errorf("result = %q", result)
+	}
+	if len(runner.ran) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runner.ran))
+	}
+	if runner.ran[0].args[0] != "calendar" {
+		t.Errorf("first arg = %q, want 'calendar'", runner.ran[0].args[0])
+	}
+}
+
 func TestGWSExecute_TokenExpiredTriggersReAuth(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "tokens.db")
