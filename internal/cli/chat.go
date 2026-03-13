@@ -93,7 +93,10 @@ var chatCmd = &cobra.Command{
 		registerSlackTools(cfg, toolReg, ch)
 
 		// Register web search/fetch tools.
-		registerWebTools(cfg, toolReg, registry, p, modelName)
+		wsDB := registerWebTools(cfg, toolReg, registry, p, modelName)
+		if wsDB != nil {
+			defer wsDB.Close()
+		}
 
 		// Set up usage recording.
 		usageRecorder := openUsageRecorder(cfg, providerName, "cli", sessionID)
@@ -246,14 +249,20 @@ func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
 	reg.Register(tools.NewCheckTaskTool(tracker))
 }
 
-func registerWebTools(cfg *config.Config, reg *tools.Registry, provRegistry *provider.Registry, defaultP provider.Provider, defaultModel string) {
-	var opts []wssrc.Option
+// registerWebTools adds web_search and web_fetch tools. Returns an optional
+// DB handle that the caller must close when done.
+func registerWebTools(cfg *config.Config, reg *tools.Registry, provRegistry *provider.Registry, defaultP provider.Provider, defaultModel string) *store.DB {
+	var (
+		opts []wssrc.Option
+		wsDB *store.DB
+	)
 	if err := config.EnsureSourceDir("websearch"); err == nil {
 		db, err := store.Open(store.Config{
 			Driver: cfg.WebSearch.Storage.Driver,
 			DSN:    cfg.WebSearchDataDSN(),
 		})
 		if err == nil {
+			wsDB = db
 			opts = append(opts, wssrc.WithDB(db))
 		}
 	}
@@ -272,6 +281,7 @@ func registerWebTools(cfg *config.Config, reg *tools.Registry, provRegistry *pro
 	}
 	reg.Register(tools.NewWebSearchTool(deps))
 	reg.Register(tools.NewWebFetchTool(deps))
+	return wsDB
 }
 
 func resolveFastProvider(cfg *config.Config, reg *provider.Registry) (provider.Provider, string) {
