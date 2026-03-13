@@ -274,7 +274,7 @@ func (sm *SessionManager) newAgent(history []provider.Message) (*agent.Agent, *u
 	}))
 
 	identity := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n"
-	extras := "\nBe concise and direct. Skip filler phrases.\n" + sm.userMemoriesPrompt()
+	extras := "\nBe concise and direct. Skip filler phrases.\nWhen presenting dates and times to the user, always use natural human-friendly formats (e.g. \"today at 2:25 PM\", \"Mar 13 at 11:30 AM\", \"yesterday at 9:00 PM\"). Never show raw database timestamps or ISO formats.\n" + sm.userMemoriesPrompt()
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	opts := []agent.Option{agent.WithSystemBlocks(blocks)}
