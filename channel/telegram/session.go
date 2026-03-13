@@ -153,6 +153,7 @@ func (sm *SessionManager) touchSession() {
 	if sm.sessionID == "" {
 		sm.sessionID = generateSessionID()
 		sm.messages = nil
+		config.EnsureScratchDir(sm.sessionID)
 	}
 
 	if sm.timer != nil {
@@ -175,10 +176,13 @@ func (sm *SessionManager) endSession() {
 		sm.timer = nil
 	}
 	messages := sm.messages
+	sid := sm.sessionID
 	sm.sessionID = ""
 	sm.messages = nil
 	sm.history = nil
 	sm.mu.Unlock()
+
+	config.CleanScratch(sid)
 
 	if len(messages) > 0 {
 		go sm.extractMemories(context.Background(), messages)
@@ -243,6 +247,14 @@ func (sm *SessionManager) gwsEnabled() bool {
 
 func (sm *SessionManager) newAgent(history []provider.Message) (*agent.Agent, *usagesrc.Recorder, *audit.Logger, error) {
 	toolReg := tools.NewStandardRegistry()
+
+	sm.mu.Lock()
+	sid := sm.sessionID
+	sm.mu.Unlock()
+	if sid != "" {
+		toolReg.SetScratchDir(config.ScratchDir(sid))
+	}
+
 	al := sm.openAuditLogger()
 	if al != nil {
 		toolReg.SetAudit(al, "telegram")
