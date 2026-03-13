@@ -106,11 +106,12 @@ func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string,
 		return "", fmt.Errorf("unknown tool %q", call.Name)
 	}
 	output, err := t.Execute(ctx, call.Input)
+	fullOutput := output
 	if len(output) > maxOutputBytes {
 		output = output[:maxOutputBytes] + fmt.Sprintf(
 			"\n...[output truncated, showing first 100KB of %dKB]", len(output)/1024)
 	}
-	output = r.fileFallback(output, call)
+	output = r.fileFallback(output, call, fullOutput)
 	if r.auditor != nil {
 		errStr := ""
 		if err != nil {
@@ -137,7 +138,7 @@ func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string,
 
 const fileFallbackThreshold = 8192 // 8K chars
 
-func (r *Registry) fileFallback(output string, call provider.ToolCall) string {
+func (r *Registry) fileFallback(output string, call provider.ToolCall, fullOutput string) string {
 	if r.scratchDir == "" || len(output) <= fileFallbackThreshold {
 		return output
 	}
@@ -145,11 +146,15 @@ func (r *Registry) fileFallback(output string, call provider.ToolCall) string {
 	if err := os.MkdirAll(r.scratchDir, 0700); err != nil {
 		return output
 	}
-	if err := os.WriteFile(path, []byte(output), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(fullOutput), 0600); err != nil {
 		return output
 	}
-	preview := TruncateHead(output, 40)
-	totalLines := strings.Count(output, "\n") + 1
+	lines := strings.SplitN(output, "\n", 42)
+	preview := output
+	if len(lines) > 40 {
+		preview = strings.Join(lines[:40], "\n")
+	}
+	totalLines := strings.Count(fullOutput, "\n") + 1
 	return fmt.Sprintf("%s\n\n[Showing first 40 of %d lines. Full output: %s]", preview, totalLines, path)
 }
 
