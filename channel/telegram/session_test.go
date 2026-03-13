@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,19 @@ import (
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	"github.com/priyanshujain/openbotkit/store"
 )
+
+type stubProvider struct{}
+
+func (s *stubProvider) Chat(_ context.Context, _ provider.ChatRequest) (*provider.ChatResponse, error) {
+	return &provider.ChatResponse{
+		Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "stub response"}},
+		StopReason: provider.StopEndTurn,
+	}, nil
+}
+
+func (s *stubProvider) StreamChat(_ context.Context, _ provider.ChatRequest) (<-chan provider.StreamEvent, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 
 func setupTestEnv(t *testing.T) *config.Config {
 	t.Helper()
@@ -200,5 +214,96 @@ func TestStartCommand_WithSuffix(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected reset confirmation, got: %v", texts)
+	}
+}
+
+func TestNormalMessage_DoesNotReset(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+	}
+	sm.sessionID = "tg-existing"
+	sm.history = []provider.Message{
+		provider.NewTextMessage(provider.RoleUser, "prior"),
+	}
+	sm.messages = []string{"prior"}
+
+	sm.handleMessage(context.Background(), "hello")
+
+	// Session was NOT reset — it should still be "tg-existing"
+	if sm.sessionID != "tg-existing" {
+		t.Fatalf("session should not be reset, got %q", sm.sessionID)
+	}
+	texts := sentTexts(bot)
+	for _, txt := range texts {
+		if strings.Contains(txt, "Session reset") {
+			t.Fatal("normal message should not trigger session reset")
+		}
+	}
+	// Should have received a response from the stub provider
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "stub response") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected stub response, got: %v", texts)
+	}
+}
+
+func TestResolveContextWindow_FromConfig(t *testing.T) {
+	cfg := config.Default()
+	cfg.Models = &config.ModelsConfig{ContextWindow: 150000}
+	sm := &SessionManager{cfg: cfg, model: "claude-opus-4-6"}
+
+	if got := sm.resolveContextWindow(); got != 150000 {
+		t.Fatalf("expected 150000 from config, got %d", got)
+	}
+}
+
+func TestResolveContextWindow_FromModelLookup(t *testing.T) {
+	cfg := config.Default()
+	sm := &SessionManager{cfg: cfg, model: "gemini-2.5-flash"}
+
+	if got := sm.resolveContextWindow(); got != 1048576 {
+		t.Fatalf("expected 1048576 from model lookup, got %d", got)
+	}
+}
+
+func TestResolveContextWindow_Fallback(t *testing.T) {
+	cfg := config.Default()
+	sm := &SessionManager{cfg: cfg, model: "unknown-model"}
+
+	if got := sm.resolveContextWindow(); got != 200000 {
+		t.Fatalf("expected 200000 fallback, got %d", got)
+	}
+}
+
+func TestResolveCompactionThreshold_FromConfig(t *testing.T) {
+	cfg := config.Default()
+	cfg.Models = &config.ModelsConfig{CompactionThreshold: 0.25}
+	sm := &SessionManager{cfg: cfg}
+
+	if got := sm.resolveCompactionThreshold(); got != 0.25 {
+		t.Fatalf("expected 0.25 from config, got %f", got)
+	}
+}
+
+func TestResolveCompactionThreshold_Default(t *testing.T) {
+	cfg := config.Default()
+	sm := &SessionManager{cfg: cfg}
+
+	if got := sm.resolveCompactionThreshold(); got != 0.30 {
+		t.Fatalf("expected 0.30 default, got %f", got)
 	}
 }
