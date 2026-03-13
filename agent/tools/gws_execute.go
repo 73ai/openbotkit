@@ -72,7 +72,15 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 		"properties": {
 			"command": {
 				"type": "string",
-				"description": "The gws command to execute (e.g. 'calendar events.list --maxResults 10')"
+				"description": "The gws command without --params or --json flags (e.g. 'drive files list', 'calendar events list')"
+			},
+			"params": {
+				"type": "object",
+				"description": "URL/query parameters as a JSON object (becomes --params flag)"
+			},
+			"body": {
+				"type": "object",
+				"description": "Request body as a JSON object (becomes --json flag)"
 			}
 		},
 		"required": ["command"]
@@ -80,7 +88,9 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 }
 
 type gwsInput struct {
-	Command string `json:"command"`
+	Command string          `json:"command"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
 }
 
 func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -93,10 +103,17 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 
 	slog.Info("gws_execute called", "command", in.Command)
-	args := splitGWSCommand(in.Command)
-	// Strip leading "gws" if present — skill examples include it but the runner adds it.
+	args := strings.Fields(in.Command)
+	// Strip leading "gws" if present.
 	if len(args) > 0 && args[0] == "gws" {
 		args = args[1:]
+	}
+	// Append structured params/body as flags.
+	if len(in.Params) > 0 && string(in.Params) != "null" {
+		args = append(args, "--params", string(in.Params))
+	}
+	if len(in.Body) > 0 && string(in.Body) != "null" {
+		args = append(args, "--json", string(in.Body))
 	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)
@@ -221,74 +238,6 @@ func (g *GWSExecuteTool) scopesForService(service string) []string {
 		}
 	}
 	return nil
-}
-
-// splitGWSCommand splits a gws command string into args, handling --params
-// and --json flags whose values are JSON objects containing spaces and quotes.
-// LLMs often wrap JSON in single quotes (shell convention) which standard
-// splitters cannot handle reliably because the JSON also contains double quotes.
-func splitGWSCommand(cmd string) []string {
-	var args []string
-	cmd = strings.TrimSpace(cmd)
-	for len(cmd) > 0 {
-		if cmd[0] == '\'' || cmd[0] == '{' {
-			// JSON or quoted JSON value — extract using brace matching.
-			s := cmd
-			if s[0] == '\'' {
-				s = s[1:] // skip opening quote
-			}
-			if len(s) > 0 && s[0] == '{' {
-				jsonVal, rest := extractJSONObject(s)
-				args = append(args, jsonVal)
-				rest = strings.TrimLeft(rest, "'") // strip trailing quote
-				cmd = strings.TrimSpace(rest)
-				continue
-			}
-		}
-		// Regular token — read until next whitespace.
-		end := strings.IndexByte(cmd, ' ')
-		if end < 0 {
-			args = append(args, cmd)
-			break
-		}
-		args = append(args, cmd[:end])
-		cmd = strings.TrimSpace(cmd[end:])
-	}
-	return args
-}
-
-// extractJSONObject returns the substring from the opening { to its matching },
-// counting brace depth. It handles braces inside JSON string literals.
-func extractJSONObject(s string) (string, string) {
-	depth := 0
-	inString := false
-	escaped := false
-	for i, c := range s {
-		if escaped {
-			escaped = false
-			continue
-		}
-		if c == '\\' && inString {
-			escaped = true
-			continue
-		}
-		if c == '"' {
-			inString = !inString
-			continue
-		}
-		if inString {
-			continue
-		}
-		if c == '{' {
-			depth++
-		} else if c == '}' {
-			depth--
-			if depth == 0 {
-				return s[:i+1], s[i+1:]
-			}
-		}
-	}
-	return s, ""
 }
 
 // gwsServiceFromCommand extracts the service name from gws command args.
