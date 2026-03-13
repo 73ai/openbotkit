@@ -181,4 +181,5 @@ func init() {
 	serviceCmd.AddCommand(serviceStopCmd)
 	serviceCmd.AddCommand(serviceRestartCmd)
 	serviceCmd.AddCommand(serviceStatusCmd)
+	serviceCmd.AddCommand(newLogsCmd("daemon"))
 }

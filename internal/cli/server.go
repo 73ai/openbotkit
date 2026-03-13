@@ -170,5 +170,6 @@ func init() {
 	serverCmd.AddCommand(serverStopCmd)
 	serverCmd.AddCommand(serverRestartCmd)
 	serverCmd.AddCommand(serverStatusCmd)
+	serverCmd.AddCommand(newLogsCmd("server"))
 	rootCmd.AddCommand(serverCmd)
 }
