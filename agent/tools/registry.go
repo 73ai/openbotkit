@@ -142,7 +142,8 @@ func (r *Registry) fileFallback(output string, call provider.ToolCall, fullOutpu
 	if r.scratchDir == "" || len(output) <= fileFallbackThreshold {
 		return output
 	}
-	path := filepath.Join(r.scratchDir, fmt.Sprintf("%s_%s.txt", call.Name, call.ID))
+	safeID := sanitizePathComponent(call.ID)
+	path := filepath.Join(r.scratchDir, fmt.Sprintf("%s_%s.txt", call.Name, safeID))
 	if err := os.MkdirAll(r.scratchDir, 0700); err != nil {
 		return output
 	}
@@ -156,6 +157,15 @@ func (r *Registry) fileFallback(output string, call provider.ToolCall, fullOutpu
 	}
 	totalLines := strings.Count(fullOutput, "\n") + 1
 	return fmt.Sprintf("%s\n\n[Showing first 40 of %d lines. Full output: %s]", preview, totalLines, path)
+}
+
+func sanitizePathComponent(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == '.' {
+			return '_'
+		}
+		return r
+	}, s)
 }
 
 // ToolSchemas implements agent.ToolExecutor.
