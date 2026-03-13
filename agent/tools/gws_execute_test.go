@@ -47,7 +47,7 @@ func setupGWSTest(t *testing.T, approveAll bool, scopes map[string]bool) (*GWSEx
 	runner := &mockRunner{outputs: make(map[string]string)}
 
 	if scopes == nil {
-		scopes = map[string]bool{"calendar": true}
+		scopes = map[string]bool{"https://www.googleapis.com/auth/calendar": true}
 	}
 	checker := &mockScopeChecker{scopes: scopes}
 
@@ -294,6 +294,35 @@ func TestGWSExecute_KeywordNotWrite(t *testing.T) {
 	}
 	if len(inter.approvals) > 0 {
 		t.Error("keyword 'delete' without '+' prefix should not trigger approval")
+	}
+}
+
+func TestGWSExecute_ScopesForService(t *testing.T) {
+	manifest := &skills.Manifest{
+		Skills: map[string]skills.SkillEntry{
+			"gws-docs-read": {Source: "gws", Scopes: []string{"docs"}},
+			"gws-drive-list": {Source: "gws", Scopes: []string{"drive"}},
+		},
+	}
+	tool := &GWSExecuteTool{manifest: manifest}
+
+	tests := []struct {
+		service string
+		want    string
+	}{
+		{"docs", "https://www.googleapis.com/auth/documents"},
+		{"drive", "https://www.googleapis.com/auth/drive"},
+		{"unknown", ""},
+	}
+	for _, tt := range tests {
+		scopes := tool.scopesForService(tt.service)
+		if tt.want == "" {
+			if scopes != nil {
+				t.Errorf("scopesForService(%q) = %v, want nil", tt.service, scopes)
+			}
+		} else if len(scopes) != 1 || scopes[0] != tt.want {
+			t.Errorf("scopesForService(%q) = %v, want [%s]", tt.service, scopes, tt.want)
+		}
 	}
 }
 
