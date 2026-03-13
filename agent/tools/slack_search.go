@@ -62,19 +62,29 @@ func (t *SlackSearchTool) Execute(ctx context.Context, input json.RawMessage) (s
 
 	opts := slack.SearchOptions{Count: in.Limit}
 
+	var out string
 	if in.Type == "files" {
 		result, err := t.deps.Client.SearchFiles(ctx, in.Query, opts)
 		if err != nil {
 			return "", fmt.Errorf("search files: %w", err)
 		}
-		return compactMarshal(result)
+		out, err = compactMarshal(result)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		result, err := t.deps.Client.SearchMessages(ctx, in.Query, opts)
+		if err != nil {
+			return "", fmt.Errorf("search messages: %w", err)
+		}
+		out, err = compactMarshal(result)
+		if err != nil {
+			return "", err
+		}
 	}
-
-	result, err := t.deps.Client.SearchMessages(ctx, in.Query, opts)
-	if err != nil {
-		return "", fmt.Errorf("search messages: %w", err)
-	}
-	return compactMarshal(result)
+	out = TruncateHead(out, 1000)
+	out = TruncateBytes(out, 50*1024)
+	return out, nil
 }
 
 func compactMarshal(v any) (string, error) {

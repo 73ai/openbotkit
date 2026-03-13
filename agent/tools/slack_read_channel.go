@@ -82,5 +82,11 @@ func (t *SlackReadChannelTool) Execute(ctx context.Context, input json.RawMessag
 		return "", fmt.Errorf("fetch history: %w", err)
 	}
 
-	return compactMarshal(msgs)
+	out, err := compactMarshal(msgs)
+	if err != nil {
+		return "", err
+	}
+	out = TruncateHead(out, 1000)
+	out = TruncateBytes(out, 50*1024)
+	return out, nil
 }
