@@ -670,9 +670,12 @@ func TestNewAgent_CreatesAgentWithOptions(t *testing.T) {
 	if a == nil {
 		t.Fatal("expected non-nil agent")
 	}
-	// Recorder depends on usage DB — may be nil in test env, that's OK
-	_ = recorder
-	_ = auditLogger
+	if recorder != nil {
+		defer recorder.Close()
+	}
+	if auditLogger != nil {
+		defer auditLogger.Close()
+	}
 }
 
 func TestNewAgent_WithHistory(t *testing.T) {
@@ -701,12 +704,18 @@ func TestNewAgent_WithHistory(t *testing.T) {
 		provider.NewTextMessage(provider.RoleAssistant, "prior resp"),
 	}
 
-	a, _, _, err := sm.newAgent(history, nil)
+	a, recorder, auditLogger, err := sm.newAgent(history, nil)
 	if err != nil {
 		t.Fatalf("newAgent: %v", err)
 	}
 	if a == nil {
 		t.Fatal("expected non-nil agent")
+	}
+	if recorder != nil {
+		defer recorder.Close()
+	}
+	if auditLogger != nil {
+		defer auditLogger.Close()
 	}
 }
 
