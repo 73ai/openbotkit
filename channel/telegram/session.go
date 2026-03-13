@@ -364,11 +364,16 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 	sm.registerScheduleTools(toolReg)
 	sm.registerWebTools(toolReg)
 
+	scratchDir := config.ScratchDir(sid)
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-		Provider:    sm.provider,
-		Model:       sm.model,
-		ToolFactory: tools.NewStandardRegistry,
-		System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Provider: sm.provider,
+		Model:    sm.model,
+		ToolFactory: func() *tools.Registry {
+			r := tools.NewStandardRegistry()
+			r.SetScratchDir(scratchDir)
+			return r
+		},
+		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
 	}))
 
 	identity := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n"
