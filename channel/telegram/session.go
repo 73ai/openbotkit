@@ -158,21 +158,31 @@ func (sm *SessionManager) restoreSession() bool {
 		DSN:    sm.cfg.HistoryDataDSN(),
 	})
 	if err != nil {
+		slog.Warn("telegram session: open history db for restore", "error", err)
 		return false
 	}
 	defer histDB.Close()
 
 	if err := historysrc.Migrate(histDB); err != nil {
+		slog.Warn("telegram session: migrate history for restore", "error", err)
 		return false
 	}
 
 	recent, err := historysrc.LoadRecentSession(histDB, "telegram", sessionTimeout)
-	if err != nil || recent == nil {
+	if err != nil {
+		slog.Warn("telegram session: load recent session", "error", err)
+		return false
+	}
+	if recent == nil {
 		return false
 	}
 
 	msgs, err := historysrc.LoadSessionMessages(histDB, recent.SessionID, 100)
-	if err != nil || len(msgs) == 0 {
+	if err != nil {
+		slog.Warn("telegram session: load session messages", "error", err)
+		return false
+	}
+	if len(msgs) == 0 {
 		return false
 	}
 
