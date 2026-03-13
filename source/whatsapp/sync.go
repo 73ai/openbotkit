@@ -55,6 +55,9 @@ func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (
 					if msg == nil {
 						continue
 					}
+					if msg.SenderName == "" && !isGroup {
+						msg.SenderName = chatDisplayName
+					}
 					if err := SaveMessage(db, msg); err != nil {
 						errors.Add(1)
 						continue

@@ -162,6 +162,9 @@ func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int, dataDB ...*stor
 				if msg == nil {
 					continue
 				}
+				if msg.SenderName == "" && !isGroup {
+					msg.SenderName = displayName
+				}
 				if err := SaveMessage(db, msg); err != nil {
 					continue
 				}
@@ -269,6 +272,9 @@ func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB)
 				msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
 				if msg == nil {
 					continue
+				}
+				if msg.SenderName == "" && !isGroup {
+					msg.SenderName = chatDisplayName
 				}
 				if err := SaveMessage(dataDB, msg); err != nil {
 					continue
