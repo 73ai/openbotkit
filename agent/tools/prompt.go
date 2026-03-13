@@ -62,6 +62,7 @@ Use the gws_execute tool for all Google Workspace operations (Calendar, Drive, D
 BEFORE your first gws_execute call, ALWAYS use load_skills to load the relevant gws skill for correct command syntax.
 For example, to list files load gws-drive; to read a doc load gws-docs; to check calendar load gws-calendar.
 Tip: listing or searching Google Docs/Sheets/Slides requires gws-drive (files list with mimeType filter), not gws-docs.
+IMPORTANT: gws uses --params '{"key":"val"}' for query parameters and --json for request bodies. Do NOT use direct flags like --orderBy or --pageSize.
 Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
 The tool handles authentication, scope checks, and approval for write operations automatically.
 When a tool result includes "user notified", keep your response brief — the user already got the details.
