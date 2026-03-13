@@ -346,55 +346,63 @@ func TestGWSExecute_StripGWSPrefix(t *testing.T) {
 	}
 }
 
-func TestSplitGWSCommand(t *testing.T) {
-	tests := []struct {
-		name string
-		cmd  string
-		want []string
-	}{
-		{
-			name: "simple no params",
-			cmd:  "drive files list",
-			want: []string{"drive", "files", "list"},
+func TestGWSExecute_StructuredParams(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+	runner.outputs[`drive files list --params {"orderBy":"modifiedTime desc","pageSize":5,"q":"mimeType='application/vnd.google-apps.document'"}`] = `{"files":[]}`
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "drive files list",
+		"params": map[string]any{
+			"q":       "mimeType='application/vnd.google-apps.document'",
+			"orderBy": "modifiedTime desc",
+			"pageSize": 5,
 		},
-		{
-			name: "quoted JSON params",
-			cmd:  `drive files list --params '{"orderBy":"modifiedTime desc"}'`,
-			want: []string{"drive", "files", "list", "--params", `{"orderBy":"modifiedTime desc"}`},
-		},
-		{
-			name: "complex JSON with escaped quotes from LLM",
-			cmd:  `drive files list --params '{"q": "mimeType = \'application/vnd.google-apps.document\'", "orderBy": "modifiedTime desc", "pageSize": 5}'`,
-			want: []string{"drive", "files", "list", "--params", `{"q": "mimeType = \'application/vnd.google-apps.document\'", "orderBy": "modifiedTime desc", "pageSize": 5}`},
-		},
-		{
-			name: "unquoted JSON params",
-			cmd:  `drive files list --params {"pageSize": 5}`,
-			want: []string{"drive", "files", "list", "--params", `{"pageSize": 5}`},
-		},
-		{
-			name: "gws prefix stripped later",
-			cmd:  "gws calendar events list",
-			want: []string{"gws", "calendar", "events", "list"},
-		},
-		{
-			name: "flag after params",
-			cmd:  `drive files list --params '{"pageSize": 5}' --format json`,
-			want: []string{"drive", "files", "list", "--params", `{"pageSize": 5}`, "--format", "json"},
-		},
+	})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := splitGWSCommand(tt.cmd)
-			if len(got) != len(tt.want) {
-				t.Fatalf("got %d args %v, want %d args %v", len(got), got, len(tt.want), tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("arg[%d] = %q, want %q", i, got[i], tt.want[i])
-				}
-			}
-		})
+	if result != `{"files":[]}` {
+		t.Errorf("result = %q", result)
+	}
+	if len(runner.ran) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runner.ran))
+	}
+	// Verify --params is a single arg with valid JSON.
+	args := runner.ran[0].args
+	paramsIdx := -1
+	for i, a := range args {
+		if a == "--params" {
+			paramsIdx = i
+			break
+		}
+	}
+	if paramsIdx < 0 || paramsIdx+1 >= len(args) {
+		t.Fatal("--params flag not found in args")
+	}
+	if !json.Valid([]byte(args[paramsIdx+1])) {
+		t.Errorf("--params value is not valid JSON: %s", args[paramsIdx+1])
+	}
+}
+
+func TestGWSExecute_StructuredBody(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, nil)
+	interactor.approveAll = true
+	runner.outputs[`calendar +insert --json {"location":"Room 1","summary":"Team meeting"}`] = `{"id":"abc"}`
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "calendar +insert",
+		"body": map[string]any{
+			"summary":  "Team meeting",
+			"location": "Room 1",
+		},
+	})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != `{"id":"abc"}` {
+		t.Errorf("result = %q", result)
 	}
 }
 
