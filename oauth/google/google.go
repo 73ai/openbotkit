@@ -11,6 +11,7 @@ import (
 type Config struct {
 	CredentialsFile string
 	TokenDBPath     string
+	CallbackURL     string
 }
 
 type Google struct {
@@ -45,7 +46,7 @@ func (g *Google) Client(ctx context.Context, account string, scopes []string) (*
 		return nil, fmt.Errorf("load token: %w", err)
 	}
 
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, "")
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func (g *Google) Client(ctx context.Context, account string, scopes []string) (*
 }
 
 func (g *Google) GrantScopes(ctx context.Context, account string, scopes []string) (string, error) {
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, "")
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +149,7 @@ func (g *Google) RevokeScopes(ctx context.Context, account string, scopes []stri
 	}
 
 	// Re-auth with only the remaining scopes (no include_granted_scopes).
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, remaining)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, remaining, "")
 	if err != nil {
 		return err
 	}
@@ -177,7 +178,7 @@ func (g *Google) AccessToken(ctx context.Context, account string) (string, error
 		return "", fmt.Errorf("load token: %w", err)
 	}
 
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, "")
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +194,7 @@ func (g *Google) AccessToken(ctx context.Context, account string) (string, error
 
 // ExchangeCode exchanges an OAuth callback code for a token and saves it.
 func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes []string) error {
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, g.cfg.CallbackURL)
 	if err != nil {
 		return err
 	}
@@ -223,7 +224,7 @@ func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes 
 // AuthURL generates an OAuth consent URL for incremental scope grant.
 // The state parameter correlates with a ScopeWaiter.
 func (g *Google) AuthURL(account string, scopes []string, state string) (string, error) {
-	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes)
+	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, g.cfg.CallbackURL)
 	if err != nil {
 		return "", err
 	}

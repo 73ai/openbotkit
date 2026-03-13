@@ -16,7 +16,7 @@ import (
 // implicitScopes are always requested so we can extract the user's email.
 var implicitScopes = []string{"openid", "email"}
 
-func loadConfig(credFile string, scopes []string) (*oauth2.Config, error) {
+func loadConfig(credFile string, scopes []string, redirectURL string) (*oauth2.Config, error) {
 	b, err := os.ReadFile(credFile)
 	if err != nil {
 		return nil, fmt.Errorf("read credentials file: %w", err)
@@ -27,7 +27,11 @@ func loadConfig(credFile string, scopes []string) (*oauth2.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse credentials: %w", err)
 	}
-	cfg.RedirectURL = "http://localhost:8085/callback"
+	if redirectURL != "" {
+		cfg.RedirectURL = redirectURL
+	} else {
+		cfg.RedirectURL = "http://localhost:8085/callback"
+	}
 	return cfg, nil
 }
 

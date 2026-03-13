@@ -1,6 +1,10 @@
 package google
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestMergeScopes(t *testing.T) {
 	tests := []struct {
@@ -58,6 +62,41 @@ func TestMergeScopes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// fakeCredentials returns a minimal Google OAuth credentials JSON for testing.
+func fakeCredentials(t *testing.T) string {
+	t.Helper()
+	cred := `{"installed":{"client_id":"test.apps.googleusercontent.com","client_secret":"secret","redirect_uris":["http://localhost"]}}`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "credentials.json")
+	if err := os.WriteFile(path, []byte(cred), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestLoadConfig_DefaultRedirectURL(t *testing.T) {
+	path := fakeCredentials(t)
+	cfg, err := loadConfig(path, []string{"openid"}, "")
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if cfg.RedirectURL != "http://localhost:8085/callback" {
+		t.Fatalf("expected default redirect, got %q", cfg.RedirectURL)
+	}
+}
+
+func TestLoadConfig_CustomRedirectURL(t *testing.T) {
+	path := fakeCredentials(t)
+	want := "https://example.ngrok-free.app/auth/google/callback"
+	cfg, err := loadConfig(path, []string{"openid"}, want)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if cfg.RedirectURL != want {
+		t.Fatalf("got %q, want %q", cfg.RedirectURL, want)
 	}
 }
 
