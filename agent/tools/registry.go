@@ -90,7 +90,7 @@ func (r *Registry) ToolNames() []string {
 	return names
 }
 
-const maxOutputBytes = 524288 // 512KB
+const maxOutputBytes = 102400 // 100KB
 
 // Execute implements agent.ToolExecutor.
 func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string, error) {
@@ -101,7 +101,7 @@ func (r *Registry) Execute(ctx context.Context, call provider.ToolCall) (string,
 	output, err := t.Execute(ctx, call.Input)
 	if len(output) > maxOutputBytes {
 		output = output[:maxOutputBytes] + fmt.Sprintf(
-			"\n...[output truncated, showing first 512KB of %dKB]", len(output)/1024)
+			"\n...[output truncated, showing first 100KB of %dKB]", len(output)/1024)
 	}
 	if r.auditor != nil {
 		errStr := ""

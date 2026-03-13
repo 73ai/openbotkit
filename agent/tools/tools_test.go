@@ -223,7 +223,7 @@ func TestBashAllowsEchoGWS(t *testing.T) {
 
 func TestRegistryExactlyAtLimit(t *testing.T) {
 	r := NewRegistry()
-	r.Register(&stubTool{name: "exact", output: strings.Repeat("x", 524288)})
+	r.Register(&stubTool{name: "exact", output: strings.Repeat("x", 102400)})
 
 	output, err := r.Execute(context.Background(), provider.ToolCall{
 		Name:  "exact",
@@ -232,14 +232,14 @@ func TestRegistryExactlyAtLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if output != strings.Repeat("x", 524288) {
+	if output != strings.Repeat("x", 102400) {
 		t.Errorf("output at exact limit should not be truncated")
 	}
 }
 
 func TestRegistryOneOverLimit(t *testing.T) {
 	r := NewRegistry()
-	r.Register(&stubTool{name: "over", output: strings.Repeat("x", 524289)})
+	r.Register(&stubTool{name: "over", output: strings.Repeat("x", 102401)})
 
 	output, err := r.Execute(context.Background(), provider.ToolCall{
 		Name:  "over",
