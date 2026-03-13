@@ -346,6 +346,30 @@ func TestGWSExecute_StripGWSPrefix(t *testing.T) {
 	}
 }
 
+func TestGWSExecute_ShlexParams(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+	// shlex splits: drive, files, list, --params, {"orderBy":"modifiedTime desc"}
+	// mock runner joins with space for lookup.
+	runner.outputs[`drive files list --params {"orderBy":"modifiedTime desc"}`] = `{"files":[]}`
+
+	cmd := `drive files list --params '{"orderBy":"modifiedTime desc"}'`
+	input, _ := json.Marshal(gwsInput{Command: cmd})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != `{"files":[]}` {
+		t.Errorf("result = %q", result)
+	}
+	if len(runner.ran) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runner.ran))
+	}
+	// --params and JSON should be 2 separate args, not split on internal spaces.
+	if len(runner.ran[0].args) != 5 {
+		t.Errorf("expected 5 args, got %d: %v", len(runner.ran[0].args), runner.ran[0].args)
+	}
+}
+
 func TestGWSExecute_TokenExpiredTriggersReAuth(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "tokens.db")

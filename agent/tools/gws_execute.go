@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/shlex"
 	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/oauth/google"
 )
@@ -93,7 +94,10 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 
 	slog.Info("gws_execute called", "command", in.Command)
-	args := strings.Fields(in.Command)
+	args, err := shlex.Split(in.Command)
+	if err != nil {
+		args = strings.Fields(in.Command)
+	}
 	// Strip leading "gws" if present — skill examples include it but the runner adds it.
 	if len(args) > 0 && args[0] == "gws" {
 		args = args[1:]
