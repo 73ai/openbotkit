@@ -89,6 +89,36 @@ func TestReceive_ReturnsIncomingMessage(t *testing.T) {
 	}
 }
 
+func TestReceiveMessage_ReturnsTextAndMessageID(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	ch.PushMessage("hello", 42)
+
+	msg, err := ch.ReceiveMessage()
+	if err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	if msg.text != "hello" {
+		t.Fatalf("expected text 'hello', got %q", msg.text)
+	}
+	if msg.messageID != 42 {
+		t.Fatalf("expected messageID 42, got %d", msg.messageID)
+	}
+}
+
+func TestReceiveMessage_EOFOnClose(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	ch.Close()
+
+	_, err := ch.ReceiveMessage()
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+}
+
 func TestReceive_EOFOnClose(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
@@ -199,11 +229,34 @@ func TestOwnerFilter_RejectsNonOwner(t *testing.T) {
 		},
 	})
 
-	text, err := ch.Receive()
+	msg, err := ch.ReceiveMessage()
 	if err != nil {
 		t.Fatalf("receive: %v", err)
 	}
-	if text != "hello owner" {
-		t.Fatalf("expected 'hello owner', got %q", text)
+	if msg.text != "hello owner" {
+		t.Fatalf("expected 'hello owner', got %q", msg.text)
+	}
+}
+
+func TestPoller_PassesMessageID(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	p := &Poller{ownerID: 123, channel: ch}
+
+	p.handleUpdate(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			MessageID: 777,
+			From:      &tgbotapi.User{ID: 123},
+			Text:      "hi",
+		},
+	})
+
+	msg, err := ch.ReceiveMessage()
+	if err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	if msg.messageID != 777 {
+		t.Fatalf("expected messageID 777, got %d", msg.messageID)
 	}
 }
