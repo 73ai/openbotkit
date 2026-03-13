@@ -52,7 +52,7 @@ func (g *Google) Client(ctx context.Context, account string, scopes []string) (*
 	}
 
 	baseSource := oauthCfg.TokenSource(ctx, tok)
-	persistSource := newDBTokenSource(account, store, baseSource, tok)
+	persistSource := newDBTokenSource(account, g.cfg.TokenDBPath, baseSource, tok)
 	return oauth2.NewClient(ctx, persistSource), nil
 }
 
@@ -184,7 +184,7 @@ func (g *Google) AccessToken(ctx context.Context, account string) (string, error
 	}
 
 	baseSource := oauthCfg.TokenSource(ctx, tok)
-	persistSource := newDBTokenSource(account, store, baseSource, tok)
+	persistSource := newDBTokenSource(account, g.cfg.TokenDBPath, baseSource, tok)
 	fresh, err := persistSource.Token()
 	if err != nil {
 		return "", fmt.Errorf("refresh token: %w", err)
