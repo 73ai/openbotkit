@@ -461,24 +461,64 @@ func TestFeedback_ContextCancellation(t *testing.T) {
 	}
 }
 
-func TestFeedback_UnknownTool_UsesDefaultFallback(t *testing.T) {
+func TestFeedback_FastToolIgnored(t *testing.T) {
 	bot := &feedbackBot{}
 	fb := newTestFeedback(bot, nil, "")
 	fb.timings.ackDelayMin = 10 * time.Second
 	fb.timings.ackDelayMax = 11 * time.Second
 
 	fb.Start(context.Background())
+	fb.Signal("bash")
 	fb.Signal("some_unknown_tool")
 	time.Sleep(100 * time.Millisecond)
 	fb.Stop()
 
-	if bot.sendCount() != 1 {
-		t.Fatalf("expected 1 fallback message, got %d", bot.sendCount())
+	if bot.sendCount() != 0 {
+		t.Errorf("fast/unknown tools should not trigger ack, got %d sends", bot.sendCount())
 	}
-	bot.mu.Lock()
-	msg := bot.sends[0].(tgbotapi.MessageConfig)
-	bot.mu.Unlock()
-	if msg.Text != defaultFallbackMsg {
-		t.Errorf("text = %q, want %q", msg.Text, defaultFallbackMsg)
+}
+
+func TestFeedback_ModelDecision_EmptyTextIgnored(t *testing.T) {
+	bot := &feedbackBot{}
+	p := &feedbackProvider{
+		responses: []*provider.ChatResponse{
+			ackResponse(`{"action":"text","text":""}`),
+		},
+	}
+	fb := newTestFeedback(bot, p, "fast-model")
+	fb.timings.ackDelayMin = 10 * time.Second
+	fb.timings.ackDelayMax = 11 * time.Second
+
+	fb.Start(context.Background())
+	fb.Signal("web_search")
+	time.Sleep(200 * time.Millisecond)
+	fb.Stop()
+
+	if bot.sendCount() != 0 {
+		t.Errorf("empty text should not send a message, got %d", bot.sendCount())
+	}
+}
+
+func TestFeedback_TypingContinuesDuringModelCall(t *testing.T) {
+	bot := &feedbackBot{}
+	// Provider that takes 300ms to respond
+	p := &feedbackProvider{
+		responses: []*provider.ChatResponse{
+			ackResponse(`{"action":"text","text":"checking"}`),
+		},
+	}
+	fb := newTestFeedback(bot, p, "fast-model")
+	fb.timings.typingInterval = 50 * time.Millisecond
+	fb.timings.ackDelayMin = 10 * time.Second
+	fb.timings.ackDelayMax = 11 * time.Second
+
+	fb.Start(context.Background())
+	fb.Signal("web_search")
+	time.Sleep(300 * time.Millisecond)
+	fb.Stop()
+
+	// Typing should have continued while model call ran
+	if bot.requestCount() < 3 {
+		t.Errorf("expected typing to continue during model call, got %d typing actions", bot.requestCount())
 	}
 }
