@@ -25,6 +25,10 @@ func (s *Server) handleGoogleAuthCallback(w http.ResponseWriter, r *http.Request
 	if !ok {
 		account = s.resolveAccount()
 	}
+	if len(scopes) == 0 {
+		http.Error(w, "missing scope context for this auth flow", http.StatusBadRequest)
+		return
+	}
 
 	account, err := s.google.ExchangeCode(r.Context(), code, account, scopes)
 	if err != nil {
