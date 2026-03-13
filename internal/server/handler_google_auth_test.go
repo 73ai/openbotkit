@@ -112,9 +112,13 @@ func TestHandleGoogleAuthCallback_EmptyAccountAttemptsExchange(t *testing.T) {
 	}
 	s.ctx = context.Background()
 
-	// With empty account, handler should still attempt exchange (not reject at 400).
+	// Register a waiter with scopes but empty account so Lookup succeeds.
+	// The handler should still attempt exchange (not reject at 400).
 	// The exchange fails because the code is fake, yielding 500.
-	req := httptest.NewRequest("GET", "/auth/google/callback?code=abc&state=unknown-state", nil)
+	go waiter.Wait("empty-account-state", 5*time.Second, []string{"openid"}, "")
+	time.Sleep(20 * time.Millisecond)
+
+	req := httptest.NewRequest("GET", "/auth/google/callback?code=abc&state=empty-account-state", nil)
 	rec := httptest.NewRecorder()
 	s.handleGoogleAuthCallback(rec, req)
 	if rec.Code != http.StatusInternalServerError {
