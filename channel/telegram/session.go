@@ -146,7 +146,9 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 		return
 	}
 
-	sm.channel.Send(response)
+	if err := sm.channel.Send(response); err != nil {
+		slog.Error("telegram session: send response", "error", err)
+	}
 
 	sm.mu.Lock()
 	sid := sm.sessionID

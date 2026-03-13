@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/priyanshujain/openbotkit/provider"
 )
@@ -122,6 +123,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 				return "", fmt.Errorf("rate limiter: %w", err)
 			}
 		}
+		slog.Info("llm request", "iteration", i, "messages", len(a.history), "tools", len(a.executor.ToolSchemas()))
 		resp, err := a.provider.Chat(ctx, provider.ChatRequest{
 			Model:        a.model,
 			System:       a.system,
@@ -135,6 +137,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		}
 
 		a.lastInputTokens = resp.Usage.InputTokens
+		slog.Info("llm response", "iteration", i, "input_tokens", resp.Usage.InputTokens, "output_tokens", resp.Usage.OutputTokens, "stop", resp.StopReason)
 		if a.usageRecorder != nil {
 			a.usageRecorder.RecordUsage(a.model, resp.Usage)
 		}

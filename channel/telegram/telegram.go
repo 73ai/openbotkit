@@ -52,6 +52,11 @@ func (c *Channel) Send(msg string) error {
 	m := tgbotapi.NewMessage(c.chatID, msg)
 	m.ParseMode = "Markdown"
 	_, err := c.bot.Send(m)
+	if err != nil {
+		// Markdown parse failed — retry as plain text.
+		m.ParseMode = ""
+		_, err = c.bot.Send(m)
+	}
 	return err
 }
 
