@@ -21,7 +21,6 @@ import (
 	"github.com/priyanshujain/openbotkit/source/scheduler"
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
-	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
 	"github.com/priyanshujain/openbotkit/store"
 )
 
@@ -312,31 +311,18 @@ func (sm *SessionManager) registerScheduleTools(reg *tools.Registry) {
 }
 
 func (sm *SessionManager) initWebSearch() {
-	var opts []wssrc.Option
-	if err := config.EnsureSourceDir("websearch"); err == nil {
-		db, err := store.Open(store.Config{
-			Driver: sm.cfg.WebSearch.Storage.Driver,
-			DSN:    sm.cfg.WebSearchDataDSN(),
-		})
-		if err == nil {
-			opts = append(opts, wssrc.WithDB(db))
-		}
-	}
-	sm.webSearch = wssrc.New(wssrc.Config{WebSearch: sm.cfg.WebSearch}, opts...)
+	ws, _ := tools.NewWebSearchInstance(tools.WebSearchSetup{
+		WSConfig: sm.cfg.WebSearch,
+		DSN:      sm.cfg.WebSearchDataDSN(),
+	})
+	sm.webSearch = ws
 
-	if sm.cfg.Models != nil && sm.cfg.Models.Fast != "" {
-		provRegistry, err := provider.NewRegistry(sm.cfg.Models)
-		if err == nil {
-			provName, model, err := provider.ParseModelSpec(sm.cfg.Models.Fast)
-			if err == nil {
-				if p, ok := provRegistry.Get(provName); ok {
-					sm.fastProvider = p
-					sm.fastModel = model
-				}
-			}
-		}
-	}
-	if sm.fastProvider == nil {
+	reg, err := provider.NewRegistry(sm.cfg.Models)
+	if err == nil {
+		sm.fastProvider, sm.fastModel = tools.ResolveFastProvider(
+			sm.cfg.Models, reg, sm.provider, sm.model,
+		)
+	} else {
 		sm.fastProvider = sm.provider
 		sm.fastModel = sm.model
 	}

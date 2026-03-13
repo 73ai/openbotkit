@@ -16,7 +16,6 @@ import (
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
-	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
 	"github.com/priyanshujain/openbotkit/store"
 
 	// Register provider factories.
@@ -252,51 +251,15 @@ func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
 // registerWebTools adds web_search and web_fetch tools. Returns an optional
 // DB handle that the caller must close when done.
 func registerWebTools(cfg *config.Config, reg *tools.Registry, provRegistry *provider.Registry, defaultP provider.Provider, defaultModel string) *store.DB {
-	var (
-		opts []wssrc.Option
-		wsDB *store.DB
-	)
-	if err := config.EnsureSourceDir("websearch"); err == nil {
-		db, err := store.Open(store.Config{
-			Driver: cfg.WebSearch.Storage.Driver,
-			DSN:    cfg.WebSearchDataDSN(),
-		})
-		if err == nil {
-			wsDB = db
-			opts = append(opts, wssrc.WithDB(db))
-		}
-	}
-
-	ws := wssrc.New(wssrc.Config{WebSearch: cfg.WebSearch}, opts...)
-
-	fastP, fastModel := resolveFastProvider(cfg, provRegistry)
-	if fastP == nil {
-		fastP = defaultP
-		fastModel = defaultModel
-	}
-	deps := tools.WebToolDeps{
-		WS:       ws,
-		Provider: fastP,
-		Model:    fastModel,
-	}
+	ws, wsDB := tools.NewWebSearchInstance(tools.WebSearchSetup{
+		WSConfig: cfg.WebSearch,
+		DSN:      cfg.WebSearchDataDSN(),
+	})
+	fastP, fastModel := tools.ResolveFastProvider(cfg.Models, provRegistry, defaultP, defaultModel)
+	deps := tools.WebToolDeps{WS: ws, Provider: fastP, Model: fastModel}
 	reg.Register(tools.NewWebSearchTool(deps))
 	reg.Register(tools.NewWebFetchTool(deps))
 	return wsDB
-}
-
-func resolveFastProvider(cfg *config.Config, reg *provider.Registry) (provider.Provider, string) {
-	if cfg.Models == nil || cfg.Models.Fast == "" {
-		return nil, ""
-	}
-	provName, model, err := provider.ParseModelSpec(cfg.Models.Fast)
-	if err != nil {
-		return nil, ""
-	}
-	p, ok := reg.Get(provName)
-	if !ok {
-		return nil, ""
-	}
-	return p, model
 }
 
 func init() {
