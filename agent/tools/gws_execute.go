@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -132,7 +133,19 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error) {
 	env, err := g.bridge.Env(ctx)
 	if err != nil {
-		return "", fmt.Errorf("get token: %w", err)
+		slog.Warn("gws_execute: token error, attempting re-auth", "error", err)
+		service := gwsServiceFromCommand(args)
+		scopes := g.scopesForService(service)
+		if len(scopes) == 0 {
+			return "", fmt.Errorf("get token: %w", err)
+		}
+		if cerr := g.requestConsent(ctx, scopes); cerr != nil {
+			return "", fmt.Errorf("get token: %w (re-auth also failed: %v)", err, cerr)
+		}
+		env, err = g.bridge.Env(ctx)
+		if err != nil {
+			return "", fmt.Errorf("get token after re-auth: %w", err)
+		}
 	}
 	out, runErr := g.runner.Run(ctx, args, env)
 	out = TruncateHeadTail(out, 500, 500)
