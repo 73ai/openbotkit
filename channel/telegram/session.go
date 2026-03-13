@@ -278,6 +278,7 @@ func (sm *SessionManager) newAgent(history []provider.Message) (*agent.Agent, *u
 	if sm.cfg.Timezone != "" {
 		extras += "The user's timezone is " + sm.cfg.Timezone + ". Convert all times to this timezone.\n"
 	}
+	extras += "To update the user's timezone, run: obk config set timezone <IANA timezone>\n"
 	extras += sm.userMemoriesPrompt()
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
