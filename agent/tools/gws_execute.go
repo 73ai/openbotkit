@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -71,7 +72,15 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 		"properties": {
 			"command": {
 				"type": "string",
-				"description": "The gws command to execute (e.g. 'calendar events.list --maxResults 10')"
+				"description": "The gws command without --params or --json flags (e.g. 'drive files list', 'calendar events list')"
+			},
+			"params": {
+				"type": "object",
+				"description": "URL/query parameters as a JSON object (becomes --params flag)"
+			},
+			"body": {
+				"type": "object",
+				"description": "Request body as a JSON object (becomes --json flag)"
 			}
 		},
 		"required": ["command"]
@@ -79,7 +88,9 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 }
 
 type gwsInput struct {
-	Command string `json:"command"`
+	Command string          `json:"command"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
 }
 
 func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -91,10 +102,18 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 		return "", fmt.Errorf("command is required")
 	}
 
+	slog.Info("gws_execute called", "command", in.Command)
 	args := strings.Fields(in.Command)
-	// Strip leading "gws" if present — the runner already adds it.
+	// Strip leading "gws" if present.
 	if len(args) > 0 && args[0] == "gws" {
 		args = args[1:]
+	}
+	// Append structured params/body as flags.
+	if len(in.Params) > 0 && string(in.Params) != "null" {
+		args = append(args, "--params", string(in.Params))
+	}
+	if len(in.Body) > 0 && string(in.Body) != "null" {
+		args = append(args, "--json", string(in.Body))
 	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)
@@ -132,7 +151,20 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error) {
 	env, err := g.bridge.Env(ctx)
 	if err != nil {
-		return "", fmt.Errorf("get token: %w", err)
+		slog.Warn("gws_execute: token error, attempting re-auth", "error", err)
+		// Token expired or refresh failed — trigger re-consent and retry.
+		service := gwsServiceFromCommand(args)
+		scopes := g.scopesForService(service)
+		if len(scopes) == 0 {
+			return "", fmt.Errorf("get token: %w", err)
+		}
+		if cerr := g.requestConsent(ctx, scopes); cerr != nil {
+			return "", fmt.Errorf("get token: %w (re-auth also failed: %v)", err, cerr)
+		}
+		env, err = g.bridge.Env(ctx)
+		if err != nil {
+			return "", fmt.Errorf("get token after re-auth: %w", err)
+		}
 	}
 	return g.runner.Run(ctx, args, env)
 }
@@ -157,6 +189,16 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 	if err := g.scopeWaiter.Wait(state, g.authTimeout, scopes, g.account); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
+
+	// After first-time auth, discover the account from the token store.
+	if g.account == "" {
+		accounts, err := g.google.Accounts(ctx)
+		if err == nil && len(accounts) > 0 {
+			g.account = accounts[0]
+			g.bridge.SetAccount(accounts[0])
+		}
+	}
+
 	if err := g.interactor.Notify("Access granted, thanks!"); err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}

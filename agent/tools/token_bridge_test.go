@@ -72,3 +72,48 @@ func TestTokenBridge_Env(t *testing.T) {
 		t.Errorf("env var missing token: %q", env[0])
 	}
 }
+
+func TestTokenBridge_SetAccount(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tokens.db")
+
+	store, err := google.NewTokenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := &oauth2.Token{
+		AccessToken:  "new-token",
+		RefreshToken: "refresh",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	if err := store.SaveToken("discovered@example.com", tok, []string{"openid", "email"}); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	credPath := writeTestCreds(t, dir)
+	g := google.New(google.Config{
+		CredentialsFile: credPath,
+		TokenDBPath:     dbPath,
+	})
+
+	// Start with empty account (first-time auth scenario).
+	bridge := NewTokenBridge(g, "")
+
+	// Env should fail with empty account.
+	_, err = bridge.Env(context.Background())
+	if err == nil {
+		t.Fatal("expected error with empty account")
+	}
+
+	// After auth, update the account.
+	bridge.SetAccount("discovered@example.com")
+	env, err := bridge.Env(context.Background())
+	if err != nil {
+		t.Fatalf("Env after SetAccount: %v", err)
+	}
+	if !strings.Contains(env[0], "new-token") {
+		t.Errorf("env var missing token: %q", env[0])
+	}
+}

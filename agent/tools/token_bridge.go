@@ -16,6 +16,10 @@ func NewTokenBridge(g *google.Google, account string) *TokenBridge {
 	return &TokenBridge{google: g, account: account}
 }
 
+func (tb *TokenBridge) SetAccount(account string) {
+	tb.account = account
+}
+
 // Env returns environment variables with the access token for gws.
 func (tb *TokenBridge) Env(ctx context.Context) ([]string, error) {
 	token, err := tb.google.AccessToken(ctx, tb.account)

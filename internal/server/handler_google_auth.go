@@ -25,17 +25,15 @@ func (s *Server) handleGoogleAuthCallback(w http.ResponseWriter, r *http.Request
 	if !ok {
 		account = s.resolveAccount()
 	}
-	if account == "" {
-		http.Error(w, "no Google account configured", http.StatusBadRequest)
-		return
-	}
 
-	if err := s.google.ExchangeCode(r.Context(), code, account, scopes); err != nil {
+	account, err := s.google.ExchangeCode(r.Context(), code, account, scopes)
+	if err != nil {
 		slog.Error("google auth callback: exchange code", "error", err)
 		s.scopeWaiter.Signal(state, err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
+	slog.Info("google auth callback: success", "account", account)
 
 	s.scopeWaiter.Signal(state, nil)
 
