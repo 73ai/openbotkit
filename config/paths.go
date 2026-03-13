@@ -54,3 +54,15 @@ func JobsDBPath() string {
 func AuditDBPath() string {
 	return filepath.Join(Dir(), "audit", "data.db")
 }
+
+func ScratchDir(sessionID string) string {
+	return filepath.Join(Dir(), "scratch", sessionID)
+}
+
+func EnsureScratchDir(sessionID string) error {
+	return os.MkdirAll(ScratchDir(sessionID), 0700)
+}
+
+func CleanScratch(sessionID string) error {
+	return os.RemoveAll(ScratchDir(sessionID))
+}
