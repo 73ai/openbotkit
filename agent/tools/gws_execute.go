@@ -72,7 +72,15 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 		"properties": {
 			"command": {
 				"type": "string",
-				"description": "The gws command to execute (e.g. 'calendar events.list --maxResults 10')"
+				"description": "The gws command without --params or --json flags (e.g. 'drive files list', 'calendar events list')"
+			},
+			"params": {
+				"type": "object",
+				"description": "URL/query parameters as a JSON object (becomes --params flag)"
+			},
+			"body": {
+				"type": "object",
+				"description": "Request body as a JSON object (becomes --json flag)"
 			}
 		},
 		"required": ["command"]
@@ -80,7 +88,9 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 }
 
 type gwsInput struct {
-	Command string `json:"command"`
+	Command string          `json:"command"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
 }
 
 func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -93,9 +103,16 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 
 	args := strings.Fields(in.Command)
-	// Strip leading "gws" if present — the runner already adds it.
+	// Strip leading "gws" if present.
 	if len(args) > 0 && args[0] == "gws" {
 		args = args[1:]
+	}
+	// Append structured params/body as flags.
+	if len(in.Params) > 0 && string(in.Params) != "null" {
+		args = append(args, "--params", string(in.Params))
+	}
+	if len(in.Body) > 0 && string(in.Body) != "null" {
+		args = append(args, "--json", string(in.Body))
 	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)

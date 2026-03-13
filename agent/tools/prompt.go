@@ -59,6 +59,12 @@ The sub-agent has its own tools (bash, file ops, skills) but cannot spawn furthe
 		b.WriteString(`
 ## Google Workspace
 Use the gws_execute tool for all Google Workspace operations (Calendar, Drive, Docs, Sheets, Tasks, Contacts).
+BEFORE your first gws_execute call, ALWAYS use load_skills to load the relevant gws skill for correct command syntax.
+For example, to list files load gws-drive; to read a doc load gws-docs; to check calendar load gws-calendar.
+Tip: listing or searching Google Docs/Sheets/Slides requires gws-drive (files list with mimeType filter), not gws-docs.
+The tool accepts structured input: "command" for the base command, "params" for query parameters (JSON object), and "body" for request bodies (JSON object).
+Example: {"command": "drive files list", "params": {"q": "mimeType='application/vnd.google-apps.document'", "orderBy": "modifiedTime desc", "pageSize": 5}}
+Do NOT put --params or --json in the command string — use the params and body fields instead.
 Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
 The tool handles authentication, scope checks, and approval for write operations automatically.
 When a tool result includes "user notified", keep your response brief — the user already got the details.
