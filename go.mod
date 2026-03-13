@@ -19,6 +19,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/yuin/goldmark v1.7.13
 	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20260227112304-c9652e4448a2
 	golang.org/x/crypto v0.48.0
@@ -89,7 +90,6 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/leonid-shevtsov/telegold v0.0.0-20221113220506-36dc899eb9ea // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
@@ -132,7 +132,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	github.com/yuin/goldmark v1.7.13 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.mau.fi/libsignal v0.2.1 // indirect
 	go.mau.fi/util v0.9.6 // indirect
