@@ -50,7 +50,8 @@ type SessionManager struct {
 	mu        sync.Mutex
 	sessionID string
 	timer     *time.Timer
-	messages  []string // user messages collected in this session
+	messages  []string           // user messages collected in this session
+	history   []provider.Message // conversation history for context
 }
 
 // SessionManagerDeps holds optional GWS-related dependencies.
@@ -105,7 +106,12 @@ func (sm *SessionManager) Run(ctx context.Context) {
 func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
 	sm.touchSession()
 
-	a, recorder, auditLogger, err := sm.newAgent()
+	sm.mu.Lock()
+	priorHistory := make([]provider.Message, len(sm.history))
+	copy(priorHistory, sm.history)
+	sm.mu.Unlock()
+
+	a, recorder, auditLogger, err := sm.newAgent(priorHistory)
 	if err != nil {
 		slog.Error("telegram session: create agent", "error", err)
 		sm.channel.Send(fmt.Sprintf("Error: %v", err))
@@ -130,6 +136,10 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string) {
 	sm.mu.Lock()
 	sid := sm.sessionID
 	sm.messages = append(sm.messages, text)
+	sm.history = append(sm.history,
+		provider.NewTextMessage(provider.RoleUser, text),
+		provider.NewTextMessage(provider.RoleAssistant, response),
+	)
 	sm.mu.Unlock()
 
 	sm.saveHistory(sid, text, response)
@@ -167,6 +177,7 @@ func (sm *SessionManager) endSession() {
 	messages := sm.messages
 	sm.sessionID = ""
 	sm.messages = nil
+	sm.history = nil
 	sm.mu.Unlock()
 
 	if len(messages) > 0 {
@@ -230,7 +241,7 @@ func (sm *SessionManager) gwsEnabled() bool {
 	return sm.cfg.Integrations != nil && sm.cfg.Integrations.GWS != nil && sm.cfg.Integrations.GWS.Enabled
 }
 
-func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, *audit.Logger, error) {
+func (sm *SessionManager) newAgent(history []provider.Message) (*agent.Agent, *usagesrc.Recorder, *audit.Logger, error) {
 	toolReg := tools.NewStandardRegistry()
 	al := sm.openAuditLogger()
 	if al != nil {
@@ -267,6 +278,9 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, *audit.L
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	opts := []agent.Option{agent.WithSystemBlocks(blocks)}
+	if len(history) > 0 {
+		opts = append(opts, agent.WithHistory(history))
+	}
 	recorder := sm.openUsageRecorder()
 	if recorder != nil {
 		opts = append(opts, agent.WithUsageRecorder(recorder))

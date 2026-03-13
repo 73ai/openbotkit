@@ -32,6 +32,7 @@ func (s *Server) handleGoogleAuthCallback(w http.ResponseWriter, r *http.Request
 
 	if err := s.google.ExchangeCode(r.Context(), code, account, scopes); err != nil {
 		slog.Error("google auth callback: exchange code", "error", err)
+		s.scopeWaiter.Signal(state, err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}

@@ -1,6 +1,10 @@
 package google
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestMergeScopes(t *testing.T) {
 	tests := []struct {
@@ -61,17 +65,61 @@ func TestMergeScopes(t *testing.T) {
 	}
 }
 
-func TestImplicitScopesIncluded(t *testing.T) {
-	// loadConfig should always include openid + email.
-	// We can't call loadConfig without a real file, but we can verify the constant.
-	if len(implicitScopes) != 2 {
-		t.Fatalf("expected 2 implicit scopes, got %d", len(implicitScopes))
+// fakeCredentials returns a minimal Google OAuth credentials JSON for testing.
+func fakeCredentials(t *testing.T) string {
+	t.Helper()
+	cred := `{"installed":{"client_id":"test.apps.googleusercontent.com","client_secret":"secret","redirect_uris":["http://localhost"]}}`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "credentials.json")
+	if err := os.WriteFile(path, []byte(cred), 0600); err != nil {
+		t.Fatal(err)
 	}
-	found := map[string]bool{}
-	for _, s := range implicitScopes {
-		found[s] = true
+	return path
+}
+
+func TestLoadConfig_DefaultRedirectURL(t *testing.T) {
+	path := fakeCredentials(t)
+	cfg, err := loadConfig(path, []string{"openid"}, "")
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
 	}
-	if !found["openid"] || !found["email"] {
-		t.Errorf("implicit scopes should contain openid and email, got %v", implicitScopes)
+	if cfg.RedirectURL != "http://localhost:8085/callback" {
+		t.Fatalf("expected default redirect, got %q", cfg.RedirectURL)
+	}
+}
+
+func TestLoadConfig_CustomRedirectURL(t *testing.T) {
+	path := fakeCredentials(t)
+	want := "https://example.ngrok-free.app/auth/google/callback"
+	cfg, err := loadConfig(path, []string{"openid"}, want)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if cfg.RedirectURL != want {
+		t.Fatalf("got %q, want %q", cfg.RedirectURL, want)
+	}
+}
+
+func TestLoadConfig_MergesImplicitScopes(t *testing.T) {
+	path := fakeCredentials(t)
+	cfg, err := loadConfig(path, []string{"https://www.googleapis.com/auth/drive"}, "")
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	scopeSet := make(map[string]bool)
+	for _, s := range cfg.Scopes {
+		scopeSet[s] = true
+	}
+	for _, want := range []string{"openid", "email", "https://www.googleapis.com/auth/drive"} {
+		if !scopeSet[want] {
+			t.Errorf("missing scope %q in %v", want, cfg.Scopes)
+		}
+	}
+}
+
+func TestLoadConfig_MissingFile(t *testing.T) {
+	_, err := loadConfig("/nonexistent/credentials.json", []string{"openid"}, "")
+	if err == nil {
+		t.Fatal("expected error for missing credentials file")
 	}
 }

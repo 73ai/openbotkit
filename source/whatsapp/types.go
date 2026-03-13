@@ -34,6 +34,7 @@ type Contact struct {
 
 type Config struct {
 	SessionDBPath string
+	DataDSN       string
 }
 
 type SyncOptions struct {

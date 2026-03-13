@@ -9,27 +9,33 @@ import (
 )
 
 const unitTemplate = `[Unit]
-Description=OpenBotKit Daemon
+Description=OpenBotKit %s
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=%s service run
-Restart=on-failure
+ExecStart=%s %s
+%sRestart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=default.target
 `
 
-type systemdManager struct{}
+type systemdManager struct {
+	name string
+}
+
+func (m *systemdManager) unitName() string {
+	return "obk-" + m.name
+}
 
 func (m *systemdManager) unitPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)
 	}
-	return filepath.Join(home, ".config", "systemd", "user", "obk.service"), nil
+	return filepath.Join(home, ".config", "systemd", "user", m.unitName()+".service"), nil
 }
 
 func (m *systemdManager) Install(cfg *ServiceConfig) error {
@@ -42,7 +48,14 @@ func (m *systemdManager) Install(cfg *ServiceConfig) error {
 		return fmt.Errorf("create systemd user dir: %w", err)
 	}
 
-	content := fmt.Sprintf(unitTemplate, cfg.BinaryPath)
+	argsStr := strings.Join(cfg.Args, " ")
+
+	var envLines string
+	for k, v := range cfg.Env {
+		envLines += fmt.Sprintf("Environment=%s=%s\n", k, v)
+	}
+
+	content := fmt.Sprintf(unitTemplate, cfg.Name, cfg.BinaryPath, argsStr, envLines)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write unit file: %w", err)
 	}
@@ -51,7 +64,8 @@ func (m *systemdManager) Install(cfg *ServiceConfig) error {
 		return fmt.Errorf("daemon-reload: %w", err)
 	}
 
-	if err := exec.Command("systemctl", "--user", "enable", "--now", "obk").Run(); err != nil {
+	unit := m.unitName()
+	if err := exec.Command("systemctl", "--user", "enable", "--now", unit).Run(); err != nil {
 		return fmt.Errorf("enable service: %w", err)
 	}
 
@@ -59,21 +73,22 @@ func (m *systemdManager) Install(cfg *ServiceConfig) error {
 }
 
 func (m *systemdManager) Start() error {
-	if err := exec.Command("systemctl", "--user", "start", "obk").Run(); err != nil {
+	if err := exec.Command("systemctl", "--user", "start", m.unitName()).Run(); err != nil {
 		return fmt.Errorf("start service: %w", err)
 	}
 	return nil
 }
 
 func (m *systemdManager) Stop() error {
-	if err := exec.Command("systemctl", "--user", "stop", "obk").Run(); err != nil {
+	if err := exec.Command("systemctl", "--user", "stop", m.unitName()).Run(); err != nil {
 		return fmt.Errorf("stop service: %w", err)
 	}
 	return nil
 }
 
 func (m *systemdManager) Uninstall() error {
-	_ = exec.Command("systemctl", "--user", "disable", "--now", "obk").Run()
+	unit := m.unitName()
+	_ = exec.Command("systemctl", "--user", "disable", "--now", unit).Run()
 
 	path, err := m.unitPath()
 	if err != nil {
@@ -90,7 +105,7 @@ func (m *systemdManager) Uninstall() error {
 }
 
 func (m *systemdManager) Status() (string, error) {
-	out, err := exec.Command("systemctl", "--user", "is-active", "obk").Output()
+	out, err := exec.Command("systemctl", "--user", "is-active", m.unitName()).Output()
 	if err != nil {
 		return "not running", nil
 	}

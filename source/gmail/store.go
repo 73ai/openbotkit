@@ -26,7 +26,7 @@ func SaveEmail(db *store.DB, email *Email) (int64, error) {
 		db.Rebind(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, subject, date, body, html_body)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
 		email.MessageID, email.Account, email.From, email.To,
-		email.Subject, email.Date, email.Body, email.HTMLBody,
+		email.Subject, email.Date.UTC(), email.Body, email.HTMLBody,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "duplicate key") {

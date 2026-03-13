@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -58,7 +59,21 @@ func (w *WhatsApp) Login(ctx context.Context) error {
 		return fmt.Errorf("already authenticated; run 'obk whatsapp auth logout' first to re-authenticate")
 	}
 
-	return ServeQR(ctx, client, ":8085")
+	var dataDB *store.DB
+	if w.cfg.DataDSN != "" {
+		dataDB, err = store.Open(store.Config{Driver: "sqlite", DSN: w.cfg.DataDSN})
+		if err != nil {
+			slog.Warn("whatsapp login: could not open data db for history backfill", "error", err)
+		} else {
+			defer dataDB.Close()
+			if err := Migrate(dataDB); err != nil {
+				slog.Warn("whatsapp login: migrate data db", "error", err)
+				dataDB = nil
+			}
+		}
+	}
+
+	return ServeQR(ctx, client, ":8085", dataDB)
 }
 
 func (w *WhatsApp) Logout(ctx context.Context) error {

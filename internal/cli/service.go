@@ -58,12 +58,12 @@ var serviceInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install obk as a system service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
 
-		cfg, err := service.DefaultConfig()
+		cfg, err := service.DefaultConfig("daemon", []string{"service", "run"})
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,7 @@ var serviceUninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Uninstall the obk system service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
@@ -99,7 +99,7 @@ var serviceStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check the service status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ var serviceStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the obk service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ var serviceStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the obk service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ var serviceRestartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "Restart the obk service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := service.NewManager()
+		mgr, err := service.NewManager("daemon")
 		if err != nil {
 			return err
 		}
@@ -181,4 +181,5 @@ func init() {
 	serviceCmd.AddCommand(serviceStopCmd)
 	serviceCmd.AddCommand(serviceRestartCmd)
 	serviceCmd.AddCommand(serviceStatusCmd)
+	serviceCmd.AddCommand(newLogsCmd("daemon"))
 }

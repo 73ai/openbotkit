@@ -1,131 +1,172 @@
 # OpenBotKit
 
-A DIY kit for building your own AI assistant. Runs on your machine, talks to your data, answers to you.
+A personal AI assistant that runs on your machine, connects to your email and messages, and **always asks before acting**.
 
-## Why
+![OpenBotKit Architecture](docs/architecture.png)
 
-AI assistants today have a real problem. They get access to your email, messages, and files, then run autonomously in the background. They hallucinate. They act on wrong assumptions. They send things you didn't mean to send. And you can't see what they're doing because the whole thing is a black box running on someone else's servers.
+## The Problem
 
-We think the fix is pretty simple: **safety**, **no slop**, and **more control**.
+AI agents can now read your email, send messages, and browse the web on your behalf. But most of them:
 
-### Safety
+- Run autonomously with no approval flow — sending emails you didn't review
+- Store your personal data on someone else's servers
+- Get WhatsApp accounts blocked by spamming contacts without limits
+- Operate as a black box — you can't see what they're doing
 
-The assistant runs through Claude Code. You see every database query, every message it sends, every command it runs. You approve it or you don't. There are no autonomous loops running behind your back. If the assistant wants to email someone or message a contact, you're in the loop before it happens.
+## How OpenBotKit Is Different
 
-Your data syncs into local SQLite databases on your machine. Nothing leaves your device unless you explicitly send it. `obk` connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes on your Mac. No relay server, no cloud middleware, no third-party backend sitting between you and your data.
+**Every action needs your permission.** When the assistant wants to send an email or a WhatsApp message, it sends you a preview on Telegram with Approve and Deny buttons. You review it, you decide. This is enforced in code — the AI cannot skip this step.
 
-### No slop
+**Your data stays on your device.** Emails, messages, notes, and contacts sync into SQLite databases on your machine. OpenBotKit connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes. No cloud relay, no third-party middleware.
 
-The AI assistant space is full of slop. Bloated agent frameworks. Magic tool-calling you can't inspect. 200-dependency packages that break every other week. "AI-powered" wrappers that add latency and nothing else.
+**Everything is transparent.** Every database query, every API call, every message draft — you can see it all. The assistant's skills are plain text files you can read in 30 seconds. The data is SQLite you can query with `sqlite3`.
 
-OpenBotKit is a single Go binary. Your data lives in SQLite files you can query yourself with `sqlite3`. Every skill the assistant uses is a plain text file with SQL patterns and CLI commands. You can read the whole thing in 30 seconds. There's no hidden complexity.
+## How It Works
 
-### More control
+1. Your data syncs locally from Gmail, WhatsApp, Apple Notes, and other sources
+2. You talk to the assistant via Telegram or the terminal
+3. The assistant reads your local data to answer questions
+4. When it wants to **send** something, it asks for your approval first on Telegram
+5. You approve or deny — then it acts
 
-Think of it like a meal kit instead of a pre-made meal. You get the ingredients (data connectors, a sync engine, a local database, a CLI, and assistant scaffolding) and you put it together yourself. You pick which sources to connect. You pick what the assistant can access. You can modify any skill, write new ones, or rip out what you don't need. If you don't like how something works, you change it.
+## Integrations
 
-## What's in the kit
+| Source | What it does |
+|--------|-------------|
+| **Gmail** | Read, search, and send emails. OAuth2 authentication. |
+| **WhatsApp** | Read and send messages. Native protocol, QR code linking. |
+| **Apple Notes** | Search and read notes on macOS. |
+| **iMessage** | Read iMessage conversations on macOS. |
+| **Contacts** | Search your address book by name. |
+| **Web Search** | Search the web using multiple backends. No API keys needed. |
+| **Slack** | Read channels and send messages. |
+| **Scheduler** | Create scheduled tasks and reminders. |
 
-| Component | What it does |
-|---|---|
-| **Sources** | Connectors for Gmail, WhatsApp, Apple Notes, and conversation history |
-| **Sync engine** | Background daemon (launchd/systemd) keeps your local data fresh |
-| **CLI** (`obk`) | Search, read, and send across all sources from the terminal |
-| **Assistant scaffolding** | Pre-configured Claude Code setup with skills for natural-language access |
+| Channel | How you interact |
+|---------|-----------------|
+| **Telegram** | Chat with your assistant + approve/deny actions with buttons |
+| **Terminal** | Direct CLI interaction for power users |
 
-## Install
+## Quick Start
+
+### 1. Install
 
 ```bash
-go install github.com/priyanshujain/openbotkit@latest
-```
-
-Or build from source:
-
-```bash
+# Build from source
 git clone https://github.com/priyanshujain/openbotkit.git
 cd openbotkit && make install
 ```
 
-## Quick Start
+### 2. Set up your sources
 
 ```bash
-# Guided setup: pick your sources, authenticate, run first sync
-obk setup
-
-# Or configure manually:
+# Initialize configuration
 obk config init
-obk gmail auth login          # OAuth2 browser flow
+
+# Connect Gmail (opens browser for OAuth2)
+obk gmail auth login
 obk gmail sync
-obk whatsapp auth login       # scan QR code
+
+# Connect WhatsApp (scan QR code with your phone)
+obk whatsapp auth login
 obk whatsapp sync
 
 # Check what's connected
 obk status
 ```
 
-## How it works
-
-```mermaid
-flowchart LR
-    You --> Agent["Claude Code (or any agent)"]
-    Agent --> Skills
-    Skills --> sqlite3
-    Skills --> obk["obk CLI"]
-    obk --> Gmail
-    obk --> WhatsApp
-    obk --> Notes["Apple Notes"]
-    sqlite3 --> DB["~/.obk/*.db"]
-    obk --> DB
-```
-
-## Building Your Assistant
-
-The `assistant/` directory is a ready-to-use Claude Code workspace with skills wired to your synced data.
+### 3. Connect Telegram (for approvals)
 
 ```bash
-ln -s /path/to/openbotkit/assistant ~/assistant
-cd ~/assistant && claude
+# Set up Telegram bot for chat + approval flow
+obk telegram setup
 ```
 
-From there you can ask things like:
+### 4. Start your assistant
 
-- *"Do I have any unread emails from Stripe?"*
-- *"Tell David I'll be 10 minutes late"* (sends via WhatsApp)
-- *"Draft a reply to the invoice email from yesterday"*
-- *"What did we discuss about the API redesign last week?"*
-- *"Find my notes about the Berlin trip"*
+```bash
+# Start the assistant
+cd assistant && claude
 
-Each skill is just a plain text file with SQL patterns and CLI commands. You can read them, change them, or write your own. No magic. See [`assistant/`](assistant/) for setup details.
+# Or use Telegram as your interface
+obk agent start
+```
 
-## Data directory
+Ask things like:
 
-Config and all synced data live under `~/.obk/` (override with `OBK_CONFIG_DIR`). Run `obk config show` to see your current configuration.
+- *"What emails did I get today?"*
+- *"Tell David I'll be 10 minutes late"* → sends via WhatsApp after your approval
+- *"Draft a reply to the invoice email from yesterday"* → shows draft on Telegram, you approve
+- *"Search the web for flights to Bangkok next week"*
+- *"Remind me to call the dentist tomorrow at 9am"*
+
+## Safety
+
+Safety is not a feature — it's the foundation. OpenBotKit has 8 defense layers:
+
+1. **Approval gates** — Every write action (send email, send message) requires explicit approval, enforced in code. The AI cannot bypass this.
+2. **Local-first data** — Your data lives in SQLite on your machine. Nothing leaves unless you send it.
+3. **Prompt injection defense** — Content boundaries, injection scanning (plain text, base64, homoglyph), and system prompt hardening.
+4. **Tiered risk levels** — Low-risk actions notify you. Medium-risk actions need approval. High-risk actions need approval with full preview.
+5. **Bash command filtering** — Dangerous commands are blocked. Scheduled tasks only allow `obk` and `sqlite3`.
+6. **Rubber-stamp detection** — If you approve too many actions too quickly, the system warns you to slow down.
+7. **Restricted unattended mode** — Scheduled tasks get fewer tools and no file write access.
+8. **Audit logging** — Every tool execution is logged locally. You can review what happened anytime.
+
+Read the full safety architecture: [`docs/safety.md`](docs/safety.md)
+
+## Architecture
+
+OpenBotKit is a single Go binary. No bloated frameworks, no 200-dependency packages.
+
+| Component | What it does |
+|-----------|-------------|
+| **Sources** | Data connectors for Gmail, WhatsApp, Apple Notes, iMessage, Slack, Contacts, Web |
+| **Sync engine** | Background daemon (launchd/systemd) keeps your local data fresh |
+| **CLI** (`obk`) | Search, read, and send across all sources from the terminal |
+| **Agent** | Built-in agent loop with tool use, safety gates, and multi-LLM support |
+| **Skills** | 14 plain-text skill definitions that the agent loads on demand |
+| **Channels** | Telegram bot and CLI for interaction; Telegram for approval flow |
+
+### Supported LLM Providers
+
+- Anthropic Claude (default)
+- OpenAI
+- Google Gemini
+
+## Data Directory
+
+All data lives under `~/.obk/` (override with `OBK_CONFIG_DIR`):
 
 ```
 ~/.obk/
 ├── config.yaml
 ├── gmail/
-│   ├── credentials.json    # Google OAuth client creds
-│   ├── tokens.db           # OAuth tokens
 │   ├── data.db             # Synced emails
 │   └── attachments/        # Downloaded attachments
 ├── whatsapp/
-│   ├── session.db          # WhatsApp session
 │   └── data.db             # Synced messages
 ├── applenotes/
 │   └── data.db             # Synced notes
 ├── history/
 │   └── data.db             # Conversation history
-└── user_memory/
-    └── data.db             # Personal facts about the user
+├── user_memory/
+│   └── data.db             # Personal memory
+└── audit/
+    └── data.db             # Audit log
 ```
 
 ## Prerequisites
 
-- macOS (OpenBotKit is built with macOS as the primary target)
+- macOS (primary target; Linux supported for server deployment)
 - Go 1.25+
-- Gmail requires API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-- WhatsApp requires scanning a QR code to link your phone
+- Gmail: API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- WhatsApp: Phone with WhatsApp to scan QR code
+- Telegram: Bot token from [@BotFather](https://t.me/botfather) (for approval flow)
+
+## Contributing
+
+OpenBotKit is open source. Read the code, open issues, send pull requests.
 
 ## License
 

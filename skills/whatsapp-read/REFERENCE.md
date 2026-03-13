@@ -14,8 +14,14 @@ obk db whatsapp "SELECT timestamp, sender_name, text FROM whatsapp_messages WHER
 # Search messages by text
 obk db whatsapp "SELECT timestamp, sender_name, text FROM whatsapp_messages WHERE LOWER(text) LIKE '%keyword%' ORDER BY timestamp DESC LIMIT 20;"
 
-# Messages from a specific person
-obk db whatsapp "SELECT timestamp, text FROM whatsapp_messages WHERE LOWER(sender_name) LIKE '%name%' ORDER BY timestamp DESC LIMIT 20;"
+# Messages from a specific person (always look up contact first, sender_name is often empty)
+# Step 1: Find their JID
+obk db whatsapp "SELECT jid, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
+# Step 2: Query messages by their JID (use chat_jid for 1:1 chats, sender_jid for groups)
+obk db whatsapp "SELECT timestamp, text FROM whatsapp_messages WHERE chat_jid = '<jid>' ORDER BY timestamp DESC LIMIT 20;"
+
+# Shortcut: join contacts and messages to find messages by person name
+obk db whatsapp "SELECT m.timestamp, m.text FROM whatsapp_messages m JOIN whatsapp_contacts c ON m.chat_jid = c.jid WHERE LOWER(c.full_name) LIKE '%name%' OR LOWER(c.push_name) LIKE '%name%' ORDER BY m.timestamp DESC LIMIT 20;"
 
 # My sent messages
 obk db whatsapp "SELECT timestamp, chat_jid, text FROM whatsapp_messages WHERE is_from_me = 1 ORDER BY timestamp DESC LIMIT 20;"

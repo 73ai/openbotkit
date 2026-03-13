@@ -92,6 +92,10 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 
 	args := strings.Fields(in.Command)
+	// Strip leading "gws" if present — the runner already adds it.
+	if len(args) > 0 && args[0] == "gws" {
+		args = args[1:]
+	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)
 
@@ -168,13 +172,27 @@ func (g *GWSExecuteTool) isWriteCommand(args []string) bool {
 	return false
 }
 
+// serviceToScope maps gws short service names to full Google API scope URLs.
+var serviceToScope = map[string]string{
+	"calendar": "https://www.googleapis.com/auth/calendar",
+	"drive":    "https://www.googleapis.com/auth/drive",
+	"docs":     "https://www.googleapis.com/auth/documents",
+	"sheets":   "https://www.googleapis.com/auth/spreadsheets",
+	"tasks":    "https://www.googleapis.com/auth/tasks",
+	"people":   "https://www.googleapis.com/auth/contacts",
+}
+
 func (g *GWSExecuteTool) scopesForService(service string) []string {
 	if g.manifest == nil {
 		return nil
 	}
 	for _, entry := range g.manifest.Skills {
 		if entry.Source == "gws" && len(entry.Scopes) > 0 && entry.Scopes[0] == service {
-			return entry.Scopes
+			scope, ok := serviceToScope[service]
+			if !ok {
+				return nil
+			}
+			return []string{scope}
 		}
 	}
 	return nil

@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-const (
-	launchdLabel = "com.openbotkit.obk"
-	plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -18,30 +16,38 @@ const (
 	<string>%s</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>%s</string>
-		<string>service</string>
-		<string>run</string>
+%s
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<key>WatchPaths</key>
+	<array>
+		<string>%s</string>
+	</array>
+%s
 	<key>StandardOutPath</key>
 	<string>%s</string>
 	<key>StandardErrorPath</key>
 	<string>%s</string>
 </dict>
 </plist>`
-)
 
-type launchdManager struct{}
+type launchdManager struct {
+	name string
+}
+
+func (m *launchdManager) label() string {
+	return "com.openbotkit.obk." + m.name
+}
 
 func (m *launchdManager) plistPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)
 	}
-	return filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist"), nil
+	return filepath.Join(home, "Library", "LaunchAgents", m.label()+".plist"), nil
 }
 
 func (m *launchdManager) Install(cfg *ServiceConfig) error {
@@ -54,7 +60,27 @@ func (m *launchdManager) Install(cfg *ServiceConfig) error {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 
-	content := fmt.Sprintf(plistTemplate, launchdLabel, cfg.BinaryPath, cfg.LogPath, cfg.LogPath)
+	var argLines []string
+	argLines = append(argLines, fmt.Sprintf("\t\t<string>%s</string>", cfg.BinaryPath))
+	for _, a := range cfg.Args {
+		argLines = append(argLines, fmt.Sprintf("\t\t<string>%s</string>", a))
+	}
+	argsXML := strings.Join(argLines, "\n")
+
+	var envXML string
+	if len(cfg.Env) > 0 {
+		var envLines []string
+		envLines = append(envLines, "\t<key>EnvironmentVariables</key>")
+		envLines = append(envLines, "\t<dict>")
+		for k, v := range cfg.Env {
+			envLines = append(envLines, fmt.Sprintf("\t\t<key>%s</key>", k))
+			envLines = append(envLines, fmt.Sprintf("\t\t<string>%s</string>", v))
+		}
+		envLines = append(envLines, "\t</dict>")
+		envXML = strings.Join(envLines, "\n")
+	}
+
+	content := fmt.Sprintf(plistTemplate, m.label(), argsXML, cfg.BinaryPath, envXML, cfg.LogPath, cfg.LogPath)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write plist: %w", err)
 	}
@@ -113,8 +139,9 @@ func (m *launchdManager) Status() (string, error) {
 		return "unknown", fmt.Errorf("launchctl list: %w", err)
 	}
 
+	label := m.label()
 	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, launchdLabel) {
+		if strings.Contains(line, label) {
 			return "running", nil
 		}
 	}

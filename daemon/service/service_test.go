@@ -2,6 +2,7 @@ package service
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -29,21 +30,27 @@ func TestDetectPlatform(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	cfg, err := DefaultConfig()
+	cfg, err := DefaultConfig("daemon", []string{"service", "run"})
 	if err != nil {
 		t.Fatalf("DefaultConfig failed: %v", err)
 	}
 
+	if cfg.Name != "daemon" {
+		t.Errorf("Name = %q, want %q", cfg.Name, "daemon")
+	}
 	if cfg.BinaryPath == "" {
 		t.Error("BinaryPath is empty")
 	}
 	if cfg.LogPath == "" {
 		t.Error("LogPath is empty")
 	}
+	if !strings.HasSuffix(cfg.LogPath, "daemon.log") {
+		t.Errorf("LogPath %q should end with daemon.log", cfg.LogPath)
+	}
 }
 
 func TestNewManager(t *testing.T) {
-	mgr, err := NewManager()
+	mgr, err := NewManager("daemon")
 
 	switch runtime.GOOS {
 	case "darwin", "linux", "windows":

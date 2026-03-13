@@ -58,6 +58,7 @@ var setupCmd = &cobra.Command{
 		var sources []string
 		sourceOptions := []huh.Option[string]{
 			huh.NewOption("LLM Models (for obk chat)", "models"),
+			huh.NewOption("Telegram Bot", "telegram"),
 			huh.NewOption("Gmail", "gmail"),
 			huh.NewOption("WhatsApp", "whatsapp"),
 			huh.NewOption("Google Calendar", "calendar"),
@@ -91,10 +92,14 @@ var setupCmd = &cobra.Command{
 		}
 
 		needsGoogle := false
+		needsTelegram := false
 		var selectedGWS []string
 		for _, s := range sources {
 			if s == "gmail" {
 				needsGoogle = true
+			}
+			if s == "telegram" {
+				needsTelegram = true
 			}
 			if isGWSService(s) {
 				needsGoogle = true
@@ -107,18 +112,47 @@ var setupCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		// Step 1: LLM models (needed for Telegram bot).
+		for _, s := range sources {
+			if s == "models" {
+				if err := setupModels(cfg); err != nil {
+					return err
+				}
+			}
+		}
+
+		// Step 2: Telegram bot setup.
+		if needsTelegram {
+			if err := setupTelegram(cfg); err != nil {
+				return err
+			}
+		}
+
+		// Step 3: If Telegram is configured and Google sources are selected,
+		// set up ngrok first so we know the callback URL before creating
+		// Google OAuth credentials.
+		hasTelegram := cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.BotToken != ""
+		if hasTelegram && needsGoogle {
+			if err := setupNgrok(cfg); err != nil {
+				return err
+			}
+		}
+
+		// Step 4: Google OAuth credentials + authentication.
 		if needsGoogle {
 			if err := setupGoogle(cfg); err != nil {
 				return err
 			}
 		}
 
+		// Step 5: GWS services (incremental scope grant).
 		if len(selectedGWS) > 0 {
 			if err := setupGWS(cfg, selectedGWS); err != nil {
 				return err
 			}
 		}
 
+		// Step 6: Other sources.
 		for _, s := range sources {
 			switch s {
 			case "applenotes":
@@ -127,10 +161,6 @@ var setupCmd = &cobra.Command{
 				}
 			case "applecontacts":
 				if err := setupAppleContacts(cfg); err != nil {
-					return err
-				}
-			case "models":
-				if err := setupModels(cfg); err != nil {
 					return err
 				}
 			case "slack":
@@ -174,6 +204,8 @@ var setupCmd = &cobra.Command{
 				fmt.Println("    - Apple Contacts is ready (synced during setup)")
 			case "slack":
 				fmt.Println("    - Slack is ready! Try: obk slack channels")
+			case "telegram":
+				fmt.Println("    - Telegram bot is ready! Send it a message.")
 			}
 		}
 		return nil
@@ -237,6 +269,61 @@ func setupRemote() error {
 
 	fmt.Println("\n  Remote setup complete!")
 	fmt.Println("  Your CLI commands will now proxy to the remote server.")
+	return nil
+}
+
+func setupTelegram(cfg *config.Config) error {
+	fmt.Println("\n  -- Telegram Bot Setup --")
+
+	var botToken string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Telegram bot token").
+				Description("Create a bot via @BotFather on Telegram and paste the token").
+				Value(&botToken),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+	botToken = strings.TrimSpace(botToken)
+	if botToken == "" {
+		return fmt.Errorf("bot token is required")
+	}
+
+	var ownerIDStr string
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Your Telegram user ID").
+				Description("Send /start to @userinfobot to get your ID").
+				Value(&ownerIDStr),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+	ownerIDStr = strings.TrimSpace(ownerIDStr)
+	if ownerIDStr == "" {
+		return fmt.Errorf("owner ID is required")
+	}
+
+	var ownerID int64
+	if _, err := fmt.Sscanf(ownerIDStr, "%d", &ownerID); err != nil {
+		return fmt.Errorf("invalid owner ID %q: must be a number", ownerIDStr)
+	}
+
+	if cfg.Channels == nil {
+		cfg.Channels = &config.ChannelsConfig{}
+	}
+	if cfg.Channels.Telegram == nil {
+		cfg.Channels.Telegram = &config.TelegramConfig{}
+	}
+	cfg.Channels.Telegram.BotToken = botToken
+	cfg.Channels.Telegram.OwnerID = ownerID
+
+	fmt.Printf("  Telegram bot configured (owner: %d)\n", ownerID)
 	return nil
 }
 

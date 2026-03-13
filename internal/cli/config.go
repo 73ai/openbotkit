@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/spf13/cobra"
@@ -89,6 +90,27 @@ var configSetCmd = &cobra.Command{
 			cfg.Gmail.CredentialsFile = value
 		case "gmail.download_attachments":
 			cfg.Gmail.DownloadAttachments = value == "true"
+		case "integrations.gws.callback_url":
+			if cfg.Integrations == nil {
+				cfg.Integrations = &config.IntegrationsConfig{}
+			}
+			if cfg.Integrations.GWS == nil {
+				cfg.Integrations.GWS = &config.GWSConfig{}
+			}
+			cfg.Integrations.GWS.CallbackURL = value
+		case "integrations.gws.ngrok_domain":
+			if cfg.Integrations == nil {
+				cfg.Integrations = &config.IntegrationsConfig{}
+			}
+			if cfg.Integrations.GWS == nil {
+				cfg.Integrations.GWS = &config.GWSConfig{}
+			}
+			cfg.Integrations.GWS.NgrokDomain = value
+		case "timezone":
+			if _, err := time.LoadLocation(value); err != nil {
+				return fmt.Errorf("invalid timezone %q: %w", value, err)
+			}
+			cfg.Timezone = value
 		default:
 			return fmt.Errorf("unknown config key: %s", key)
 		}

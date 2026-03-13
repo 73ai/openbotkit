@@ -65,6 +65,11 @@ func WithUsageRecorder(r UsageRecorder) Option {
 	return func(a *Agent) { a.usageRecorder = r }
 }
 
+// WithHistory seeds the agent with prior conversation messages.
+func WithHistory(msgs []provider.Message) Option {
+	return func(a *Agent) { a.history = msgs }
+}
+
 // New creates a new Agent.
 func New(p provider.Provider, model string, executor ToolExecutor, opts ...Option) *Agent {
 	a := &Agent{

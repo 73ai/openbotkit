@@ -130,7 +130,7 @@ const testCredsJSON = `{
 	}
 }`
 
-func TestHandleGoogleAuthCallback_SignalsWaiter(t *testing.T) {
+func TestHandleGoogleAuthCallback_ExchangeFailureSignalsError(t *testing.T) {
 	dir := t.TempDir()
 	credPath := filepath.Join(dir, "credentials.json")
 	os.WriteFile(credPath, []byte(testCredsJSON), 0600)
@@ -158,24 +158,28 @@ func TestHandleGoogleAuthCallback_SignalsWaiter(t *testing.T) {
 		google:      g,
 	}
 
-	// The exchange will fail (no real OAuth server), but the handler
-	// should still attempt to signal the waiter in error path.
-	// For a proper signal test, we verify the waiter is called via a goroutine.
+	// Start a waiter that should receive the error signal.
 	signaled := make(chan error, 1)
 	go func() {
-		signaled <- waiter.Wait("test-state", 2*time.Second, []string{"calendar"}, "user@test.com")
+		signaled <- waiter.Wait("test-state", 5*time.Second, []string{"calendar"}, "user@test.com")
 	}()
-
-	// Give the wait goroutine time to register.
 	time.Sleep(20 * time.Millisecond)
 
 	req := httptest.NewRequest("GET", "/auth/google/callback?code=bad-code&state=test-state", nil)
 	rec := httptest.NewRecorder()
 	s.handleGoogleAuthCallback(rec, req)
 
-	// Exchange fails (no real auth server), so waiter won't be signaled,
-	// and handler returns 500.
 	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want 500 (exchange should fail)", rec.Code)
+		t.Errorf("status = %d, want 500", rec.Code)
+	}
+
+	// Verify the waiter was signaled with an error (not left hanging).
+	select {
+	case err := <-signaled:
+		if err == nil {
+			t.Fatal("expected error from waiter, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("waiter was not signaled — tool would hang until timeout")
 	}
 }

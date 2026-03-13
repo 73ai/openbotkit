@@ -326,6 +326,66 @@ func TestApplyDefaultsWebSearch(t *testing.T) {
 	}
 }
 
+func TestGWSCallbackURL_Nil(t *testing.T) {
+	cfg := Default()
+	if url := cfg.GWSCallbackURL(); url != "" {
+		t.Fatalf("expected empty, got %q", url)
+	}
+}
+
+func TestGWSCallbackURL_IntegrationsSetGWSNil(t *testing.T) {
+	cfg := Default()
+	cfg.Integrations = &IntegrationsConfig{}
+	if url := cfg.GWSCallbackURL(); url != "" {
+		t.Fatalf("expected empty when GWS is nil, got %q", url)
+	}
+}
+
+func TestGWSCallbackURL_Set(t *testing.T) {
+	cfg := Default()
+	cfg.Integrations = &IntegrationsConfig{
+		GWS: &GWSConfig{
+			CallbackURL: "https://example.ngrok-free.app/auth/google/callback",
+		},
+	}
+	want := "https://example.ngrok-free.app/auth/google/callback"
+	if got := cfg.GWSCallbackURL(); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestGWSConfigRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Integrations = &IntegrationsConfig{
+		GWS: &GWSConfig{
+			Enabled:     true,
+			Services:    []string{"drive", "docs"},
+			CallbackURL: "https://example.ngrok-free.app/auth/google/callback",
+			NgrokDomain: "example.ngrok-free.app",
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Integrations == nil || loaded.Integrations.GWS == nil {
+		t.Fatal("GWS config not preserved")
+	}
+	if loaded.Integrations.GWS.CallbackURL != cfg.Integrations.GWS.CallbackURL {
+		t.Fatalf("callback URL not preserved: %q", loaded.Integrations.GWS.CallbackURL)
+	}
+	if loaded.Integrations.GWS.NgrokDomain != cfg.Integrations.GWS.NgrokDomain {
+		t.Fatalf("ngrok domain not preserved: %q", loaded.Integrations.GWS.NgrokDomain)
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

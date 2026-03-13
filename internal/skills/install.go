@@ -366,7 +366,11 @@ func parseScopeMap(output string) map[string]string {
 }
 
 func gwsGenerateSkills(gwsPath, outputDir, filter string) error {
-	cmd := exec.Command(gwsPath, "generate-skills", "--output-dir", outputDir, "--filter", filter)
+	// gws requires --output-dir to be relative; run from parent dir using basename.
+	parent := filepath.Dir(outputDir)
+	base := filepath.Base(outputDir)
+	cmd := exec.Command(gwsPath, "generate-skills", "--output-dir", base, "--filter", filter)
+	cmd.Dir = parent
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

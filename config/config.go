@@ -18,6 +18,7 @@ const (
 
 type Config struct {
 	Mode         Mode                `yaml:"mode,omitempty"`
+	Timezone     string              `yaml:"timezone,omitempty"`
 	Providers    *ProvidersConfig    `yaml:"providers,omitempty"`
 	Models       *ModelsConfig       `yaml:"models,omitempty"`
 	Remote       *RemoteConfig       `yaml:"remote,omitempty"`
@@ -92,8 +93,10 @@ type IntegrationsConfig struct {
 }
 
 type GWSConfig struct {
-	Enabled  bool     `yaml:"enabled,omitempty"`
-	Services []string `yaml:"services,omitempty"`
+	Enabled     bool     `yaml:"enabled,omitempty"`
+	Services    []string `yaml:"services,omitempty"`
+	CallbackURL string   `yaml:"callback_url,omitempty"`
+	NgrokDomain string   `yaml:"ngrok_domain,omitempty"`
 }
 
 type ProvidersConfig struct {
@@ -472,5 +475,13 @@ func (c *Config) GoogleCredentialsFile() string {
 // GoogleTokenDBPath always points to the new provider location.
 func (c *Config) GoogleTokenDBPath() string {
 	return filepath.Join(ProviderDir("google"), "tokens.db")
+}
+
+// GWSCallbackURL returns the public OAuth callback URL if configured.
+func (c *Config) GWSCallbackURL() string {
+	if c.Integrations != nil && c.Integrations.GWS != nil {
+		return c.Integrations.GWS.CallbackURL
+	}
+	return ""
 }
 
