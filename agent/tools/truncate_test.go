@@ -141,3 +141,37 @@ func TestTruncateBytes_BinaryContent(t *testing.T) {
 		t.Error("expected truncation marker for binary content")
 	}
 }
+
+func TestTruncateBytes_MultiByte(t *testing.T) {
+	// "café" = 63 61 66 c3 a9 (5 bytes, 4 runes).
+	// Cutting at byte 4 lands mid-rune (inside the é).
+	// TruncateBytes must back up to produce valid UTF-8.
+	input := "café"
+	got := TruncateBytes(input, 4)
+	// Should contain "caf" (3 bytes) but NOT the broken é.
+	if strings.Contains(got, "é") {
+		t.Error("should not contain full é when cut at byte 4")
+	}
+	if !strings.HasPrefix(got, "caf") {
+		t.Errorf("expected prefix 'caf', got %q", got)
+	}
+
+	// 3-byte rune: "日本語" = e6 97 a5 | e6 9c ac | e8 aa 9e (9 bytes).
+	// Cut at 4 should keep "日" (3 bytes) and drop partial second rune.
+	input2 := "日本語"
+	got2 := TruncateBytes(input2, 4)
+	if !strings.HasPrefix(got2, "日") {
+		t.Errorf("expected prefix '日', got %q", got2)
+	}
+	if strings.HasPrefix(got2, "日本") {
+		t.Error("should not contain second CJK character when cut at byte 4")
+	}
+
+	// 4-byte rune: emoji "😀" = f0 9f 98 80.
+	// Cut at 3 should produce empty prefix (can't keep partial emoji).
+	input3 := "😀hello"
+	got3 := TruncateBytes(input3, 3)
+	if strings.Contains(got3, "😀") {
+		t.Error("should not contain emoji when cut at byte 3")
+	}
+}
