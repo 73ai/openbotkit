@@ -149,6 +149,26 @@ func TestWebFetchTool_EmptyQuestion(t *testing.T) {
 	}
 }
 
+func TestWebFetchTool_SummarizerError(t *testing.T) {
+	longContent := strings.Repeat("x", 3000)
+	mock := &mockWebSearcher{
+		fetchResult: &websearch.FetchResult{
+			URL:     "https://example.com",
+			Content: longContent,
+		},
+	}
+	mp := &mockProvider{chatErr: errors.New("rate limited")}
+	tool := NewWebFetchTool(WebToolDeps{WS: mock, Provider: mp, Model: "fast-model"})
+
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"url":"https://example.com","question":"test"}`))
+	if err == nil {
+		t.Fatal("expected error when summarizer fails")
+	}
+	if !strings.Contains(err.Error(), "rate limited") {
+		t.Fatalf("expected summarizer error, got: %v", err)
+	}
+}
+
 func TestWebFetchTool_FetchError(t *testing.T) {
 	mock := &mockWebSearcher{fetchErr: errors.New("connection refused")}
 	tool := NewWebFetchTool(WebToolDeps{WS: mock})
