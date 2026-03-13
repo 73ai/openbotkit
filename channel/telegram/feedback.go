@@ -191,6 +191,10 @@ func (f *processingFeedback) sendToolAck(ctx context.Context, toolName string) {
 	case "none":
 		// just keep typing
 	}
+
+	if decision.Action == "text" || decision.Action == "both" {
+		f.sendTyping()
+	}
 }
 
 const ackModelTimeout = 3 * time.Second
