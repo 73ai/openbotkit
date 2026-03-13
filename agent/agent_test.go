@@ -464,51 +464,84 @@ func TestLoop_RateLimiterContextCancel(t *testing.T) {
 	}
 }
 
-func TestLoop_MicrocompactsOldToolResults(t *testing.T) {
-	// 8 tool-use rounds + final text. Each tool result is >200 chars.
-	var responses []*provider.ChatResponse
-	for i := range 8 {
-		responses = append(responses, &provider.ChatResponse{
-			Content: []provider.ContentBlock{
-				{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
-					ID: fmt.Sprintf("c%d", i), Name: "bash", Input: json.RawMessage(`{}`),
-				}},
+func TestLoop_TokenBasedCompaction(t *testing.T) {
+	ms := &mockSummarizer{result: "conversation summary"}
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+						ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+					}},
+				},
+				StopReason: provider.StopToolUse,
+				Usage:      provider.Usage{InputTokens: 70000},
 			},
-			StopReason: provider.StopToolUse,
-		})
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+				StopReason: provider.StopEndTurn,
+				Usage:      provider.Usage{InputTokens: 70000},
+			},
+		},
 	}
-	responses = append(responses, &provider.ChatResponse{
-		Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
-		StopReason: provider.StopEndTurn,
-	})
+	exec := &mockExecutor{results: map[string]string{"bash": "ok"}}
+	a := New(mp, "test-model", exec,
+		WithContextWindow(200000),
+		WithCompactionThreshold(0.30),
+		WithSummarizer(ms),
+		WithMaxIterations(10),
+	)
 
-	bigResult := strings.Repeat("x", 300)
-	mp := &mockProvider{responses: responses}
-	exec := &mockExecutor{results: map[string]string{"bash": bigResult}}
-	a := New(mp, "test-model", exec, WithMaxHistory(40), WithMaxIterations(15))
-
-	_, err := a.Run(context.Background(), "go")
+	result, err := a.Run(context.Background(), "test")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
+	if result != "Done" {
+		t.Errorf("result = %q, want 'Done'", result)
+	}
 
-	// By the 8th iteration, early tool results should be microcompacted.
-	// Check the last request's messages for compacted stubs.
-	lastReq := mp.requests[len(mp.requests)-1]
-	foundCompacted := false
-	for _, msg := range lastReq.Messages {
-		if msg.Role != provider.RoleUser {
-			continue
-		}
-		for _, block := range msg.Content {
-			if block.Type == provider.ContentToolResult && block.ToolResult != nil {
-				if strings.HasPrefix(block.ToolResult.Content, "[Previous: used bash]") {
-					foundCompacted = true
-				}
+	// After the first LLM call returns 70000 tokens (> 200000 * 0.30 = 60000),
+	// the second iteration should trigger compactHistory which calls the summarizer.
+	if !ms.called {
+		t.Error("summarizer should have been called during compaction")
+	}
+
+	// Verify the summary was injected into the messages sent to the provider.
+	if len(mp.requests) < 2 {
+		t.Fatalf("expected at least 2 requests, got %d", len(mp.requests))
+	}
+	secondReqMsgs := mp.requests[1].Messages
+	foundSummary := false
+	for _, m := range secondReqMsgs {
+		for _, c := range m.Content {
+			if strings.Contains(c.Text, "conversation summary") {
+				foundSummary = true
 			}
 		}
 	}
-	if !foundCompacted {
-		t.Error("expected some old tool results to be microcompacted in later requests")
+	if !foundSummary {
+		t.Error("second request should contain the compaction summary")
+	}
+}
+
+func TestLoop_TracksLastInputTokens(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "ok"}},
+				StopReason: provider.StopEndTurn,
+				Usage:      provider.Usage{InputTokens: 42000},
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(context.Background(), "hi")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if a.lastInputTokens != 42000 {
+		t.Errorf("lastInputTokens = %d, want 42000", a.lastInputTokens)
 	}
 }

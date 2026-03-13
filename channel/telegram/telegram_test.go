@@ -10,9 +10,10 @@ import (
 )
 
 type mockBot struct {
-	mu     sync.Mutex
-	sent   []tgbotapi.Chattable
-	notify chan struct{}
+	mu       sync.Mutex
+	sent     []tgbotapi.Chattable
+	requests []tgbotapi.Chattable
+	notify   chan struct{}
 }
 
 func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
@@ -25,7 +26,18 @@ func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 		default:
 		}
 	}
-	return tgbotapi.Message{}, nil
+	return tgbotapi.Message{MessageID: 1}, nil
+}
+
+func (m *mockBot) Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests = append(m.requests, c)
+	return &tgbotapi.APIResponse{Ok: true}, nil
+}
+
+func (m *mockBot) MakeRequest(endpoint string, params tgbotapi.Params) (*tgbotapi.APIResponse, error) {
+	return &tgbotapi.APIResponse{Ok: true}, nil
 }
 
 func TestChatID_ReturnsConfiguredID(t *testing.T) {
@@ -66,7 +78,7 @@ func TestReceive_ReturnsIncomingMessage(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
 
-	ch.PushMessage("hello")
+	ch.PushMessage("hello", 1)
 
 	text, err := ch.Receive()
 	if err != nil {
@@ -74,6 +86,36 @@ func TestReceive_ReturnsIncomingMessage(t *testing.T) {
 	}
 	if text != "hello" {
 		t.Fatalf("expected 'hello', got %q", text)
+	}
+}
+
+func TestReceiveMessage_ReturnsTextAndMessageID(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	ch.PushMessage("hello", 42)
+
+	msg, err := ch.ReceiveMessage()
+	if err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	if msg.text != "hello" {
+		t.Fatalf("expected text 'hello', got %q", msg.text)
+	}
+	if msg.messageID != 42 {
+		t.Fatalf("expected messageID 42, got %d", msg.messageID)
+	}
+}
+
+func TestReceiveMessage_EOFOnClose(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	ch.Close()
+
+	_, err := ch.ReceiveMessage()
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
 	}
 }
 
@@ -187,11 +229,34 @@ func TestOwnerFilter_RejectsNonOwner(t *testing.T) {
 		},
 	})
 
-	text, err := ch.Receive()
+	msg, err := ch.ReceiveMessage()
 	if err != nil {
 		t.Fatalf("receive: %v", err)
 	}
-	if text != "hello owner" {
-		t.Fatalf("expected 'hello owner', got %q", text)
+	if msg.text != "hello owner" {
+		t.Fatalf("expected 'hello owner', got %q", msg.text)
+	}
+}
+
+func TestPoller_PassesMessageID(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	p := &Poller{ownerID: 123, channel: ch}
+
+	p.handleUpdate(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			MessageID: 777,
+			From:      &tgbotapi.User{ID: 123},
+			Text:      "hi",
+		},
+	})
+
+	msg, err := ch.ReceiveMessage()
+	if err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	if msg.messageID != 777 {
+		t.Fatalf("expected messageID 777, got %d", msg.messageID)
 	}
 }

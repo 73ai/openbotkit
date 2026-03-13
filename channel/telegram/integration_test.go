@@ -62,7 +62,7 @@ func TestSession_MessageAndHistorySaved(t *testing.T) {
 	defer cancel()
 
 	// Send a simple message through the session manager
-	sm.handleMessage(ctx, "What is 2 + 2? Reply with just the number.")
+	sm.handleMessage(ctx, "What is 2 + 2? Reply with just the number.", 1)
 
 	// Verify the bot sent a response
 	bot.mu.Lock()
@@ -147,7 +147,7 @@ func TestSession_MemoryInjectedIntoPrompt(t *testing.T) {
 	defer cancel()
 
 	// Ask the agent something that requires memory
-	sm.handleMessage(ctx, "What is my name? Reply with just the name.")
+	sm.handleMessage(ctx, "What is my name? Reply with just the name.", 1)
 
 	bot.mu.Lock()
 	sentCount := len(bot.sent)
@@ -212,7 +212,7 @@ func TestSession_ToolUseViaBash(t *testing.T) {
 	defer cancel()
 
 	// Ask something that requires tool use (bash)
-	sm.handleMessage(ctx, "Run the command 'echo telegram-integration-ok' and tell me the output.")
+	sm.handleMessage(ctx, "Run the command 'echo telegram-integration-ok' and tell me the output.", 1)
 
 	bot.mu.Lock()
 	sentCount := len(bot.sent)

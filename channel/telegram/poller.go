@@ -59,5 +59,5 @@ func (p *Poller) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 
-	p.channel.PushMessage(update.Message.Text)
+	p.channel.PushMessage(update.Message.Text, update.Message.MessageID)
 }

@@ -72,10 +72,12 @@ type TelegramConfig struct {
 
 // ModelsConfig configures LLM model providers and routing.
 type ModelsConfig struct {
-	Default   string                        `yaml:"default,omitempty"`
-	Complex   string                        `yaml:"complex,omitempty"`
-	Fast      string                        `yaml:"fast,omitempty"`
-	Providers map[string]ModelProviderConfig `yaml:"providers,omitempty"`
+	Default             string                        `yaml:"default,omitempty"`
+	Complex             string                        `yaml:"complex,omitempty"`
+	Fast                string                        `yaml:"fast,omitempty"`
+	ContextWindow       int                           `yaml:"context_window,omitempty"`
+	CompactionThreshold float64                       `yaml:"compaction_threshold,omitempty"`
+	Providers           map[string]ModelProviderConfig `yaml:"providers,omitempty"`
 }
 
 // ModelProviderConfig holds settings for a single LLM provider.

@@ -386,6 +386,32 @@ func TestGWSConfigRoundTrip(t *testing.T) {
 	}
 }
 
+func TestModelsConfig_CompactionFields_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Models = &ModelsConfig{
+		Default:             "gemini/gemini-2.5-flash",
+		ContextWindow:       150000,
+		CompactionThreshold: 0.25,
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Models.ContextWindow != 150000 {
+		t.Fatalf("ContextWindow = %d, want 150000", loaded.Models.ContextWindow)
+	}
+	if loaded.Models.CompactionThreshold != 0.25 {
+		t.Fatalf("CompactionThreshold = %f, want 0.25", loaded.Models.CompactionThreshold)
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
