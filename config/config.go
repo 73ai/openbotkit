@@ -18,6 +18,7 @@ const (
 
 type Config struct {
 	Mode         Mode                `yaml:"mode,omitempty"`
+	Timezone     string              `yaml:"timezone,omitempty"`
 	Providers    *ProvidersConfig    `yaml:"providers,omitempty"`
 	Models       *ModelsConfig       `yaml:"models,omitempty"`
 	Remote       *RemoteConfig       `yaml:"remote,omitempty"`
