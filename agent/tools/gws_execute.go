@@ -134,7 +134,10 @@ func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("get token: %w", err)
 	}
-	return g.runner.Run(ctx, args, env)
+	out, runErr := g.runner.Run(ctx, args, env)
+	out = TruncateHeadTail(out, 500, 500)
+	out = TruncateBytes(out, 50*1024)
+	return out, runErr
 }
 
 func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) error {
