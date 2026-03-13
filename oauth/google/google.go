@@ -229,7 +229,10 @@ func (g *Google) AuthURL(account string, scopes []string, state string) (string,
 		return "", err
 	}
 
-	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	opts := []oauth2.AuthCodeOption{
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "consent"),
+	}
 	if account != "" {
 		opts = append(opts,
 			oauth2.SetAuthURLParam("login_hint", account),
