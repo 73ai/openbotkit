@@ -222,7 +222,9 @@ func (sm *SessionManager) touchSession() {
 			sm.sessionID = generateSessionID()
 			sm.messages = nil
 		}
-		config.EnsureScratchDir(sm.sessionID)
+		if err := config.EnsureScratchDir(sm.sessionID); err != nil {
+			slog.Warn("scratch dir creation failed", "error", err)
+		}
 	}
 
 	if sm.timer != nil {

@@ -112,7 +112,9 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 
 	toolReg := tools.NewScheduledTaskRegistry()
 	sessionID := fmt.Sprintf("sched-%d", time.Now().UnixMilli())
-	config.EnsureScratchDir(sessionID)
+	if err := config.EnsureScratchDir(sessionID); err != nil {
+		slog.Warn("scratch dir creation failed", "error", err)
+	}
 	toolReg.SetScratchDir(config.ScratchDir(sessionID))
 	defer config.CleanScratch(sessionID)
 

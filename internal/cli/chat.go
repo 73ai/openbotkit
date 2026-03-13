@@ -75,7 +75,9 @@ var chatCmd = &cobra.Command{
 
 		// Build tool registry.
 		toolReg := tools.NewStandardRegistry()
-		config.EnsureScratchDir(sessionID)
+		if err := config.EnsureScratchDir(sessionID); err != nil {
+			slog.Warn("scratch dir creation failed", "error", err)
+		}
 		toolReg.SetScratchDir(config.ScratchDir(sessionID))
 		defer config.CleanScratch(sessionID)
 		if auditLogger != nil {
