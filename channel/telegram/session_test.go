@@ -7,10 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/priyanshujain/openbotkit/agent/tools"
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/memory"
 	"github.com/priyanshujain/openbotkit/provider"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
 	"github.com/priyanshujain/openbotkit/store"
@@ -306,4 +309,490 @@ func TestResolveCompactionThreshold_Default(t *testing.T) {
 	if got := sm.resolveCompactionThreshold(); got != 0.30 {
 		t.Fatalf("expected 0.30 default, got %f", got)
 	}
+}
+
+// --- endSession tests ---
+
+func TestEndSession_ClearsState(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	sm.sessionID = "tg-end"
+	sm.history = []provider.Message{
+		provider.NewTextMessage(provider.RoleUser, "hello"),
+	}
+	sm.messages = []string{"hello"}
+	sm.timer = time.AfterFunc(time.Hour, func() {})
+
+	sm.endSession()
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if sm.sessionID != "" {
+		t.Fatalf("expected empty sessionID, got %q", sm.sessionID)
+	}
+	if sm.history != nil {
+		t.Fatalf("expected nil history, got %d", len(sm.history))
+	}
+	if sm.messages != nil {
+		t.Fatalf("expected nil messages, got %d", len(sm.messages))
+	}
+	if sm.timer != nil {
+		t.Fatal("expected nil timer")
+	}
+}
+
+func TestEndSession_NoopWhenEmpty(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	// Should not panic with empty state
+	sm.endSession()
+
+	if sm.sessionID != "" {
+		t.Fatalf("expected empty sessionID, got %q", sm.sessionID)
+	}
+}
+
+func TestEndSession_DoubleCallSafe(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+	sm.sessionID = "tg-double"
+	sm.messages = []string{"hi"}
+
+	sm.endSession()
+	sm.endSession() // second call should be a no-op
+
+	if sm.sessionID != "" {
+		t.Fatalf("expected empty sessionID after double end, got %q", sm.sessionID)
+	}
+}
+
+// --- saveHistory tests ---
+
+func TestSaveHistory_PersistsMessages(t *testing.T) {
+	cfg := setupTestEnv(t)
+
+	// Pre-migrate the history DB
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	historysrc.Migrate(db)
+	db.Close()
+
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	sm.saveHistory("tg-save-test", "hello user", "hi assistant")
+
+	// Verify messages were saved
+	db, err = store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer db.Close()
+
+	msgs, err := historysrc.LoadSessionMessages(db, "tg-save-test", 100)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "hello user" {
+		t.Errorf("msg[0] = %q/%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "hi assistant" {
+		t.Errorf("msg[1] = %q/%q", msgs[1].Role, msgs[1].Content)
+	}
+}
+
+func TestSaveHistory_MultipleCallsSameSession(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	sm.saveHistory("tg-multi", "msg1", "resp1")
+	sm.saveHistory("tg-multi", "msg2", "resp2")
+
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	msgs, err := historysrc.LoadSessionMessages(db, "tg-multi", 100)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 4 {
+		t.Fatalf("expected 4 messages, got %d", len(msgs))
+	}
+}
+
+// --- touchSession timer tests ---
+
+func TestTouchSession_CreatesTimer(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	sm.touchSession()
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if sm.timer == nil {
+		t.Fatal("expected timer to be set")
+	}
+	if sm.sessionID == "" {
+		t.Fatal("expected sessionID to be set")
+	}
+}
+
+func TestTouchSession_ResetsTimer(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch}
+
+	sm.touchSession()
+	sm.mu.Lock()
+	firstID := sm.sessionID
+	firstTimer := sm.timer
+	sm.mu.Unlock()
+
+	// Second touch should keep same session but reset timer
+	sm.touchSession()
+	sm.mu.Lock()
+	secondID := sm.sessionID
+	secondTimer := sm.timer
+	sm.mu.Unlock()
+
+	if firstID != secondID {
+		t.Fatalf("sessionID changed: %q → %q", firstID, secondID)
+	}
+	if secondTimer == firstTimer {
+		t.Fatal("timer should have been replaced")
+	}
+}
+
+// --- handleMessage full path tests ---
+
+func TestHandleMessage_UpdatesHistoryAndMessages(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+	}
+
+	sm.handleMessage(context.Background(), "hello world")
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if len(sm.messages) != 1 || sm.messages[0] != "hello world" {
+		t.Fatalf("messages = %v, want [hello world]", sm.messages)
+	}
+	if len(sm.history) != 2 {
+		t.Fatalf("history len = %d, want 2 (user + assistant)", len(sm.history))
+	}
+	if sm.history[0].Role != provider.RoleUser {
+		t.Errorf("history[0].Role = %q, want user", sm.history[0].Role)
+	}
+	if sm.history[0].Content[0].Text != "hello world" {
+		t.Errorf("history[0].Text = %q", sm.history[0].Content[0].Text)
+	}
+	if sm.history[1].Role != provider.RoleAssistant {
+		t.Errorf("history[1].Role = %q, want assistant", sm.history[1].Role)
+	}
+	if sm.history[1].Content[0].Text != "stub response" {
+		t.Errorf("history[1].Text = %q", sm.history[1].Content[0].Text)
+	}
+}
+
+func TestHandleMessage_SavesHistoryToDB(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+	}
+
+	sm.handleMessage(context.Background(), "test input")
+
+	sm.mu.Lock()
+	sid := sm.sessionID
+	sm.mu.Unlock()
+
+	// Verify the history DB was written to
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	msgs, err := historysrc.LoadSessionMessages(db, sid, 100)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages in DB, got %d", len(msgs))
+	}
+	if msgs[0].Content != "test input" {
+		t.Errorf("user msg = %q", msgs[0].Content)
+	}
+	if msgs[1].Content != "stub response" {
+		t.Errorf("assistant msg = %q", msgs[1].Content)
+	}
+}
+
+func TestHandleMessage_MultiTurnAccumulates(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+	}
+
+	sm.handleMessage(context.Background(), "first")
+	sm.handleMessage(context.Background(), "second")
+	sm.handleMessage(context.Background(), "third")
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if len(sm.messages) != 3 {
+		t.Fatalf("messages len = %d, want 3", len(sm.messages))
+	}
+	// 3 turns × 2 messages (user+assistant) = 6
+	if len(sm.history) != 6 {
+		t.Fatalf("history len = %d, want 6", len(sm.history))
+	}
+}
+
+// --- userMemoriesPrompt tests ---
+
+func TestUserMemoriesPrompt_Empty(t *testing.T) {
+	cfg := setupTestEnv(t)
+
+	// Migrate memory DB but don't seed
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	memory.Migrate(db)
+	db.Close()
+
+	sm := &SessionManager{cfg: cfg}
+	prompt := sm.userMemoriesPrompt()
+	if prompt != "" {
+		t.Fatalf("expected empty prompt, got %q", prompt)
+	}
+}
+
+func TestUserMemoriesPrompt_WithMemories(t *testing.T) {
+	cfg := setupTestEnv(t)
+
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	memory.Migrate(db)
+	memory.Add(db, "User prefers Go over Python", memory.CategoryPreference, "test", "")
+	db.Close()
+
+	sm := &SessionManager{cfg: cfg}
+	prompt := sm.userMemoriesPrompt()
+	if !strings.Contains(prompt, "User prefers Go over Python") {
+		t.Fatalf("expected memory in prompt, got %q", prompt)
+	}
+}
+
+// --- newAgent wiring tests ---
+
+func TestNewAgent_CreatesAgentWithOptions(t *testing.T) {
+	cfg := setupTestEnv(t)
+
+	// Migrate memory DB for userMemoriesPrompt
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	memory.Migrate(db)
+	db.Close()
+
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      NewChannel(&mockBot{}, 123),
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+		taskTracker:  nil,
+	}
+	// taskTracker is required by newAgent's tool registration
+	sm.taskTracker = newTaskTracker()
+
+	a, recorder, auditLogger, err := sm.newAgent(nil)
+	if err != nil {
+		t.Fatalf("newAgent: %v", err)
+	}
+	if a == nil {
+		t.Fatal("expected non-nil agent")
+	}
+	// Recorder depends on usage DB — may be nil in test env, that's OK
+	_ = recorder
+	_ = auditLogger
+}
+
+func TestNewAgent_WithHistory(t *testing.T) {
+	cfg := setupTestEnv(t)
+
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	memory.Migrate(db)
+	db.Close()
+
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      NewChannel(&mockBot{}, 123),
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+		taskTracker:  newTaskTracker(),
+	}
+
+	history := []provider.Message{
+		provider.NewTextMessage(provider.RoleUser, "prior msg"),
+		provider.NewTextMessage(provider.RoleAssistant, "prior resp"),
+	}
+
+	a, _, _, err := sm.newAgent(history)
+	if err != nil {
+		t.Fatalf("newAgent: %v", err)
+	}
+	if a == nil {
+		t.Fatal("expected non-nil agent")
+	}
+}
+
+// --- Run loop tests ---
+
+func TestRun_ExitsOnChannelClose(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+		taskTracker:  newTaskTracker(),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		sm.Run(context.Background())
+		close(done)
+	}()
+
+	// Close the channel to trigger EOF
+	ch.Close()
+
+	select {
+	case <-done:
+		// Run exited cleanly
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not exit after channel close")
+	}
+}
+
+func TestRun_ProcessesMessages(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sp := &stubProvider{}
+	sm := &SessionManager{
+		cfg:          cfg,
+		channel:      ch,
+		provider:     sp,
+		model:        "test-model",
+		fastProvider: sp,
+		fastModel:    "test-model",
+		taskTracker:  newTaskTracker(),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		sm.Run(context.Background())
+		close(done)
+	}()
+
+	ch.PushMessage("hello from run test")
+
+	// Wait briefly for the message to be processed
+	time.Sleep(500 * time.Millisecond)
+
+	// Close channel to end the Run loop
+	ch.Close()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not exit")
+	}
+
+	texts := sentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "stub response") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected stub response from Run loop, got: %v", texts)
+	}
+}
+
+// newTaskTracker creates a task tracker for tests.
+func newTaskTracker() *tools.TaskTracker {
+	return tools.NewTaskTracker()
 }
