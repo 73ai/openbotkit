@@ -1,6 +1,7 @@
 package history
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -128,6 +129,67 @@ func TestMessageCountForSession(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected 0, got %d", count)
+	}
+}
+
+func TestLoadSessionMessages_RoundTrip(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	convID, _ := UpsertConversation(db, "tg-msg", "telegram")
+	SaveMessage(db, convID, "user", "hello")
+	SaveMessage(db, convID, "assistant", "hi there")
+	SaveMessage(db, convID, "user", "bye")
+
+	msgs, err := LoadSessionMessages(db, "tg-msg", 100)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "hello" {
+		t.Errorf("msg[0] = %q/%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "hi there" {
+		t.Errorf("msg[1] = %q/%q", msgs[1].Role, msgs[1].Content)
+	}
+	if msgs[2].Role != "user" || msgs[2].Content != "bye" {
+		t.Errorf("msg[2] = %q/%q", msgs[2].Role, msgs[2].Content)
+	}
+}
+
+func TestLoadSessionMessages_EmptySession(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	msgs, err := LoadSessionMessages(db, "nonexistent", 100)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages, got %d", len(msgs))
+	}
+}
+
+func TestLoadSessionMessages_Limit(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	convID, _ := UpsertConversation(db, "tg-limit", "telegram")
+	for i := range 10 {
+		SaveMessage(db, convID, "user", fmt.Sprintf("msg %d", i))
+	}
+
+	msgs, err := LoadSessionMessages(db, "tg-limit", 5)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(msgs) != 5 {
+		t.Fatalf("expected 5 messages, got %d", len(msgs))
 	}
 }
 

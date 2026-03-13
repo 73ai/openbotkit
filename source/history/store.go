@@ -113,6 +113,36 @@ func LoadRecentSession(db *store.DB, cwd string, maxAge time.Duration) (*RecentS
 	return &RecentSession{SessionID: sessionID, UpdatedAt: *ts}, nil
 }
 
+func LoadSessionMessages(db *store.DB, sessionID string, limit int) ([]Message, error) {
+	rows, err := db.Query(
+		db.Rebind(`SELECT m.conversation_id, m.role, m.content, m.timestamp
+			FROM history_messages m
+			JOIN history_conversations c ON c.id = m.conversation_id
+			WHERE c.session_id = ?
+			ORDER BY m.timestamp ASC, m.id ASC
+			LIMIT ?`),
+		sessionID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load session messages: %w", err)
+	}
+	defer rows.Close()
+
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		var raw string
+		if err := rows.Scan(&m.ConversationID, &m.Role, &m.Content, &raw); err != nil {
+			return nil, fmt.Errorf("scan message: %w", err)
+		}
+		if ts := parseTimestamp(raw); ts != nil {
+			m.Timestamp = *ts
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
 func MessageCountForSession(db *store.DB, sessionID string) (int, error) {
 	var count int
 	err := db.QueryRow(
