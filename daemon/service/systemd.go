@@ -15,7 +15,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=%s %s
-Restart=on-failure
+%sRestart=on-failure
 RestartSec=5
 
 [Install]
@@ -49,7 +49,13 @@ func (m *systemdManager) Install(cfg *ServiceConfig) error {
 	}
 
 	argsStr := strings.Join(cfg.Args, " ")
-	content := fmt.Sprintf(unitTemplate, cfg.Name, cfg.BinaryPath, argsStr)
+
+	var envLines string
+	for k, v := range cfg.Env {
+		envLines += fmt.Sprintf("Environment=%s=%s\n", k, v)
+	}
+
+	content := fmt.Sprintf(unitTemplate, cfg.Name, cfg.BinaryPath, argsStr, envLines)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write unit file: %w", err)
 	}

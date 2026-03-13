@@ -26,6 +26,7 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 	<array>
 		<string>%s</string>
 	</array>
+%s
 	<key>StandardOutPath</key>
 	<string>%s</string>
 	<key>StandardErrorPath</key>
@@ -66,7 +67,20 @@ func (m *launchdManager) Install(cfg *ServiceConfig) error {
 	}
 	argsXML := strings.Join(argLines, "\n")
 
-	content := fmt.Sprintf(plistTemplate, m.label(), argsXML, cfg.BinaryPath, cfg.LogPath, cfg.LogPath)
+	var envXML string
+	if len(cfg.Env) > 0 {
+		var envLines []string
+		envLines = append(envLines, "\t<key>EnvironmentVariables</key>")
+		envLines = append(envLines, "\t<dict>")
+		for k, v := range cfg.Env {
+			envLines = append(envLines, fmt.Sprintf("\t\t<key>%s</key>", k))
+			envLines = append(envLines, fmt.Sprintf("\t\t<string>%s</string>", v))
+		}
+		envLines = append(envLines, "\t</dict>")
+		envXML = strings.Join(envLines, "\n")
+	}
+
+	content := fmt.Sprintf(plistTemplate, m.label(), argsXML, cfg.BinaryPath, envXML, cfg.LogPath, cfg.LogPath)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write plist: %w", err)
 	}
