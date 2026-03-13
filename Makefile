@@ -19,6 +19,11 @@ install:
 		ln -sf $(SKILLS_DIR) $(ASSISTANT_SKILLS); \
 		echo "Linked $(ASSISTANT_SKILLS) -> $(SKILLS_DIR)"; \
 	fi
+	@if pgrep -f "$(BINARY)\|$(ALIAS)" > /dev/null 2>&1; then \
+		echo "Restarting running services..."; \
+		$(GOBIN)/$(ALIAS) service restart 2>/dev/null || true; \
+		$(GOBIN)/$(ALIAS) server restart 2>/dev/null || true; \
+	fi
 
 uninstall:
 	rm -f $(GOBIN)/$(BINARY) $(GOBIN)/$(ALIAS)
