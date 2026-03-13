@@ -37,6 +37,7 @@ var whatsappLoginCmd = &cobra.Command{
 
 		w := wasrc.New(wasrc.Config{
 			SessionDBPath: cfg.WhatsAppSessionDBPath(),
+			DataDSN:       cfg.WhatsAppDataDSN(),
 		})
 
 		ctx := context.Background()

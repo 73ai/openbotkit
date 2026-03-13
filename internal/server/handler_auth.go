@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
+	"github.com/priyanshujain/openbotkit/store"
 )
 
 // whatsAppAuth manages the QR code authentication lifecycle for WhatsApp.
@@ -103,7 +104,19 @@ func (wa *whatsAppAuth) run(s *Server) {
 	wa.syncing = true
 	wa.mu.Unlock()
 
-	wasrc.WaitForSync(client, 45, 10)
+	var dataDB *store.DB
+	db, err := store.Open(store.Config{Driver: "sqlite", DSN: s.cfg.WhatsAppDataDSN()})
+	if err == nil {
+		if merr := wasrc.Migrate(db); merr == nil {
+			dataDB = db
+		} else {
+			db.Close()
+		}
+	}
+	wasrc.WaitForSync(client, 45, 10, dataDB)
+	if dataDB != nil {
+		dataDB.Close()
+	}
 
 	wa.mu.Lock()
 	wa.syncing = false

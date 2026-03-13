@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mau.fi/whatsmeow/types/events"
+
+	"github.com/priyanshujain/openbotkit/store"
 )
 
 const authPage = `<!DOCTYPE html>
@@ -123,14 +128,44 @@ func AuthPage() string {
 }
 
 // WaitForSync blocks until either the quiet period elapses after the
-// last sync signal, or maxWait is reached.
-func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int) {
+// last sync signal, or maxWait is reached. If dataDB is non-nil,
+// incoming HistorySync messages are saved to the database.
+func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int, dataDB ...*store.DB) {
+	var db *store.DB
+	if len(dataDB) > 0 {
+		db = dataDB[0]
+	}
+	var saved atomic.Int64
 	syncSignal := make(chan struct{}, 1)
 	handlerID := client.WM().AddEventHandler(func(rawEvt any) {
-		if _, ok := rawEvt.(*events.HistorySync); ok {
-			select {
-			case syncSignal <- struct{}{}:
-			default:
+		evt, ok := rawEvt.(*events.HistorySync)
+		if !ok {
+			return
+		}
+		select {
+		case syncSignal <- struct{}{}:
+		default:
+		}
+		if db == nil {
+			return
+		}
+		for _, conv := range evt.Data.GetConversations() {
+			chatJID := conv.GetID()
+			displayName := conv.GetDisplayName()
+			if displayName == "" {
+				displayName = conv.GetName()
+			}
+			isGroup := strings.HasSuffix(chatJID, "@g.us")
+			UpsertChat(db, chatJID, displayName, isGroup)
+			for _, hMsg := range conv.GetMessages() {
+				msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
+				if msg == nil {
+					continue
+				}
+				if err := SaveMessage(db, msg); err != nil {
+					continue
+				}
+				saved.Add(1)
 			}
 		}
 	})
@@ -139,9 +174,13 @@ func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int) {
 	waitForHistorySync(syncSignal,
 		time.Duration(maxWaitSec)*time.Second,
 		time.Duration(quietPeriodSec)*time.Second)
+
+	if n := saved.Load(); n > 0 {
+		slog.Info("history backfill during sync wait", "messages_saved", n)
+	}
 }
 
-func ServeQR(ctx context.Context, client *Client, addr string) error {
+func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB) error {
 	if addr == "" {
 		addr = ":8085"
 	}
@@ -203,12 +242,38 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 	port := ln.Addr().(*net.TCPAddr).Port
 	fmt.Printf("Open http://localhost:%d in your browser to scan the QR code\n", port)
 
+	var historyMsgs atomic.Int64
 	syncSignal := make(chan struct{}, 1)
 	handlerID := client.WM().AddEventHandler(func(rawEvt any) {
-		if _, ok := rawEvt.(*events.HistorySync); ok {
-			select {
-			case syncSignal <- struct{}{}:
-			default:
+		evt, ok := rawEvt.(*events.HistorySync)
+		if !ok {
+			return
+		}
+		select {
+		case syncSignal <- struct{}{}:
+		default:
+		}
+		if dataDB == nil {
+			return
+		}
+		for _, conv := range evt.Data.GetConversations() {
+			chatJID := conv.GetID()
+			chatDisplayName := conv.GetDisplayName()
+			if chatDisplayName == "" {
+				chatDisplayName = conv.GetName()
+			}
+			isGroup := strings.HasSuffix(chatJID, "@g.us")
+			UpsertChat(dataDB, chatJID, chatDisplayName, isGroup)
+
+			for _, hMsg := range conv.GetMessages() {
+				msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
+				if msg == nil {
+					continue
+				}
+				if err := SaveMessage(dataDB, msg); err != nil {
+					continue
+				}
+				historyMsgs.Add(1)
 			}
 		}
 	})
@@ -224,6 +289,10 @@ func ServeQR(ctx context.Context, client *Client, addr string) error {
 	fmt.Println("Syncing message history, please wait...")
 	waitForHistorySync(syncSignal, 45*time.Second, 10*time.Second)
 	client.WM().RemoveEventHandler(handlerID)
+
+	if n := historyMsgs.Load(); n > 0 {
+		slog.Info("history backfill during auth", "messages_saved", n)
+	}
 
 	mu.Lock()
 	syncing = false
