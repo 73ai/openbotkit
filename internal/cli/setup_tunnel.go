@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +15,8 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/priyanshujain/openbotkit/config"
 )
+
+const serverPort = "8443"
 
 func setupNgrok(cfg *config.Config) error {
 	fmt.Println("\n  -- Public Tunnel Setup (ngrok) --")
@@ -49,21 +54,17 @@ func setupNgrok(cfg *config.Config) error {
 		return fmt.Errorf("ngrok add-authtoken: %s: %w", out, err)
 	}
 
-	var domain string
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Enter your ngrok static domain").
-				Description("Dashboard > Universal Gateway > Domains (e.g. panda-new-kit.ngrok-free.app)").
-				Value(&domain),
-		),
-	).Run()
+	fmt.Println("\n  Detecting your ngrok domain...")
+	domain, err := detectNgrokDomain(ngrokPath)
 	if err != nil {
-		return err
-	}
-	domain = strings.TrimSpace(domain)
-	if domain == "" {
-		return fmt.Errorf("ngrok domain is required")
+		fmt.Printf("  Auto-detect failed: %v\n", err)
+		fmt.Println("  Falling back to manual entry.")
+		domain, err = promptNgrokDomain()
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("  Detected domain: %s\n", domain)
 	}
 
 	ngrokCfgPath := filepath.Join(config.Dir(), "ngrok.yml")
@@ -94,7 +95,7 @@ func setupNgrok(cfg *config.Config) error {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Path to new Web Application credentials.json").
-				Description("Drag and drop the file here, or type the path").
+				Description("Drag and drop the file here, or type the path (leave blank to keep current)").
 				Placeholder(cfg.GoogleCredentialsFile()).
 				Value(&credPath),
 		),
@@ -126,6 +127,85 @@ func setupNgrok(cfg *config.Config) error {
 	cfg.Integrations.GWS.NgrokDomain = domain
 
 	return nil
+}
+
+// detectNgrokDomain starts a temporary ngrok tunnel to discover the account's
+// auto-assigned dev domain, then shuts the tunnel down.
+func detectNgrokDomain(ngrokPath string) (string, error) {
+	// Start a temporary tunnel on an unused port (we don't need it to connect).
+	cmd := exec.Command(ngrokPath, "http", "19999", "--log", "stderr")
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start ngrok: %w", err)
+	}
+	defer func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+	}()
+
+	// Poll the local agent API until the tunnel is up.
+	var domain string
+	for range 20 {
+		time.Sleep(500 * time.Millisecond)
+		d, err := queryNgrokTunnelDomain()
+		if err == nil && d != "" {
+			domain = d
+			break
+		}
+	}
+	if domain == "" {
+		return "", fmt.Errorf("tunnel did not start within 10s")
+	}
+	return domain, nil
+}
+
+// queryNgrokTunnelDomain queries the ngrok local agent API for the tunnel's public URL.
+func queryNgrokTunnelDomain() (string, error) {
+	resp, err := http.Get("http://127.0.0.1:4040/api/tunnels")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Tunnels []struct {
+			PublicURL string `json:"public_url"`
+		} `json:"tunnels"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	for _, t := range result.Tunnels {
+		if strings.HasPrefix(t.PublicURL, "https://") {
+			u, err := url.Parse(t.PublicURL)
+			if err != nil {
+				continue
+			}
+			return u.Host, nil
+		}
+	}
+	return "", fmt.Errorf("no https tunnel found")
+}
+
+func promptNgrokDomain() (string, error) {
+	var domain string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Enter your ngrok static domain").
+				Description("Dashboard > Universal Gateway > Domains (e.g. panda-new-kit.ngrok-free.app)").
+				Value(&domain),
+		),
+	).Run()
+	if err != nil {
+		return "", err
+	}
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		return "", fmt.Errorf("ngrok domain is required")
+	}
+	return domain, nil
 }
 
 func ensureNgrok() (string, error) {
@@ -165,9 +245,9 @@ agent:
 tunnels:
   obk:
     proto: http
-    addr: 8085
+    addr: %s
     domain: %s
-`, authtoken, domain)
+`, authtoken, serverPort, domain)
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}

@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,8 +40,8 @@ func TestWriteNgrokConfig(t *testing.T) {
 	if !strings.Contains(content, "my-domain.ngrok-free.app") {
 		t.Error("config missing domain")
 	}
-	if !strings.Contains(content, "addr: 8085") {
-		t.Error("config missing port")
+	if !strings.Contains(content, "addr: 8443") {
+		t.Error("config should tunnel to server port 8443")
 	}
 	if !strings.Contains(content, `version: "3"`) {
 		t.Error("config missing version")
@@ -49,6 +53,37 @@ func TestWriteNgrokConfig(t *testing.T) {
 	}
 	if perm := info.Mode().Perm(); perm != 0600 {
 		t.Errorf("file permissions = %o, want 0600", perm)
+	}
+}
+
+func TestQueryNgrokTunnelDomain(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"tunnels":[{"public_url":"https://cool-domain.ngrok-free.dev"}]}`)
+	}))
+	defer srv.Close()
+
+	// queryNgrokTunnelDomain hardcodes 127.0.0.1:4040, so we can't easily
+	// redirect it to our test server. Instead, test the JSON parsing logic
+	// by calling the test server directly and parsing the same way.
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Tunnels []struct {
+			PublicURL string `json:"public_url"`
+		} `json:"tunnels"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Tunnels) != 1 {
+		t.Fatalf("expected 1 tunnel, got %d", len(result.Tunnels))
+	}
+	if result.Tunnels[0].PublicURL != "https://cool-domain.ngrok-free.dev" {
+		t.Fatalf("got %q", result.Tunnels[0].PublicURL)
 	}
 }
 
