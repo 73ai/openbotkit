@@ -255,3 +255,31 @@ func TestCompactHistory_TokenTrigger_FewMessages(t *testing.T) {
 		t.Errorf("first message = %q, expected summary", a.history[0].Content[0].Text)
 	}
 }
+
+func TestCompactHistory_EmptySummary_FallbackToTruncation(t *testing.T) {
+	ms := &mockSummarizer{result: ""}
+	a := &Agent{
+		maxHistory:          40,
+		contextWindow:       200000,
+		compactionThreshold: 0.30,
+		lastInputTokens:     70000,
+		summarizer:          ms,
+	}
+	for i := range 50 {
+		a.history = append(a.history, provider.NewTextMessage(
+			provider.RoleUser, fmt.Sprintf("msg %d", i)))
+	}
+	a.compactHistory(context.Background())
+
+	if !ms.called {
+		t.Fatal("summarizer should have been called")
+	}
+	// Empty summary → falls back to truncation
+	if len(a.history) >= 50 {
+		t.Errorf("expected truncation, history len = %d", len(a.history))
+	}
+	summary := a.history[0].Content[0].Text
+	if !strings.Contains(summary, "messages removed") {
+		t.Errorf("expected truncation marker, got %q", summary)
+	}
+}

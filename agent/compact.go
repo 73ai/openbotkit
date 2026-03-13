@@ -46,6 +46,10 @@ func (a *Agent) compactWithSummary(ctx context.Context) bool {
 		slog.Warn("compaction summarizer failed, falling back to truncation", "error", err)
 		return false
 	}
+	if text == "" {
+		slog.Warn("compaction summarizer returned empty summary, falling back to truncation")
+		return false
+	}
 
 	summary := provider.NewTextMessage(provider.RoleUser,
 		fmt.Sprintf("[Conversation summary: %s]", text))
