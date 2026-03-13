@@ -32,7 +32,7 @@ var doctorCmd = &cobra.Command{
 			results = append(results, checkWhatsAppSession(cfg)...)
 			results = append(results, checkDatabases(cfg)...)
 		}
-		results = append(results, checkService())
+		results = append(results, checkServices()...)
 		results = append(results, checkSkills())
 
 		for _, r := range results {
@@ -131,16 +131,22 @@ func checkDatabases(cfg *config.Config) []checkResult {
 	return results
 }
 
-func checkService() checkResult {
-	mgr, err := service.NewManager("daemon")
-	if err != nil {
-		return checkResult{"Service", "WARN", err.Error()}
+func checkServices() []checkResult {
+	var results []checkResult
+	for _, name := range []string{"daemon", "server"} {
+		mgr, err := service.NewManager(name)
+		if err != nil {
+			results = append(results, checkResult{name + " service", "WARN", err.Error()})
+			continue
+		}
+		status, err := mgr.Status()
+		if err != nil {
+			results = append(results, checkResult{name + " service", "WARN", err.Error()})
+			continue
+		}
+		results = append(results, checkResult{name + " service", "OK", status})
 	}
-	status, err := mgr.Status()
-	if err != nil {
-		return checkResult{"Service", "WARN", err.Error()}
-	}
-	return checkResult{"Service", "OK", status}
+	return results
 }
 
 func checkSkills() checkResult {
