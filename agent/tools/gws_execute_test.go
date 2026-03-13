@@ -75,9 +75,9 @@ func setupGWSTest(t *testing.T, approveAll bool, scopes map[string]bool) (*GWSEx
 
 func TestGWSExecute_ReadPath(t *testing.T) {
 	tool, inter, runner := setupGWSTest(t, false, nil)
-	runner.outputs["calendar events.list"] = `{"items":[]}`
+	runner.outputs["calendar events list"] = `{"items":[]}`
 
-	input, _ := json.Marshal(gwsInput{Command: "calendar events.list"})
+	input, _ := json.Marshal(gwsInput{Command: "calendar events list"})
 	result, err := tool.Execute(context.Background(), input)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -156,7 +156,7 @@ func TestGWSExecute_MissingScopeTimeout(t *testing.T) {
 	// Use scopes map that doesn't have calendar.
 	tool, inter, _ := setupGWSTest(t, false, map[string]bool{})
 
-	input, _ := json.Marshal(gwsInput{Command: "calendar events.list"})
+	input, _ := json.Marshal(gwsInput{Command: "calendar events list"})
 	_, err := tool.Execute(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected auth timeout error")
@@ -197,7 +197,7 @@ func TestGWSExecute_MissingScopeSignaled(t *testing.T) {
 	bridge := NewTokenBridge(g, "user@test.com")
 	linkCh := make(chan struct{ text, url string }, 1)
 	inter := &mockInteractor{approveAll: false, linkCh: linkCh}
-	runner := &mockRunner{outputs: map[string]string{"calendar events.list": `{"items":[]}`}}
+	runner := &mockRunner{outputs: map[string]string{"calendar events list": `{"items":[]}`}}
 
 	waiter := google.NewScopeWaiter()
 	manifest := &skills.Manifest{
@@ -226,7 +226,7 @@ func TestGWSExecute_MissingScopeSignaled(t *testing.T) {
 	var result string
 	var execErr error
 	go func() {
-		input, _ := json.Marshal(gwsInput{Command: "calendar events.list"})
+		input, _ := json.Marshal(gwsInput{Command: "calendar events list"})
 		result, execErr = tool.Execute(context.Background(), input)
 		close(done)
 	}()
@@ -282,9 +282,9 @@ func (c *toggleScopeChecker) HasScopes(_ string, _ []string) (bool, error) {
 
 func TestGWSExecute_KeywordNotWrite(t *testing.T) {
 	tool, inter, runner := setupGWSTest(t, false, nil)
-	runner.outputs["calendar events.delete --id 123"] = "deleted"
+	runner.outputs["calendar events delete --id 123"] = "deleted"
 
-	input, _ := json.Marshal(gwsInput{Command: "calendar events.delete --id 123"})
+	input, _ := json.Marshal(gwsInput{Command: "calendar events delete --id 123"})
 	result, err := tool.Execute(context.Background(), input)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -328,9 +328,9 @@ func TestGWSExecute_ScopesForService(t *testing.T) {
 
 func TestGWSExecute_StripGWSPrefix(t *testing.T) {
 	tool, _, runner := setupGWSTest(t, false, nil)
-	runner.outputs["calendar events.list"] = `{"items":[]}`
+	runner.outputs["calendar events list"] = `{"items":[]}`
 
-	input, _ := json.Marshal(gwsInput{Command: "gws calendar events.list"})
+	input, _ := json.Marshal(gwsInput{Command: "gws calendar events list"})
 	result, err := tool.Execute(context.Background(), input)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -343,6 +343,175 @@ func TestGWSExecute_StripGWSPrefix(t *testing.T) {
 	}
 	if runner.ran[0].args[0] != "calendar" {
 		t.Errorf("first arg = %q, want 'calendar'", runner.ran[0].args[0])
+	}
+}
+
+func TestGWSExecute_StructuredParams(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+	runner.outputs[`drive files list --params {"orderBy":"modifiedTime desc","pageSize":5,"q":"mimeType='application/vnd.google-apps.document'"}`] = `{"files":[]}`
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "drive files list",
+		"params": map[string]any{
+			"q":       "mimeType='application/vnd.google-apps.document'",
+			"orderBy": "modifiedTime desc",
+			"pageSize": 5,
+		},
+	})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != `{"files":[]}` {
+		t.Errorf("result = %q", result)
+	}
+	if len(runner.ran) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runner.ran))
+	}
+	// Verify --params is a single arg with valid JSON.
+	args := runner.ran[0].args
+	paramsIdx := -1
+	for i, a := range args {
+		if a == "--params" {
+			paramsIdx = i
+			break
+		}
+	}
+	if paramsIdx < 0 || paramsIdx+1 >= len(args) {
+		t.Fatal("--params flag not found in args")
+	}
+	if !json.Valid([]byte(args[paramsIdx+1])) {
+		t.Errorf("--params value is not valid JSON: %s", args[paramsIdx+1])
+	}
+}
+
+func TestGWSExecute_StructuredBody(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, nil)
+	interactor.approveAll = true
+	runner.outputs[`calendar +insert --json {"location":"Room 1","summary":"Team meeting"}`] = `{"id":"abc"}`
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "calendar +insert",
+		"body": map[string]any{
+			"summary":  "Team meeting",
+			"location": "Room 1",
+		},
+	})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != `{"id":"abc"}` {
+		t.Errorf("result = %q", result)
+	}
+}
+
+func TestGWSExecute_TokenExpiredTriggersReAuth(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tokens.db")
+	credPath := writeTestCreds(t, dir)
+
+	store, err := google.NewTokenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Save a token with scopes but expired and no refresh token.
+	tok := &oauth2.Token{
+		AccessToken: "expired-token",
+		TokenType:   "Bearer",
+		Expiry:      time.Now().Add(-time.Hour), // expired
+	}
+	if err := store.SaveToken("user@test.com", tok, []string{"openid", "email", "calendar"}); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	g := google.New(google.Config{
+		CredentialsFile: credPath,
+		TokenDBPath:     dbPath,
+	})
+	bridge := NewTokenBridge(g, "user@test.com")
+	linkCh := make(chan struct{ text, url string }, 1)
+	inter := &mockInteractor{approveAll: false, linkCh: linkCh}
+	runner := &mockRunner{outputs: map[string]string{"calendar events list": `{"items":[]}`}}
+
+	waiter := google.NewScopeWaiter()
+	manifest := &skills.Manifest{
+		Skills: map[string]skills.SkillEntry{
+			"gws-calendar-list": {Source: "gws", Scopes: []string{"calendar"}},
+		},
+	}
+
+	// Scopes ARE present — the token just can't be refreshed.
+	checker := &mockScopeChecker{scopes: map[string]bool{
+		"https://www.googleapis.com/auth/calendar": true,
+	}}
+
+	tool := NewGWSExecuteTool(GWSToolConfig{
+		Interactor:   inter,
+		ScopeChecker: checker,
+		Bridge:       bridge,
+		ScopeWaiter:  waiter,
+		Google:       g,
+		Account:      "user@test.com",
+		Manifest:     manifest,
+		Runner:       runner,
+		AuthTimeout:  5 * time.Second,
+	})
+
+	done := make(chan struct{})
+	var result string
+	var execErr error
+	go func() {
+		input, _ := json.Marshal(gwsInput{Command: "calendar events list"})
+		result, execErr = tool.Execute(context.Background(), input)
+		close(done)
+	}()
+
+	// Wait for the re-auth link to be sent.
+	var link struct{ text, url string }
+	select {
+	case link = <-linkCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for re-auth link")
+	}
+
+	// Simulate OAuth callback: save a fresh token, then signal the waiter.
+	store2, err := google.NewTokenStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	freshTok := &oauth2.Token{
+		AccessToken:  "fresh-token",
+		RefreshToken: "fresh-refresh",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	if err := store2.SaveToken("user@test.com", freshTok, []string{"openid", "email", "calendar"}); err != nil {
+		t.Fatal(err)
+	}
+	store2.Close()
+
+	// Extract state and signal.
+	linkURL := link.url
+	state, _, _ := strings.Cut(linkURL[strings.Index(linkURL, "state=")+6:], "&")
+	waiter.Signal(state, nil)
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for execute")
+	}
+
+	if execErr != nil {
+		t.Fatalf("Execute: %v", execErr)
+	}
+	if result != `{"items":[]}` {
+		t.Errorf("result = %q", result)
+	}
+	// Verify an auth link was sent (re-auth triggered).
+	if len(inter.links) == 0 {
+		t.Error("expected re-auth link to be sent")
 	}
 }
 

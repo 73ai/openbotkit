@@ -119,12 +119,15 @@ For recurring tasks, use type "recurring" with a UTC cron expression.
 	}
 
 	// Skills section.
-	b.WriteString(`
-## Skills
-Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
-1. Scan the "Available skills" list below for matching skill names
+	b.WriteString("\n## Skills\n")
+	if reg.Has("gws_execute") {
+		b.WriteString("Before replying to domain-specific requests (email, WhatsApp, Google Workspace, memories, notes, etc.):\n")
+	} else {
+		b.WriteString("Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):\n")
+	}
+	b.WriteString(`1. Scan the "Available skills" list below for matching skill names
 2. Use load_skills to read the skill's instructions
-3. Use bash to run the commands from those instructions
+3. Follow the instructions to execute the request
 4. If the request spans multiple domains, load and use ALL relevant skills
 5. If no skill matches, use search_skills to discover one by keyword
 `)

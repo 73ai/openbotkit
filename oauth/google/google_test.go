@@ -78,7 +78,7 @@ func TestExchangeCode_MergesScopes(t *testing.T) {
 
 	// ExchangeCode will fail at the Exchange step (no real server),
 	// but we can verify the setup is correct by checking that loadConfig succeeds.
-	err = g.ExchangeCode(context.Background(), "bad-code", "user@example.com", []string{"scope-b"})
+	_, err = g.ExchangeCode(context.Background(), "bad-code", "user@example.com", []string{"scope-b"})
 	if err == nil {
 		t.Fatal("expected error from exchange (no real auth server)")
 	}
@@ -180,7 +180,7 @@ func TestAuthURL_ExchangeCode_RedirectConsistency(t *testing.T) {
 	// We can verify by checking that loadConfig is called with CallbackURL,
 	// which we've already unit-tested. But let's at least confirm ExchangeCode
 	// reaches the exchange step (not a config error) when CallbackURL is set.
-	err = g.ExchangeCode(context.Background(), "fake-code", "user@example.com", []string{"https://www.googleapis.com/auth/drive"})
+	_, err = g.ExchangeCode(context.Background(), "fake-code", "user@example.com", []string{"https://www.googleapis.com/auth/drive"})
 	if err == nil {
 		t.Fatal("expected error from exchange")
 	}
@@ -221,7 +221,7 @@ func TestExchangeCode_WithCallbackURL(t *testing.T) {
 
 	// ExchangeCode should get past config loading (no config error)
 	// and fail at the token exchange step.
-	err = g.ExchangeCode(context.Background(), "bad-code", "user@example.com", []string{"scope-b"})
+	_, err = g.ExchangeCode(context.Background(), "bad-code", "user@example.com", []string{"scope-b"})
 	if err == nil {
 		t.Fatal("expected error")
 	}

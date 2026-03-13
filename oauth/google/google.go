@@ -193,32 +193,44 @@ func (g *Google) AccessToken(ctx context.Context, account string) (string, error
 }
 
 // ExchangeCode exchanges an OAuth callback code for a token and saves it.
-func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes []string) error {
+// If account is empty, the email is discovered from the token's userinfo.
+// Returns the resolved account email.
+func (g *Google) ExchangeCode(ctx context.Context, code, account string, scopes []string) (string, error) {
 	oauthCfg, err := loadConfig(g.cfg.CredentialsFile, scopes, g.cfg.CallbackURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	tok, err := oauthCfg.Exchange(ctx, code)
 	if err != nil {
-		return fmt.Errorf("exchange token: %w", err)
+		return "", fmt.Errorf("exchange token: %w", err)
+	}
+
+	if account == "" {
+		tmpClient := oauthCfg.Client(ctx, tok)
+		email, err := fetchUserEmail(ctx, tmpClient)
+		if err != nil {
+			return "", fmt.Errorf("fetch user email: %w", err)
+		}
+		account = email
 	}
 
 	store, err := NewTokenStore(g.cfg.TokenDBPath)
 	if err != nil {
-		return fmt.Errorf("open token store: %w", err)
+		return "", fmt.Errorf("open token store: %w", err)
 	}
 	defer store.Close()
 
 	allScopes := scopes
-	if account != "" {
-		_, existing, loadErr := store.LoadToken(account)
-		if loadErr == nil {
-			allScopes = mergeScopes(existing, scopes)
-		}
+	_, existing, loadErr := store.LoadToken(account)
+	if loadErr == nil {
+		allScopes = mergeScopes(existing, scopes)
 	}
 
-	return store.SaveToken(account, tok, allScopes)
+	if err := store.SaveToken(account, tok, allScopes); err != nil {
+		return "", err
+	}
+	return account, nil
 }
 
 // AuthURL generates an OAuth consent URL for incremental scope grant.

@@ -102,6 +102,7 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 		return "", fmt.Errorf("command is required")
 	}
 
+	slog.Info("gws_execute called", "command", in.Command)
 	args := strings.Fields(in.Command)
 	// Strip leading "gws" if present.
 	if len(args) > 0 && args[0] == "gws" {
@@ -151,6 +152,7 @@ func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error)
 	env, err := g.bridge.Env(ctx)
 	if err != nil {
 		slog.Warn("gws_execute: token error, attempting re-auth", "error", err)
+		// Token expired or refresh failed — trigger re-consent and retry.
 		service := gwsServiceFromCommand(args)
 		scopes := g.scopesForService(service)
 		if len(scopes) == 0 {
@@ -190,6 +192,16 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 	if err := g.scopeWaiter.Wait(state, g.authTimeout, scopes, g.account); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
+
+	// After first-time auth, discover the account from the token store.
+	if g.account == "" {
+		accounts, err := g.google.Accounts(ctx)
+		if err == nil && len(accounts) > 0 {
+			g.account = accounts[0]
+			g.bridge.SetAccount(accounts[0])
+		}
+	}
+
 	if err := g.interactor.Notify("Access granted, thanks!"); err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}

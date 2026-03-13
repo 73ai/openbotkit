@@ -38,6 +38,9 @@ func (l *LoadSkillsTool) Execute(_ context.Context, input json.RawMessage) (stri
 		return "", fmt.Errorf("parse input: %w", err)
 	}
 
+	// Auto-include gws-shared when loading any gws-* skill.
+	in.Names = ensureGWSShared(in.Names)
+
 	var parts []string
 	for _, name := range in.Names {
 		// Prefer REFERENCE.md (full instructions), fall back to SKILL.md.
@@ -55,4 +58,23 @@ func (l *LoadSkillsTool) Execute(_ context.Context, input json.RawMessage) (stri
 	}
 
 	return strings.Join(parts, "\n\n"), nil
+}
+
+// ensureGWSShared prepends gws-shared to the list when any gws-* skill is
+// requested and gws-shared isn't already included. The shared skill contains
+// critical CLI syntax (--params, --json flags) that all gws services need.
+func ensureGWSShared(names []string) []string {
+	hasGWS, hasShared := false, false
+	for _, n := range names {
+		if strings.HasPrefix(n, "gws-") {
+			hasGWS = true
+		}
+		if n == "gws-shared" {
+			hasShared = true
+		}
+	}
+	if hasGWS && !hasShared {
+		return append([]string{"gws-shared"}, names...)
+	}
+	return names
 }

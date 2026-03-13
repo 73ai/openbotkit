@@ -323,6 +323,9 @@ func TestBuildBaseSystemPrompt_GWSInstructions(t *testing.T) {
 	if !strings.Contains(prompt, "gws_execute") {
 		t.Error("prompt missing gws_execute tool reference")
 	}
+	if !strings.Contains(prompt, "load_skills") {
+		t.Error("GWS section should instruct agent to load skills before gws_execute")
+	}
 }
 
 func TestBuildBaseSystemPrompt_NoGWSInstructions(t *testing.T) {
