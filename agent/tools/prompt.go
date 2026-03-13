@@ -59,6 +59,9 @@ The sub-agent has its own tools (bash, file ops, skills) but cannot spawn furthe
 		b.WriteString(`
 ## Google Workspace
 Use the gws_execute tool for all Google Workspace operations (Calendar, Drive, Docs, Sheets, Tasks, Contacts).
+BEFORE your first gws_execute call, ALWAYS use load_skills to load the relevant gws skill for correct command syntax.
+For example, to list files load gws-drive; to read a doc load gws-docs; to check calendar load gws-calendar.
+Tip: listing or searching Google Docs/Sheets/Slides requires gws-drive (files list with mimeType filter), not gws-docs.
 Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
 The tool handles authentication, scope checks, and approval for write operations automatically.
 When a tool result includes "user notified", keep your response brief — the user already got the details.
@@ -113,12 +116,15 @@ For recurring tasks, use type "recurring" with a UTC cron expression.
 	}
 
 	// Skills section.
-	b.WriteString(`
-## Skills
-Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):
-1. Scan the "Available skills" list below for matching skill names
+	b.WriteString("\n## Skills\n")
+	if reg.Has("gws_execute") {
+		b.WriteString("Before replying to domain-specific requests (email, WhatsApp, Google Workspace, memories, notes, etc.):\n")
+	} else {
+		b.WriteString("Before replying to domain-specific requests (email, WhatsApp, memories, notes, etc.):\n")
+	}
+	b.WriteString(`1. Scan the "Available skills" list below for matching skill names
 2. Use load_skills to read the skill's instructions
-3. Use bash to run the commands from those instructions
+3. Follow the instructions to execute the request
 4. If the request spans multiple domains, load and use ALL relevant skills
 5. If no skill matches, use search_skills to discover one by keyword
 `)
