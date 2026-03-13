@@ -24,6 +24,15 @@ var fallbackMessages = map[string]string{
 
 const defaultFallbackMsg = "one sec"
 
+// slowTools are tools that take long enough to warrant an acknowledgment.
+var slowTools = map[string]bool{
+	"web_search":    true,
+	"web_fetch":     true,
+	"delegate_task": true,
+	"subagent":      true,
+	"gws_execute":   true,
+}
+
 type ackDecision struct {
 	Action string `json:"action"`
 	Emoji  string `json:"emoji,omitempty"`
@@ -80,6 +89,9 @@ func (f *processingFeedback) Start(ctx context.Context) {
 }
 
 func (f *processingFeedback) Signal(toolName string) {
+	if !slowTools[toolName] {
+		return
+	}
 	select {
 	case f.signalCh <- toolName:
 	default:
@@ -115,7 +127,7 @@ func (f *processingFeedback) loop(ctx context.Context) {
 			}
 			f.acked.Store(true)
 			ackTimer.Stop()
-			f.sendToolAck(ctx, toolName)
+			go f.sendToolAck(ctx, toolName)
 		case <-ackTimer.C:
 			if f.acked.Load() {
 				continue
@@ -141,10 +153,16 @@ func (f *processingFeedback) sendText(text string) {
 }
 
 func (f *processingFeedback) sendReaction(emoji string) {
+	reaction := []map[string]string{{"type": "emoji", "emoji": emoji}}
+	reactionJSON, err := json.Marshal(reaction)
+	if err != nil {
+		slog.Debug("feedback: marshal reaction failed", "error", err)
+		return
+	}
 	params := tgbotapi.Params{
 		"chat_id":    fmt.Sprintf("%d", f.chatID),
 		"message_id": fmt.Sprintf("%d", f.messageID),
-		"reaction":   fmt.Sprintf(`[{"type":"emoji","emoji":"%s"}]`, emoji),
+		"reaction":   string(reactionJSON),
 	}
 	if _, err := f.bot.MakeRequest("setMessageReaction", params); err != nil {
 		slog.Debug("feedback: reaction failed", "error", err)
@@ -156,23 +174,34 @@ func (f *processingFeedback) sendToolAck(ctx context.Context, toolName string) {
 
 	switch decision.Action {
 	case "text":
-		f.sendText(decision.Text)
+		if decision.Text != "" {
+			f.sendText(decision.Text)
+		}
 	case "reaction":
-		f.sendReaction(decision.Emoji)
+		if decision.Emoji != "" {
+			f.sendReaction(decision.Emoji)
+		}
 	case "both":
-		f.sendReaction(decision.Emoji)
-		f.sendText(decision.Text)
+		if decision.Emoji != "" {
+			f.sendReaction(decision.Emoji)
+		}
+		if decision.Text != "" {
+			f.sendText(decision.Text)
+		}
 	case "none":
 		// just keep typing
-	default:
-		f.sendText(decision.Text)
 	}
 }
+
+const ackModelTimeout = 3 * time.Second
 
 func (f *processingFeedback) decideAck(ctx context.Context, toolName string) ackDecision {
 	if f.provider == nil {
 		return f.fallbackDecision(toolName)
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, ackModelTimeout)
+	defer cancel()
 
 	resp, err := f.provider.Chat(ctx, provider.ChatRequest{
 		Model:  f.model,
