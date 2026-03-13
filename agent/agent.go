@@ -91,6 +91,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	a.history = append(a.history, provider.NewTextMessage(provider.RoleUser, input))
 
 	for i := range a.maxIter {
+		a.microcompact()
 		a.compactHistory()
 		if a.rateLimiter != nil {
 			if err := a.rateLimiter.Wait(ctx); err != nil {
