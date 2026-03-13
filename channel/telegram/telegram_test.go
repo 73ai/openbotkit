@@ -10,9 +10,10 @@ import (
 )
 
 type mockBot struct {
-	mu     sync.Mutex
-	sent   []tgbotapi.Chattable
-	notify chan struct{}
+	mu       sync.Mutex
+	sent     []tgbotapi.Chattable
+	requests []tgbotapi.Chattable
+	notify   chan struct{}
 }
 
 func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
@@ -25,7 +26,18 @@ func (m *mockBot) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 		default:
 		}
 	}
-	return tgbotapi.Message{}, nil
+	return tgbotapi.Message{MessageID: 1}, nil
+}
+
+func (m *mockBot) Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests = append(m.requests, c)
+	return &tgbotapi.APIResponse{Ok: true}, nil
+}
+
+func (m *mockBot) MakeRequest(endpoint string, params tgbotapi.Params) (*tgbotapi.APIResponse, error) {
+	return &tgbotapi.APIResponse{Ok: true}, nil
 }
 
 func TestChatID_ReturnsConfiguredID(t *testing.T) {

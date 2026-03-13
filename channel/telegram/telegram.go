@@ -11,6 +11,8 @@ import (
 // botSender abstracts the Telegram bot API for testing.
 type botSender interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+	Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error)
+	MakeRequest(endpoint string, params tgbotapi.Params) (*tgbotapi.APIResponse, error)
 }
 
 type approvalResponse struct {
