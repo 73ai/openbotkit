@@ -43,6 +43,10 @@ type SessionManager struct {
 
 	taskTracker *tools.TaskTracker
 
+	webSearch    tools.WebSearcher
+	fastProvider provider.Provider
+	fastModel    string
+
 	mu        sync.Mutex
 	sessionID string
 	timer     *time.Timer
@@ -78,6 +82,7 @@ func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, pro
 	if sm.gwsEnabled() {
 		sm.manifest, _ = skills.LoadManifest()
 	}
+	sm.initWebSearch()
 	return sm
 }
 
@@ -248,6 +253,7 @@ func (sm *SessionManager) newAgent() (*agent.Agent, *usagesrc.Recorder, *audit.L
 	sm.registerSlackTools(toolReg)
 	sm.registerDelegateTool(toolReg)
 	sm.registerScheduleTools(toolReg)
+	sm.registerWebTools(toolReg)
 
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider:    sm.provider,
@@ -302,6 +308,34 @@ func (sm *SessionManager) registerScheduleTools(reg *tools.Registry) {
 	reg.Register(tools.NewCreateScheduleTool(deps))
 	reg.Register(tools.NewListSchedulesTool(deps))
 	reg.Register(tools.NewDeleteScheduleTool(deps))
+}
+
+func (sm *SessionManager) initWebSearch() {
+	ws, _ := tools.NewWebSearchInstance(tools.WebSearchSetup{
+		WSConfig: sm.cfg.WebSearch,
+		DSN:      sm.cfg.WebSearchDataDSN(),
+	})
+	sm.webSearch = ws
+
+	reg, err := provider.NewRegistry(sm.cfg.Models)
+	if err == nil {
+		sm.fastProvider, sm.fastModel = tools.ResolveFastProvider(
+			sm.cfg.Models, reg, sm.provider, sm.model,
+		)
+	} else {
+		sm.fastProvider = sm.provider
+		sm.fastModel = sm.model
+	}
+}
+
+func (sm *SessionManager) registerWebTools(reg *tools.Registry) {
+	deps := tools.WebToolDeps{
+		WS:       sm.webSearch,
+		Provider: sm.fastProvider,
+		Model:    sm.fastModel,
+	}
+	reg.Register(tools.NewWebSearchTool(deps))
+	reg.Register(tools.NewWebFetchTool(deps))
 }
 
 func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
