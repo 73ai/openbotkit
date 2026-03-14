@@ -9,9 +9,11 @@ import (
 
 // ProviderEnvVars maps provider names to their conventional env var names.
 var ProviderEnvVars = map[string]string{
-	"anthropic": "ANTHROPIC_API_KEY",
-	"openai":    "OPENAI_API_KEY",
-	"gemini":    "GEMINI_API_KEY",
+	"anthropic":  "ANTHROPIC_API_KEY",
+	"openai":     "OPENAI_API_KEY",
+	"gemini":     "GEMINI_API_KEY",
+	"groq":       "GROQ_API_KEY",
+	"openrouter": "OPENROUTER_API_KEY",
 }
 
 // Factory creates a Provider from a model provider config and resolved API key.
