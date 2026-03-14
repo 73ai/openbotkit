@@ -14,6 +14,7 @@ const (
 	TierDefault ModelTier = "default"
 	TierComplex ModelTier = "complex"
 	TierFast    ModelTier = "fast"
+	TierNano    ModelTier = "nano"
 )
 
 // Router selects the appropriate provider and model for a given tier.
@@ -48,10 +49,13 @@ func (r *Router) StreamChat(ctx context.Context, tier ModelTier, req ChatRequest
 }
 
 // resolve returns the provider and model for the given tier.
+// Cascade order: nano → fast → default, complex → default.
 func (r *Router) resolve(tier ModelTier) (Provider, string, error) {
 	spec := r.specForTier(tier)
+	if spec == "" && tier == TierNano {
+		spec = r.specForTier(TierFast)
+	}
 	if spec == "" {
-		// Fall back to default tier.
 		spec = r.models.Default
 	}
 	if spec == "" {
@@ -77,6 +81,8 @@ func (r *Router) specForTier(tier ModelTier) string {
 		return r.models.Complex
 	case TierFast:
 		return r.models.Fast
+	case TierNano:
+		return r.models.Nano
 	default:
 		return r.models.Default
 	}

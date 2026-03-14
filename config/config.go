@@ -75,6 +75,8 @@ type ModelsConfig struct {
 	Default             string                        `yaml:"default,omitempty"`
 	Complex             string                        `yaml:"complex,omitempty"`
 	Fast                string                        `yaml:"fast,omitempty"`
+	Nano                string                        `yaml:"nano,omitempty"`
+	Profile             string                        `yaml:"profile,omitempty"`
 	ContextWindow       int                           `yaml:"context_window,omitempty"`
 	CompactionThreshold float64                       `yaml:"compaction_threshold,omitempty"`
 	Providers           map[string]ModelProviderConfig `yaml:"providers,omitempty"`

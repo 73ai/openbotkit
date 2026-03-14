@@ -40,7 +40,7 @@ func NewRegistry(models *config.ModelsConfig) (*Registry, error) {
 
 	// Determine which providers are referenced.
 	needed := make(map[string]bool)
-	for _, spec := range []string{models.Default, models.Complex, models.Fast} {
+	for _, spec := range []string{models.Default, models.Complex, models.Fast, models.Nano} {
 		if spec == "" {
 			continue
 		}
