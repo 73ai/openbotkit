@@ -34,7 +34,8 @@ func (f *FileReadTool) Execute(_ context.Context, input json.RawMessage) (string
 	if err != nil {
 		return "", fmt.Errorf("read file: %w", err)
 	}
-	return string(content), nil
+	result := TruncateHead(string(content), MaxLinesFileRead)
+	return TruncateBytes(result, MaxOutputBytes), nil
 }
 
 // FileWriteTool writes content to a file.

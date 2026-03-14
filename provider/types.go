@@ -95,7 +95,8 @@ type ChatRequest struct {
 	SystemBlocks []SystemBlock `json:"system_blocks,omitempty"`
 	Messages     []Message     `json:"messages"`
 	Tools        []Tool        `json:"tools,omitempty"`
-	MaxTokens    int           `json:"max_tokens,omitempty"`
+	MaxTokens       int           `json:"max_tokens,omitempty"`
+	DisableThinking bool          `json:"disable_thinking,omitempty"`
 }
 
 // EffectiveSystemBlocks returns SystemBlocks if set, otherwise wraps System

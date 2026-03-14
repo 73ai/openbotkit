@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/priyanshujain/openbotkit/provider"
 )
@@ -97,11 +98,13 @@ func WithSummarizer(s Summarizer) Option {
 // New creates a new Agent.
 func New(p provider.Provider, model string, executor ToolExecutor, opts ...Option) *Agent {
 	a := &Agent{
-		provider:   p,
-		model:      model,
-		executor:   executor,
-		maxIter:    25,
-		maxHistory: defaultMaxHistory,
+		provider:            p,
+		model:               model,
+		executor:            executor,
+		maxIter:             25,
+		maxHistory:          defaultMaxHistory,
+		contextWindow:       1_000_000,
+		compactionThreshold: 0.6,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -115,12 +118,14 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	a.history = append(a.history, provider.NewTextMessage(provider.RoleUser, input))
 
 	for i := range a.maxIter {
+		a.microcompact()
 		a.compactHistory(ctx)
 		if a.rateLimiter != nil {
 			if err := a.rateLimiter.Wait(ctx); err != nil {
 				return "", fmt.Errorf("rate limiter: %w", err)
 			}
 		}
+		slog.Info("llm request", "iteration", i, "messages", len(a.history), "tools", len(a.executor.ToolSchemas()))
 		resp, err := a.provider.Chat(ctx, provider.ChatRequest{
 			Model:        a.model,
 			System:       a.system,
@@ -134,6 +139,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		}
 
 		a.lastInputTokens = resp.Usage.InputTokens
+		slog.Info("llm response", "iteration", i, "input_tokens", resp.Usage.InputTokens, "output_tokens", resp.Usage.OutputTokens, "stop", resp.StopReason)
 		if a.usageRecorder != nil {
 			a.usageRecorder.RecordUsage(a.model, resp.Usage)
 		}

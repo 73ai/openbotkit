@@ -58,7 +58,7 @@ func TestServerAPI_Docker(t *testing.T) {
 				FileMode:          0644,
 			},
 		},
-		Cmd: []string{"server", "--addr", ":8443"},
+		Cmd: []string{"server", "run", "--addr", ":8443"},
 		WaitingFor: wait.ForHTTP("/api/health").
 			WithPort("8443/tcp").
 			WithStartupTimeout(3 * time.Minute),

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/provider"
@@ -40,7 +41,7 @@ func New(apiKey string, opts ...Option) *OpenAI {
 	o := &OpenAI{
 		apiKey:  apiKey,
 		baseURL: defaultBaseURL,
-		client:  http.DefaultClient,
+		client:  &http.Client{Timeout: 60 * time.Second},
 	}
 	for _, opt := range opts {
 		opt(o)

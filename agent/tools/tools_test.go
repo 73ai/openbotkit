@@ -199,6 +199,35 @@ func (s *stubTool) Description() string                                         
 func (s *stubTool) InputSchema() json.RawMessage                                     { return json.RawMessage(`{"type":"object"}`) }
 func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (string, error) { return s.output, nil }
 
+func TestBashTool_TruncatesLargeOutput(t *testing.T) {
+	b := NewBashTool(10 * time.Second)
+	// seq 5000 produces 5000 lines; truncation should keep last 2000.
+	result, err := b.Execute(context.Background(), json.RawMessage(`{"command":"seq 5000"}`))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(result, "[truncated: showing 2000 of") {
+		t.Error("expected truncation marker for >2000 lines")
+	}
+	// Last line should be "5000" (tail truncation keeps the end).
+	if !strings.HasSuffix(strings.TrimSpace(result), "5000") {
+		t.Errorf("expected last line to be 5000, got tail: %q",
+			result[max(0, len(result)-50):])
+	}
+}
+
+func TestBashTool_TruncatesLargeBytes(t *testing.T) {
+	b := NewBashTool(10 * time.Second)
+	// Generate >50KB of single-line output.
+	result, err := b.Execute(context.Background(), json.RawMessage(`{"command":"head -c 60000 /dev/zero | tr '\\0' 'x'"}`))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(result) > 55*1024 { // 50KB + some marker overhead
+		t.Errorf("result too large: %d bytes, expected <=~50KB", len(result))
+	}
+}
+
 func TestBashBlocksGWS(t *testing.T) {
 	b := NewBashTool(5 * time.Second)
 	_, err := b.Execute(context.Background(), json.RawMessage(`{"command":"gws calendar events.list"}`))
@@ -223,7 +252,7 @@ func TestBashAllowsEchoGWS(t *testing.T) {
 
 func TestRegistryExactlyAtLimit(t *testing.T) {
 	r := NewRegistry()
-	r.Register(&stubTool{name: "exact", output: strings.Repeat("x", 524288)})
+	r.Register(&stubTool{name: "exact", output: strings.Repeat("x", 102400)})
 
 	output, err := r.Execute(context.Background(), provider.ToolCall{
 		Name:  "exact",
@@ -232,14 +261,14 @@ func TestRegistryExactlyAtLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if output != strings.Repeat("x", 524288) {
+	if output != strings.Repeat("x", 102400) {
 		t.Errorf("output at exact limit should not be truncated")
 	}
 }
 
 func TestRegistryOneOverLimit(t *testing.T) {
 	r := NewRegistry()
-	r.Register(&stubTool{name: "over", output: strings.Repeat("x", 524289)})
+	r.Register(&stubTool{name: "over", output: strings.Repeat("x", 102401)})
 
 	output, err := r.Execute(context.Background(), provider.ToolCall{
 		Name:  "over",

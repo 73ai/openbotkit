@@ -63,7 +63,10 @@ func (t *WebSearchTool) Execute(ctx context.Context, input json.RawMessage) (str
 		return "", fmt.Errorf("web search: %w", err)
 	}
 
-	return formatSearchResult(result), nil
+	out := formatSearchResult(result)
+	out = TruncateHead(out, MaxLinesWebSearch)
+	out = TruncateBytes(out, MaxOutputBytes)
+	return out, nil
 }
 
 func formatSearchResult(r *websearch.SearchResult) string {

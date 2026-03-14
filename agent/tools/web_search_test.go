@@ -146,6 +146,34 @@ func TestWebSearchTool_CustomMaxResults(t *testing.T) {
 	}
 }
 
+func TestWebSearchTool_TruncatesLargeOutput(t *testing.T) {
+	// Generate >500 results to exceed the line limit.
+	results := make([]websearch.Result, 600)
+	for i := range results {
+		results[i] = websearch.Result{
+			Title: "Result", URL: "https://example.com", Snippet: "Snippet text here",
+		}
+	}
+	mock := &mockWebSearcher{
+		searchResult: &websearch.SearchResult{
+			Query:   "big",
+			Results: results,
+			Metadata: websearch.SearchMetadata{
+				Backends: []string{"test"}, TotalResults: 600,
+			},
+		},
+	}
+	tool := NewWebSearchTool(WebToolDeps{WS: mock})
+
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"big"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "[truncated: showing 500 of") {
+		t.Error("expected truncation marker for >500 lines of search results")
+	}
+}
+
 func TestWebSearchTool_DefaultMaxResults(t *testing.T) {
 	mock := &mockWebSearcher{
 		searchResult: &websearch.SearchResult{

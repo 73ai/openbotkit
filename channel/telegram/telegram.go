@@ -1,11 +1,13 @@
 package telegram
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/priyanshujain/openbotkit/channel/tghtml"
 )
 
 // botSender abstracts the Telegram bot API for testing.
@@ -49,9 +51,15 @@ func NewChannel(bot botSender, chatID int64) *Channel {
 func (c *Channel) ChatID() int64 { return c.chatID }
 
 func (c *Channel) Send(msg string) error {
-	m := tgbotapi.NewMessage(c.chatID, msg)
-	m.ParseMode = "Markdown"
+	html := tghtml.Convert(msg)
+	m := tgbotapi.NewMessage(c.chatID, html)
+	m.ParseMode = "HTML"
 	_, err := c.bot.Send(m)
+	if isTelegramBadRequest(err) {
+		m.Text = msg
+		m.ParseMode = ""
+		_, err = c.bot.Send(m)
+	}
 	return err
 }
 
@@ -120,6 +128,14 @@ func (c *Channel) HandleCallback(data string) {
 // PushMessage enqueues an incoming message from the poller.
 func (c *Channel) PushMessage(text string, messageID int) {
 	c.incoming <- incomingMessage{text: text, messageID: messageID}
+}
+
+// isTelegramBadRequest returns true if the error is a Telegram API 400 error
+// (e.g. HTML parse failure). Other errors (network, rate limit) are not retried
+// to avoid sending duplicate messages.
+func isTelegramBadRequest(err error) bool {
+	var apiErr *tgbotapi.Error
+	return errors.As(err, &apiErr) && apiErr.Code == 400
 }
 
 // Close shuts down the incoming channel.

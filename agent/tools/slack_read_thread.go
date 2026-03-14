@@ -65,5 +65,11 @@ func (t *SlackReadThreadTool) Execute(ctx context.Context, input json.RawMessage
 		return "", fmt.Errorf("fetch replies: %w", err)
 	}
 
-	return compactMarshal(msgs)
+	out, err := compactMarshal(msgs)
+	if err != nil {
+		return "", err
+	}
+	out = TruncateHead(out, MaxLinesSlack)
+	out = TruncateBytes(out, MaxOutputBytes)
+	return out, nil
 }

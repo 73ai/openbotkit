@@ -146,7 +146,9 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 		return
 	}
 
-	sm.channel.Send(response)
+	if err := sm.channel.Send(response); err != nil {
+		slog.Error("telegram session: send response", "error", err)
+	}
 
 	sm.mu.Lock()
 	sid := sm.sessionID
@@ -220,6 +222,9 @@ func (sm *SessionManager) touchSession() {
 			sm.sessionID = generateSessionID()
 			sm.messages = nil
 		}
+		if err := config.EnsureScratchDir(sm.sessionID); err != nil {
+			slog.Warn("scratch dir creation failed", "error", err)
+		}
 	}
 
 	if sm.timer != nil {
@@ -242,10 +247,13 @@ func (sm *SessionManager) endSession() {
 		sm.timer = nil
 	}
 	messages := sm.messages
+	sid := sm.sessionID
 	sm.sessionID = ""
 	sm.messages = nil
 	sm.history = nil
 	sm.mu.Unlock()
+
+	config.CleanScratch(sid)
 
 	if len(messages) > 0 {
 		go sm.extractMemories(context.Background(), messages)
@@ -327,6 +335,14 @@ func (sm *SessionManager) gwsEnabled() bool {
 
 func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(string)) (*agent.Agent, *usagesrc.Recorder, *audit.Logger, error) {
 	toolReg := tools.NewStandardRegistry()
+
+	sm.mu.Lock()
+	sid := sm.sessionID
+	sm.mu.Unlock()
+	if sid != "" {
+		toolReg.SetScratchDir(config.ScratchDir(sid))
+	}
+
 	al := sm.openAuditLogger()
 	if al != nil {
 		toolReg.SetAudit(al, "telegram")
@@ -350,11 +366,16 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 	sm.registerScheduleTools(toolReg)
 	sm.registerWebTools(toolReg)
 
+	scratchDir := config.ScratchDir(sid)
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-		Provider:    sm.provider,
-		Model:       sm.model,
-		ToolFactory: tools.NewStandardRegistry,
-		System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Provider: sm.provider,
+		Model:    sm.model,
+		ToolFactory: func() *tools.Registry {
+			r := tools.NewStandardRegistry()
+			r.SetScratchDir(scratchDir)
+			return r
+		},
+		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
 	}))
 
 	identity := "You are a personal AI assistant powered by OpenBotKit, communicating via Telegram.\n"

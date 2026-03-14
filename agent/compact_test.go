@@ -283,3 +283,190 @@ func TestCompactHistory_EmptySummary_FallbackToTruncation(t *testing.T) {
 		t.Errorf("expected truncation marker, got %q", summary)
 	}
 }
+
+// --- Microcompaction tests ---
+
+func toolResultMsg(name, content string) provider.Message {
+	return provider.Message{
+		Role: provider.RoleUser,
+		Content: []provider.ContentBlock{{
+			Type: provider.ContentToolResult,
+			ToolResult: &provider.ToolResult{
+				ToolUseID: "id-" + name,
+				Name:      name,
+				Content:   content,
+			},
+		}},
+	}
+}
+
+func TestMicrocompact_RecentPreserved(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	bigContent := strings.Repeat("x", 300)
+	for i := range 4 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+			toolResultMsg("bash", bigContent),
+		)
+	}
+	a.microcompact()
+	for i := 2; i < len(a.history); i++ {
+		msg := a.history[i]
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			if strings.HasPrefix(msg.Content[0].ToolResult.Content, "[Previous:") {
+				t.Errorf("recent message at index %d was compacted", i)
+			}
+		}
+	}
+}
+
+func TestMicrocompact_OldResultsCompacted(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	bigContent := strings.Repeat("x", 300)
+	for i := range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+			toolResultMsg("bash", bigContent),
+		)
+	}
+	a.microcompact()
+	found := false
+	for i := 0; i < 4; i++ {
+		msg := a.history[i]
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			if strings.HasPrefix(msg.Content[0].ToolResult.Content, "[Previous: used bash]") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected old tool result to be compacted")
+	}
+}
+
+func TestMicrocompact_ShortResultsPreserved(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	for i := range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+			toolResultMsg("bash", "ok"),
+		)
+	}
+	a.microcompact()
+	for _, msg := range a.history {
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			if msg.Content[0].ToolResult.Content != "ok" {
+				t.Errorf("short result was modified: %q", msg.Content[0].ToolResult.Content)
+			}
+		}
+	}
+}
+
+func TestMicrocompact_FileRefPreserved(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	content := strings.Repeat("x", 300) + "\n[Full output: /tmp/scratch/test.txt]"
+	for i := range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+			toolResultMsg("bash", content),
+		)
+	}
+	a.microcompact()
+	for i := 0; i < 4; i++ {
+		msg := a.history[i]
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			c := msg.Content[0].ToolResult.Content
+			if strings.HasPrefix(c, "[Previous:") && !strings.Contains(c, "[Full output:") {
+				t.Error("file reference lost during compaction")
+			}
+		}
+	}
+}
+
+func TestMicrocompact_TextBlocksUntouched(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	bigContent := strings.Repeat("x", 300)
+	for i := range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleUser, bigContent),
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+		)
+	}
+	a.microcompact()
+	for _, msg := range a.history {
+		for _, block := range msg.Content {
+			if block.Type == provider.ContentText && strings.HasPrefix(block.Text, "[Previous:") {
+				t.Error("text block was incorrectly compacted")
+			}
+		}
+	}
+}
+
+func TestMicrocompact_AssistantUntouched(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	bigContent := strings.Repeat("x", 300)
+	for range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, bigContent),
+			toolResultMsg("bash", bigContent),
+		)
+	}
+	a.microcompact()
+	for _, msg := range a.history {
+		if msg.Role == provider.RoleAssistant {
+			if strings.HasPrefix(msg.Content[0].Text, "[Previous:") {
+				t.Error("assistant message was incorrectly compacted")
+			}
+		}
+	}
+}
+
+func TestMicrocompact_EmptyHistory(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	a.microcompact()
+}
+
+func TestMicrocompact_ShortHistory(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	a.history = append(a.history,
+		provider.NewTextMessage(provider.RoleAssistant, "hi"),
+		toolResultMsg("bash", strings.Repeat("x", 300)),
+	)
+	a.microcompact()
+	if a.history[1].Content[0].ToolResult.Content != strings.Repeat("x", 300) {
+		t.Error("short history should not be compacted")
+	}
+}
+
+func TestMicrocompact_Idempotent(t *testing.T) {
+	a := &Agent{maxHistory: 40}
+	bigContent := strings.Repeat("x", 300)
+	for i := range 5 {
+		a.history = append(a.history,
+			provider.NewTextMessage(provider.RoleAssistant, fmt.Sprintf("resp %d", i)),
+			toolResultMsg("bash", bigContent),
+		)
+	}
+	a.microcompact()
+	var firstPass []string
+	for _, msg := range a.history {
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			firstPass = append(firstPass, msg.Content[0].ToolResult.Content)
+		}
+	}
+	a.microcompact()
+	var secondPass []string
+	for _, msg := range a.history {
+		if msg.Role == provider.RoleUser && msg.Content[0].ToolResult != nil {
+			secondPass = append(secondPass, msg.Content[0].ToolResult.Content)
+		}
+	}
+	if len(firstPass) != len(secondPass) {
+		t.Fatalf("length changed: %d vs %d", len(firstPass), len(secondPass))
+	}
+	for idx := range firstPass {
+		if firstPass[idx] != secondPass[idx] {
+			t.Errorf("index %d changed: %q vs %q", idx, firstPass[idx], secondPass[idx])
+		}
+	}
+}

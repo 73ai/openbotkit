@@ -77,14 +77,20 @@ func (t *WebFetchTool) Execute(ctx context.Context, input json.RawMessage) (stri
 
 	content := result.Content
 	if len(content) <= shortContentThreshold {
-		return fmt.Sprintf("Source: %s\n\n%s", in.URL, content), nil
+		out := fmt.Sprintf("Source: %s\n\n%s", in.URL, content)
+		out = TruncateHead(out, MaxLinesWebFetch)
+		out = TruncateBytes(out, MaxOutputBytes)
+		return out, nil
 	}
 
 	summary, err := t.summarize(ctx, content, in.Question)
 	if err != nil {
 		return "", fmt.Errorf("summarize: %w", err)
 	}
-	return fmt.Sprintf("Source: %s\n\n%s", in.URL, summary), nil
+	out := fmt.Sprintf("Source: %s\n\n%s", in.URL, summary)
+	out = TruncateHead(out, MaxLinesWebFetch)
+	out = TruncateBytes(out, MaxOutputBytes)
+	return out, nil
 }
 
 func (t *WebFetchTool) summarize(ctx context.Context, content, question string) (string, error) {

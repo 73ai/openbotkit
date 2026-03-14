@@ -75,14 +75,24 @@ var chatCmd = &cobra.Command{
 
 		// Build tool registry.
 		toolReg := tools.NewStandardRegistry()
+		if err := config.EnsureScratchDir(sessionID); err != nil {
+			slog.Warn("scratch dir creation failed", "error", err)
+		}
+		toolReg.SetScratchDir(config.ScratchDir(sessionID))
+		defer config.CleanScratch(sessionID)
 		if auditLogger != nil {
 			toolReg.SetAudit(auditLogger, "cli")
 		}
+		scratchDir := config.ScratchDir(sessionID)
 		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-			Provider:    p,
-			Model:       modelName,
-			ToolFactory: tools.NewStandardRegistry,
-			System:      "You are a focused sub-agent. Complete the given task and return a concise result.",
+			Provider: p,
+			Model:    modelName,
+			ToolFactory: func() *tools.Registry {
+				r := tools.NewStandardRegistry()
+				r.SetScratchDir(scratchDir)
+				return r
+			},
+			System: "You are a focused sub-agent. Complete the given task and return a concise result.",
 		}))
 
 		// Register delegate_task if external AI CLIs are available.

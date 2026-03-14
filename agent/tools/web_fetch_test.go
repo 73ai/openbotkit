@@ -133,6 +133,35 @@ func TestWebFetchTool_SummarizerPrompt(t *testing.T) {
 	}
 }
 
+func TestWebFetchTool_TruncatesLargeOutput(t *testing.T) {
+	// Short content path but >1000 lines should still be truncated.
+	longContent := strings.Repeat("line\n", 1500) // 1500 lines, <2000 chars threshold? No, 7500 chars > 2000.
+	mock := &mockWebSearcher{
+		fetchResult: &websearch.FetchResult{
+			URL:     "https://example.com/big",
+			Content: longContent,
+		},
+	}
+	// Content > shortContentThreshold, so summarizer runs.
+	mp := &mockProvider{
+		chatResp: &provider.ChatResponse{
+			Content: []provider.ContentBlock{
+				{Type: provider.ContentText, Text: strings.Repeat("summary line\n", 1200)},
+			},
+			StopReason: provider.StopEndTurn,
+		},
+	}
+	tool := NewWebFetchTool(WebToolDeps{WS: mock, Provider: mp, Model: "fast-model"})
+
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"url":"https://example.com/big","question":"test"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "[truncated: showing 1000 of") {
+		t.Error("expected truncation marker for >1000 lines of web fetch output")
+	}
+}
+
 func TestWebFetchTool_EmptyURL(t *testing.T) {
 	tool := NewWebFetchTool(WebToolDeps{})
 	_, err := tool.Execute(context.Background(), json.RawMessage(`{"url":"","question":"test"}`))

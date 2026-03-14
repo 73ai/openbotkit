@@ -19,6 +19,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/yuin/goldmark v1.7.13
 	github.com/zalando/go-keyring v0.2.6
 	go.mau.fi/whatsmeow v0.0.0-20260227112304-c9652e4448a2
 	golang.org/x/crypto v0.48.0

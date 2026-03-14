@@ -48,7 +48,7 @@ func TestChatID_ReturnsConfiguredID(t *testing.T) {
 	}
 }
 
-func TestSend_FormatsMarkdown(t *testing.T) {
+func TestSend_FormatsHTML(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
 
@@ -66,11 +66,8 @@ func TestSend_FormatsMarkdown(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected MessageConfig, got %T", bot.sent[0])
 	}
-	if msg.ParseMode != "Markdown" {
-		t.Fatalf("expected Markdown parse mode, got %q", msg.ParseMode)
-	}
-	if msg.Text != "hello **world**" {
-		t.Fatalf("expected 'hello **world**', got %q", msg.Text)
+	if msg.ParseMode != "HTML" {
+		t.Fatalf("expected HTML parse mode, got %q", msg.ParseMode)
 	}
 }
 

@@ -166,7 +166,12 @@ func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error)
 			return "", fmt.Errorf("get token after re-auth: %w", err)
 		}
 	}
-	return g.runner.Run(ctx, args, env)
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, runErr := g.runner.Run(runCtx, args, env)
+	out = TruncateHeadTail(out, MaxLinesHeadTail, MaxLinesHeadTail)
+	out = TruncateBytes(out, MaxOutputBytes)
+	return out, runErr
 }
 
 func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) error {

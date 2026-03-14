@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -148,6 +149,106 @@ func TestRegistry_InjectionWarning(t *testing.T) {
 	}
 	if !strings.Contains(output, "[WARNING:") {
 		t.Error("expected injection warning in output")
+	}
+}
+
+func TestRegistry_FileFallback_UnderThreshold(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&stubTool{name: "small", output: "short output"})
+	r.SetScratchDir(t.TempDir())
+
+	output, err := r.Execute(context.Background(), provider.ToolCall{
+		Name: "small", ID: "c1", Input: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if output != "short output" {
+		t.Errorf("output = %q, want unchanged", output)
+	}
+}
+
+func TestRegistry_FileFallback_OverThreshold(t *testing.T) {
+	bigOutput := strings.Repeat("line\n", 2000) // ~10KB
+	r := NewRegistry()
+	r.Register(&stubTool{name: "big", output: bigOutput})
+	scratchDir := t.TempDir()
+	r.SetScratchDir(scratchDir)
+
+	output, err := r.Execute(context.Background(), provider.ToolCall{
+		Name: "big", ID: "c2", Input: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(output, "[Showing first 40 of") {
+		t.Errorf("expected file fallback stub, got %q", output[:min(len(output), 200)])
+	}
+	if !strings.Contains(output, "Full output:") {
+		t.Error("expected file path in stub")
+	}
+}
+
+func TestRegistry_FileFallback_FileContents(t *testing.T) {
+	bigOutput := strings.Repeat("data\n", 2000)
+	r := NewRegistry()
+	r.Register(&stubTool{name: "data", output: bigOutput})
+	scratchDir := t.TempDir()
+	r.SetScratchDir(scratchDir)
+
+	_, err := r.Execute(context.Background(), provider.ToolCall{
+		Name: "data", ID: "c3", Input: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	path := filepath.Join(scratchDir, "data_c3.txt")
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if string(got) != bigOutput {
+		t.Error("file contents don't match original output")
+	}
+}
+
+func TestRegistry_FileFallback_NoScratchDir(t *testing.T) {
+	bigOutput := strings.Repeat("x\n", 5000)
+	r := NewRegistry()
+	r.Register(&stubTool{name: "big", output: bigOutput})
+	// No SetScratchDir — file fallback disabled.
+
+	output, err := r.Execute(context.Background(), provider.ToolCall{
+		Name: "big", ID: "c4", Input: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	// Should NOT contain file fallback stub.
+	if strings.Contains(output, "Full output:") {
+		t.Error("file fallback should be disabled without scratch dir")
+	}
+}
+
+func TestRegistry_FileFallback_DirCreationFails(t *testing.T) {
+	bigOutput := strings.Repeat("x\n", 5000)
+	r := NewRegistry()
+	r.Register(&stubTool{name: "big", output: bigOutput})
+	// Create a regular file and use it as parent so MkdirAll fails on all platforms.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	os.WriteFile(blocker, []byte("x"), 0600)
+	r.SetScratchDir(filepath.Join(blocker, "scratch"))
+
+	output, err := r.Execute(context.Background(), provider.ToolCall{
+		Name: "big", ID: "c5", Input: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	// Should gracefully skip file fallback — no stub, just (possibly truncated) output.
+	if strings.Contains(output, "Full output:") {
+		t.Error("file fallback should be skipped when dir creation fails")
 	}
 }
 

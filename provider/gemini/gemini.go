@@ -95,7 +95,7 @@ func New(apiKey string, opts ...Option) *Gemini {
 	g := &Gemini{
 		apiKey:  apiKey,
 		baseURL: defaultBaseURL,
-		client:  http.DefaultClient,
+		client:  &http.Client{Timeout: 60 * time.Second},
 	}
 	for _, opt := range opts {
 		opt(g)
@@ -201,10 +201,15 @@ func (g *Gemini) buildRequest(req provider.ChatRequest) map[string]any {
 		body["tools"] = toolsVal
 	}
 
+	genConfig := map[string]any{}
 	if req.MaxTokens > 0 {
-		body["generationConfig"] = map[string]any{
-			"maxOutputTokens": req.MaxTokens,
-		}
+		genConfig["maxOutputTokens"] = req.MaxTokens
+	}
+	if req.DisableThinking {
+		genConfig["thinkingConfig"] = map[string]any{"thinkingBudget": 0}
+	}
+	if len(genConfig) > 0 {
+		body["generationConfig"] = genConfig
 	}
 
 	return body

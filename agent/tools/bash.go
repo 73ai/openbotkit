@@ -98,6 +98,9 @@ func (b *BashTool) Execute(ctx context.Context, input json.RawMessage) (string, 
 		result += "\nSTDERR:\n" + stderr.String()
 	}
 
+	result = TruncateTail(result, MaxLinesBash)
+	result = TruncateBytes(result, MaxOutputBytes)
+
 	if ctx.Err() == context.DeadlineExceeded {
 		return result, fmt.Errorf("command timed out after %s", b.timeout)
 	}

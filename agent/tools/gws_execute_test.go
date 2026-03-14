@@ -551,3 +551,22 @@ func TestGWSExecute_Name(t *testing.T) {
 		t.Error("invalid input schema")
 	}
 }
+
+func TestGWSExecute_TruncatesLargeOutput(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+	// Mock runner returns 60KB output.
+	bigOutput := strings.Repeat("line\n", 12000)
+	runner.outputs["calendar events list"] = bigOutput
+
+	input, _ := json.Marshal(gwsInput{Command: "calendar events list"})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(result, "[truncated: showing 500+500 of") {
+		t.Error("expected head+tail truncation marker")
+	}
+	if len(result) >= len(bigOutput) {
+		t.Errorf("result should be truncated: got %d bytes, original %d", len(result), len(bigOutput))
+	}
+}
