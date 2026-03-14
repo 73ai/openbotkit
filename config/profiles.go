@@ -27,9 +27,9 @@ var Profiles = map[string]ModelProfile{
 			Default: "openrouter/mistralai/mistral-medium-3.1",
 			Complex: "openrouter/mistralai/mistral-medium-3.1",
 			Fast:    "openrouter/google/gemini-2.0-flash-lite",
-			Nano:    "groq/llama-3.1-8b-instant",
+			Nano:    "gemini/gemini-2.0-flash-lite",
 		},
-		Providers: []string{"openrouter", "groq"},
+		Providers: []string{"openrouter", "gemini"},
 	},
 	"standard": {
 		Name:        "standard",
@@ -39,9 +39,9 @@ var Profiles = map[string]ModelProfile{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
 			Fast:    "openrouter/google/gemini-2.0-flash-lite",
-			Nano:    "groq/llama-3.1-8b-instant",
+			Nano:    "gemini/gemini-2.0-flash-lite",
 		},
-		Providers: []string{"openrouter", "groq"},
+		Providers: []string{"openrouter", "gemini"},
 	},
 	"premium": {
 		Name:        "premium",
@@ -51,9 +51,9 @@ var Profiles = map[string]ModelProfile{
 			Default: "openrouter/anthropic/claude-sonnet-4-6",
 			Complex: "openrouter/anthropic/claude-opus-4-6",
 			Fast:    "openrouter/anthropic/claude-haiku-4-5",
-			Nano:    "groq/llama-3.1-8b-instant",
+			Nano:    "gemini/gemini-2.0-flash-lite",
 		},
-		Providers: []string{"openrouter", "groq"},
+		Providers: []string{"openrouter", "gemini"},
 	},
 }
 
