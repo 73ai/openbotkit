@@ -21,7 +21,9 @@ import (
 	// Register provider factories.
 	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
 	_ "github.com/priyanshujain/openbotkit/provider/gemini"
+	_ "github.com/priyanshujain/openbotkit/provider/groq"
 	_ "github.com/priyanshujain/openbotkit/provider/openai"
+	_ "github.com/priyanshujain/openbotkit/provider/openrouter"
 	"github.com/spf13/cobra"
 )
 
