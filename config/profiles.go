@@ -26,7 +26,7 @@ var Profiles = map[string]ModelProfile{
 		Tiers: ProfileTiers{
 			Default: "openrouter/mistralai/mistral-medium-3.1",
 			Complex: "openrouter/mistralai/mistral-medium-3.1",
-			Fast:    "openrouter/google/gemini-2.0-flash-lite",
+			Fast:    "gemini/gemini-2.0-flash-lite",
 			Nano:    "gemini/gemini-2.0-flash-lite",
 		},
 		Providers: []string{"openrouter", "gemini"},
@@ -38,7 +38,7 @@ var Profiles = map[string]ModelProfile{
 		Tiers: ProfileTiers{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
-			Fast:    "openrouter/google/gemini-2.0-flash-lite",
+			Fast:    "gemini/gemini-2.0-flash-lite",
 			Nano:    "gemini/gemini-2.0-flash-lite",
 		},
 		Providers: []string{"openrouter", "gemini"},
