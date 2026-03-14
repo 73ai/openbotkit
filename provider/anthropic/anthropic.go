@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -97,7 +98,7 @@ func New(apiKey string, opts ...Option) *Anthropic {
 	a := &Anthropic{
 		apiKey:  apiKey,
 		baseURL: defaultBaseURL,
-		client:  http.DefaultClient,
+		client:  &http.Client{Timeout: 60 * time.Second},
 	}
 	for _, opt := range opts {
 		opt(a)
