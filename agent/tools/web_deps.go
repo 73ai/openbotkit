@@ -67,3 +67,17 @@ func ResolveFastProvider(models *config.ModelsConfig, reg *provider.Registry, de
 	}
 	return defaultP, defaultModel
 }
+
+// ResolveNanoProvider returns the nano-tier provider and model.
+// Cascades: nano → fast → default.
+func ResolveNanoProvider(models *config.ModelsConfig, reg *provider.Registry, defaultP provider.Provider, defaultModel string) (provider.Provider, string) {
+	if models != nil && models.Nano != "" {
+		provName, model, err := provider.ParseModelSpec(models.Nano)
+		if err == nil {
+			if p, ok := reg.Get(provName); ok {
+				return p, model
+			}
+		}
+	}
+	return ResolveFastProvider(models, reg, defaultP, defaultModel)
+}
