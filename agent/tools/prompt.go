@@ -58,7 +58,8 @@ The sub-agent has its own tools (bash, file ops, skills) but cannot spawn furthe
 	if reg.Has("gws_execute") {
 		b.WriteString(`
 ## Google Workspace
-Use the gws_execute tool for all Google Workspace operations (Calendar, Drive, Docs, Sheets, Tasks, Contacts).
+Use the gws_execute tool for Google Workspace operations: Calendar, Drive, Docs, Sheets, Tasks, Contacts.
+For Gmail/email operations, use the email-read and email-send skills via the bash tool (obk commands), NOT gws_execute.
 BEFORE your first gws_execute call, ALWAYS use load_skills to load the relevant gws skill for correct command syntax.
 For example, to list files load gws-drive; to read a doc load gws-docs; to check calendar load gws-calendar.
 Tip: listing or searching Google Docs/Sheets/Slides requires gws-drive (files list with mimeType filter), not gws-docs.
