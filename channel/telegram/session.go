@@ -148,6 +148,11 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 		return
 	}
 
+	if strings.TrimSpace(response) == "" {
+		slog.Warn("telegram session: empty response from agent")
+		response = "I wasn't able to generate a response. Could you try again?"
+	}
+
 	if err := sm.channel.Send(response); err != nil {
 		slog.Error("telegram session: send response", "error", err)
 	}
