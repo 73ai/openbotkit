@@ -5,16 +5,17 @@ type ModelProfile struct {
 	Name        string
 	Label       string
 	Description string
+	Category    string // "single" or "multi"
 	Tiers       ProfileTiers
 	Providers   []string
 }
 
 // ProfileTiers maps each tier to a model spec (provider/model).
 type ProfileTiers struct {
-	Default string
-	Complex string
-	Fast    string
-	Nano    string
+	Default string `yaml:"default,omitempty"`
+	Complex string `yaml:"complex,omitempty"`
+	Fast    string `yaml:"fast,omitempty"`
+	Nano    string `yaml:"nano,omitempty"`
 }
 
 // Profiles contains the built-in model profile presets.
@@ -23,6 +24,7 @@ var Profiles = map[string]ModelProfile{
 		Name:        "starter",
 		Label:       "Starter (~$20/mo)",
 		Description: "Good quality, budget-friendly. Mistral for conversation, free nano.",
+		Category:    "multi",
 		Tiers: ProfileTiers{
 			Default: "openrouter/mistralai/mistral-medium-3.1",
 			Complex: "openrouter/mistralai/mistral-medium-3.1",
@@ -35,6 +37,7 @@ var Profiles = map[string]ModelProfile{
 		Name:        "standard",
 		Label:       "Standard (~$50/mo)",
 		Description: "Strong quality with Claude. Free nano.",
+		Category:    "multi",
 		Tiers: ProfileTiers{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
@@ -47,6 +50,7 @@ var Profiles = map[string]ModelProfile{
 		Name:        "premium",
 		Label:       "Premium (~$100/mo)",
 		Description: "Best quality everywhere. Claude across all tiers.",
+		Category:    "multi",
 		Tiers: ProfileTiers{
 			Default: "openrouter/anthropic/claude-sonnet-4-6",
 			Complex: "openrouter/anthropic/claude-opus-4-6",
