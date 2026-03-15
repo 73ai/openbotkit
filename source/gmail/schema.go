@@ -70,31 +70,7 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 `
 
-const migrateRenames = `
-ALTER TABLE IF EXISTS gmail_emails RENAME TO emails;
-ALTER TABLE IF EXISTS gmail_attachments RENAME TO attachments;
-ALTER TABLE IF EXISTS gmail_sync_state RENAME TO sync_state;
-`
-
 func Migrate(db *store.DB) error {
-	// Rename legacy tables if they exist.
-	if db.IsPostgres() {
-		db.Exec(migrateRenames)
-	} else {
-		// SQLite doesn't support ALTER TABLE IF EXISTS, so check first.
-		for _, pair := range [][2]string{
-			{"gmail_emails", "emails"},
-			{"gmail_attachments", "attachments"},
-			{"gmail_sync_state", "sync_state"},
-		} {
-			var n int
-			err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", pair[0]).Scan(&n)
-			if err == nil && n > 0 {
-				db.Exec("ALTER TABLE " + pair[0] + " RENAME TO " + pair[1])
-			}
-		}
-	}
-
 	schema := schemaSQLite
 	if db.IsPostgres() {
 		schema = schemaPostgres
