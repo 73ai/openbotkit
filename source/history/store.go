@@ -90,11 +90,19 @@ type RecentSession struct {
 	UpdatedAt time.Time
 }
 
+func EndSession(db *store.DB, sessionID string) error {
+	_, err := db.Exec(
+		db.Rebind("UPDATE history_conversations SET ended_at = CURRENT_TIMESTAMP WHERE session_id = ?"),
+		sessionID,
+	)
+	return err
+}
+
 func LoadRecentSession(db *store.DB, cwd string, maxAge time.Duration) (*RecentSession, error) {
 	var sessionID string
 	var raw string
 	err := db.QueryRow(
-		db.Rebind("SELECT session_id, updated_at FROM history_conversations WHERE cwd = ? ORDER BY updated_at DESC LIMIT 1"),
+		db.Rebind("SELECT session_id, updated_at FROM history_conversations WHERE cwd = ? AND ended_at IS NULL ORDER BY updated_at DESC LIMIT 1"),
 		cwd,
 	).Scan(&sessionID, &raw)
 	if err == sql.ErrNoRows {

@@ -288,3 +288,22 @@ func TestLoadRecentSession_MultipleConvos(t *testing.T) {
 		t.Fatalf("expected most recent tg-second, got %q", s.SessionID)
 	}
 }
+
+func TestEndSession_ExcludedFromRestore(t *testing.T) {
+	db := testDB(t)
+	if err := Migrate(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	UpsertConversation(db, "tg-ended", "telegram")
+	if err := EndSession(db, "tg-ended"); err != nil {
+		t.Fatalf("end session: %v", err)
+	}
+
+	s, err := LoadRecentSession(db, "telegram", time.Hour)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if s != nil {
+		t.Fatalf("expected nil after ending session, got %+v", s)
+	}
+}
