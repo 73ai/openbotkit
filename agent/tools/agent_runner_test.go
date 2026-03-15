@@ -84,7 +84,7 @@ func TestDetectAgents_Priority(t *testing.T) {
 func TestAgentRunner_BuildsClaudeArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentClaude, Binary: "claude"})
 	args := r.buildArgs(runOptions{})
-	want := []string{"--print", "--output-format", "text"}
+	want := []string{"--print", "--output-format", "text", "--dangerously-skip-permissions"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
@@ -98,24 +98,28 @@ func TestAgentRunner_BuildsClaudeArgs(t *testing.T) {
 func TestAgentRunner_BuildsGeminiArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentGemini, Binary: "gemini"})
 	args := r.buildArgs(runOptions{})
-	want := []string{"-p"}
+	want := []string{"--approval-mode", "yolo", "-p"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
-	if args[0] != "-p" {
-		t.Errorf("args[0] = %q, want %q", args[0], "-p")
+	for i, a := range args {
+		if a != want[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, want[i])
+		}
 	}
 }
 
 func TestAgentRunner_BuildsCodexArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	args := r.buildArgs(runOptions{})
-	want := []string{"exec"}
+	want := []string{"exec", "--full-auto"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
-	if args[0] != "exec" {
-		t.Errorf("args[0] = %q, want %q", args[0], "exec")
+	for i, a := range args {
+		if a != want[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, want[i])
+		}
 	}
 }
 

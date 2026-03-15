@@ -104,15 +104,15 @@ func (r *AgentRunner) Run(ctx context.Context, prompt string, timeout time.Durat
 func (r *AgentRunner) buildArgs(opts runOptions) []string {
 	switch r.info.Kind {
 	case AgentClaude:
-		args := []string{"--print", "--output-format", "text"}
+		args := []string{"--print", "--output-format", "text", "--dangerously-skip-permissions"}
 		if opts.maxBudgetUSD > 0 {
 			args = append(args, "--max-budget-usd", fmt.Sprintf("%.2f", opts.maxBudgetUSD))
 		}
 		return args
 	case AgentGemini:
-		return []string{"-p"}
+		return []string{"--approval-mode", "yolo", "-p"}
 	case AgentCodex:
-		return []string{"exec"}
+		return []string{"exec", "--full-auto"}
 	default:
 		return nil
 	}
