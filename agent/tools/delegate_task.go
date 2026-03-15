@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -19,6 +22,7 @@ type DelegateTaskConfig struct {
 	Timeout       time.Duration // default 5m
 	Tracker       *TaskTracker  // nil = sync-only (Phase 1 behavior)
 	ApprovalRules *ApprovalRuleSet
+	ScratchDir    string // directory for writing result files
 }
 
 const progressThrottle = 30 * time.Second
@@ -32,6 +36,7 @@ type DelegateTaskTool struct {
 	streamRunners map[AgentKind]StreamRunnerInterface
 	tracker       *TaskTracker
 	approvalRules *ApprovalRuleSet
+	scratchDir    string
 }
 
 // NewDelegateTaskTool creates a new delegate_task tool.
@@ -54,6 +59,7 @@ func NewDelegateTaskTool(cfg DelegateTaskConfig) *DelegateTaskTool {
 		streamRunners: sRunners,
 		tracker:       cfg.Tracker,
 		approvalRules: cfg.ApprovalRules,
+		scratchDir:    cfg.ScratchDir,
 	}
 }
 
@@ -144,8 +150,9 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 	out, err := GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
 		return runner.Run(ctx, prompt, d.timeout, runOpts...)
 	}, guardOpts...)
-	out = TruncateHeadTail(out, MaxLinesHeadTail, MaxLinesHeadTail)
-	out = TruncateBytes(out, MaxOutputBytes)
+	if err == nil && out != "denied_by_user" {
+		out = d.writeResultFile(out, prompt)
+	}
 	return out, err
 }
 
@@ -233,7 +240,8 @@ func (d *DelegateTaskTool) runAsync(
 			d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
 			return
 		}
-		d.tracker.Complete(taskID, output)
+		summary := d.writeResultFile(output, task)
+		d.tracker.Complete(taskID, summary)
 		d.interactor.Notify(fmt.Sprintf("Task completed: %s. Use check_task to see results.", preview))
 		return
 	}
@@ -245,8 +253,32 @@ func (d *DelegateTaskTool) runAsync(
 		d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
 		return
 	}
-	d.tracker.Complete(taskID, output)
+	summary := d.writeResultFile(output, task)
+	d.tracker.Complete(taskID, summary)
 	d.interactor.Notify(fmt.Sprintf("Task completed: %s. Use check_task to see results.", preview))
+}
+
+func (d *DelegateTaskTool) writeResultFile(output, task string) string {
+	if output == "" {
+		return "Task produced no output."
+	}
+	if d.scratchDir == "" {
+		slog.Warn("delegate_task: no scratch dir, returning truncated output")
+		return TruncateHeadTail(output, MaxLinesHeadTail, MaxLinesHeadTail)
+	}
+	id, err := generateTaskID()
+	if err != nil {
+		id = "unknown"
+	}
+	path := filepath.Join(d.scratchDir, fmt.Sprintf("delegate_%s.md", id))
+	os.MkdirAll(d.scratchDir, 0700)
+	if err := os.WriteFile(path, []byte(output), 0600); err != nil {
+		slog.Warn("delegate_task: write result file failed", "error", err)
+		return TruncateHeadTail(output, MaxLinesHeadTail, MaxLinesHeadTail)
+	}
+	lines := strings.Count(output, "\n") + 1
+	preview := TruncateHead(output, 10)
+	return fmt.Sprintf("%s\n\nFull results (%d lines): %s", preview, lines, path)
 }
 
 func generateTaskID() (string, error) {

@@ -436,10 +436,14 @@ func (sm *SessionManager) registerDelegateTool(reg *tools.Registry) {
 	if len(agents) == 0 || sm.interactor == nil {
 		return
 	}
+	sm.mu.Lock()
+	delegateSID := sm.sessionID
+	sm.mu.Unlock()
 	reg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
 		Interactor: sm.interactor,
 		Agents:     agents,
 		Tracker:    sm.taskTracker,
+		ScratchDir: config.ScratchDir(delegateSID),
 	}))
 	reg.Register(tools.NewCheckTaskTool(sm.taskTracker))
 }
