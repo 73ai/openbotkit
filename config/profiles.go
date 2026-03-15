@@ -46,6 +46,32 @@ var Profiles = map[string]ModelProfile{
 		},
 		Providers: []string{"anthropic"},
 	},
+	"openrouter": {
+		Name:        "openrouter",
+		Label:       "OpenRouter (1 API key)",
+		Description: "Access 500+ models through OpenRouter.",
+		Category:    "single",
+		Tiers: ProfileTiers{
+			Default: "openrouter/anthropic/claude-haiku-4-5",
+			Complex: "openrouter/anthropic/claude-sonnet-4-6",
+			Fast:    "openrouter/google/gemini-2.0-flash-lite",
+			Nano:    "openrouter/google/gemini-2.0-flash-lite",
+		},
+		Providers: []string{"openrouter"},
+	},
+	"openai": {
+		Name:        "openai",
+		Label:       "OpenAI (1 API key)",
+		Description: "GPT models from OpenAI.",
+		Category:    "single",
+		Tiers: ProfileTiers{
+			Default: "openai/gpt-4o-mini",
+			Complex: "openai/gpt-4o",
+			Fast:    "openai/gpt-4o-mini",
+			Nano:    "openai/gpt-4o-mini",
+		},
+		Providers: []string{"openai"},
+	},
 	"starter": {
 		Name:        "starter",
 		Label:       "Starter (~$20/mo)",
@@ -88,4 +114,7 @@ var Profiles = map[string]ModelProfile{
 }
 
 // ProfileNames returns profile names in display order.
-var ProfileNames = []string{"gemini", "anthropic", "starter", "standard", "premium"}
+var ProfileNames = []string{
+	"gemini", "anthropic", "openrouter", "openai",
+	"starter", "standard", "premium",
+}
