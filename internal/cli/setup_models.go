@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -121,6 +122,22 @@ func setupModels(cfg *config.Config) error {
 		p := config.Profiles[name]
 		profileOptions = append(profileOptions, huh.NewOption(p.Label+" — "+p.Description, name))
 	}
+	// Append custom profiles sorted alphabetically.
+	if len(cfg.Models.CustomProfiles) > 0 {
+		var customNames []string
+		for n := range cfg.Models.CustomProfiles {
+			customNames = append(customNames, n)
+		}
+		sort.Strings(customNames)
+		for _, n := range customNames {
+			cp := cfg.Models.CustomProfiles[n]
+			label := cp.Label
+			if label == "" {
+				label = n
+			}
+			profileOptions = append(profileOptions, huh.NewOption(label+" (custom)", "custom:"+n))
+		}
+	}
 	profileOptions = append(profileOptions, huh.NewOption("Custom (manual configuration)", "custom"))
 
 	// Pre-select existing profile if configured.
@@ -128,6 +145,8 @@ func setupModels(cfg *config.Config) error {
 	if cfg.Models.Profile != "" {
 		if _, ok := config.Profiles[cfg.Models.Profile]; ok {
 			mode = cfg.Models.Profile
+		} else if _, ok := cfg.Models.CustomProfiles[cfg.Models.Profile]; ok {
+			mode = "custom:" + cfg.Models.Profile
 		}
 	}
 
@@ -143,15 +162,39 @@ func setupModels(cfg *config.Config) error {
 		return err
 	}
 
-	if mode != "custom" {
-		return setupWithProfile(cfg, mode)
+	if mode == "custom" {
+		return setupCustom(cfg)
 	}
-	return setupCustom(cfg)
+	// Handle custom profile selection ("custom:name").
+	if strings.HasPrefix(mode, "custom:") {
+		return setupWithCustomProfile(cfg, strings.TrimPrefix(mode, "custom:"))
+	}
+	return setupWithProfile(cfg, mode)
 }
 
 func setupWithProfile(cfg *config.Config, profileName string) error {
-	profile := config.Profiles[profileName]
+	return setupWithBuiltProfile(cfg, profileName, config.Profiles[profileName])
+}
 
+func setupWithCustomProfile(cfg *config.Config, name string) error {
+	cp, ok := cfg.Models.CustomProfiles[name]
+	if !ok {
+		return fmt.Errorf("custom profile %q not found", name)
+	}
+	// Convert to ModelProfile and delegate.
+	profile := config.ModelProfile{
+		Name:      name,
+		Label:     cp.Label,
+		Tiers:     cp.Tiers,
+		Providers: cp.Providers,
+	}
+	if profile.Label == "" {
+		profile.Label = name
+	}
+	return setupWithBuiltProfile(cfg, name, profile)
+}
+
+func setupWithBuiltProfile(cfg *config.Config, profileName string, profile config.ModelProfile) error {
 	// Show tier→model mapping for confirmation.
 	fmt.Printf("\n  Profile: %s\n", profile.Label)
 	fmt.Printf("    Default: %s\n", profile.Tiers.Default)
@@ -171,9 +214,9 @@ func setupWithProfile(cfg *config.Config, profileName string) error {
 
 	// Validate each provider with a test model.
 	fmt.Println("\n  Validating providers...")
-	providerTestModels := profileTestModels(profile)
+	testModels := profileTestModels(profile)
 	for _, provName := range profile.Providers {
-		model := providerTestModels[provName]
+		model := testModels[provName]
 		pcfg := cfg.Models.Providers[provName]
 		if err := validateProvider(provName, pcfg, model); err != nil {
 			fmt.Printf("  ✗ %s: %v\n", provName, err)
