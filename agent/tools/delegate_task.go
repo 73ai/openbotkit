@@ -66,7 +66,7 @@ func NewDelegateTaskTool(cfg DelegateTaskConfig) *DelegateTaskTool {
 func (d *DelegateTaskTool) Name() string { return "delegate_task" }
 
 func (d *DelegateTaskTool) Description() string {
-	return "Delegate a complex task to an external AI agent (requires user approval)"
+	return "Run a comprehensive, multi-step task using a dedicated AI agent with full tool access (web search, file ops, shell)"
 }
 
 func (d *DelegateTaskTool) InputSchema() json.RawMessage {
