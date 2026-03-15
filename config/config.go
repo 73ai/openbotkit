@@ -80,6 +80,15 @@ type ModelsConfig struct {
 	ContextWindow       int                           `yaml:"context_window,omitempty"`
 	CompactionThreshold float64                       `yaml:"compaction_threshold,omitempty"`
 	Providers           map[string]ModelProviderConfig `yaml:"providers,omitempty"`
+	CustomProfiles      map[string]CustomProfile       `yaml:"custom_profiles,omitempty"`
+}
+
+// CustomProfile is a user-defined model profile stored in config.
+type CustomProfile struct {
+	Label       string       `yaml:"label,omitempty"`
+	Description string       `yaml:"description,omitempty"`
+	Tiers       ProfileTiers `yaml:"tiers"`
+	Providers   []string     `yaml:"providers"`
 }
 
 // ModelProviderConfig holds settings for a single LLM provider.
