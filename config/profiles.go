@@ -33,6 +33,19 @@ var Profiles = map[string]ModelProfile{
 		},
 		Providers: []string{"gemini"},
 	},
+	"anthropic": {
+		Name:        "anthropic",
+		Label:       "Anthropic (1 API key)",
+		Description: "Claude models from Anthropic.",
+		Category:    "single",
+		Tiers: ProfileTiers{
+			Default: "anthropic/claude-haiku-4-5",
+			Complex: "anthropic/claude-sonnet-4-6",
+			Fast:    "anthropic/claude-haiku-4-5",
+			Nano:    "anthropic/claude-haiku-4-5",
+		},
+		Providers: []string{"anthropic"},
+	},
 	"starter": {
 		Name:        "starter",
 		Label:       "Starter (~$20/mo)",
@@ -75,4 +88,4 @@ var Profiles = map[string]ModelProfile{
 }
 
 // ProfileNames returns profile names in display order.
-var ProfileNames = []string{"gemini", "starter", "standard", "premium"}
+var ProfileNames = []string{"gemini", "anthropic", "starter", "standard", "premium"}
