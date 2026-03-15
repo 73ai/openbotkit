@@ -79,3 +79,47 @@ func TestModelCatalog_AllHaveRequiredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestModelCatalog_NoDuplicateIDs(t *testing.T) {
+	seen := make(map[string]bool)
+	for _, m := range ModelCatalog {
+		key := m.Provider + "/" + m.ID
+		if seen[key] {
+			t.Errorf("duplicate model in catalog: %s", key)
+		}
+		seen[key] = true
+	}
+}
+
+func TestModelCatalog_ValidTierNames(t *testing.T) {
+	validTiers := map[string]bool{
+		"default": true,
+		"complex": true,
+		"fast":    true,
+		"nano":    true,
+	}
+	for _, m := range ModelCatalog {
+		for _, tier := range m.RecommendedFor {
+			if !validTiers[tier] {
+				t.Errorf("model %q: invalid tier %q in RecommendedFor", m.ID, tier)
+			}
+		}
+	}
+}
+
+func TestModelCatalog_AllTiersHaveCoverage(t *testing.T) {
+	tiers := []string{"default", "complex", "fast", "nano"}
+	for _, tier := range tiers {
+		models := ModelsForTier(ModelCatalog, tier)
+		if len(models) == 0 {
+			t.Errorf("no models recommended for tier %q", tier)
+		}
+	}
+}
+
+func TestModelsForProviders_UnknownProvider(t *testing.T) {
+	models := ModelsForProviders([]string{"nonexistent"})
+	if len(models) != 0 {
+		t.Errorf("expected no models for unknown provider, got %d", len(models))
+	}
+}
