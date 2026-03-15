@@ -42,7 +42,8 @@ func (p *Poller) handleUpdate(update tgbotapi.Update) {
 		if update.CallbackQuery.From == nil || update.CallbackQuery.From.ID != p.ownerID {
 			return
 		}
-		p.channel.HandleCallback(update.CallbackQuery.Data)
+		slog.Info("telegram: callback received", "data", update.CallbackQuery.Data)
+		p.channel.HandleCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
 		return
 	}
 

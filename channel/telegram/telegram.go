@@ -35,8 +35,9 @@ type Channel struct {
 	incoming chan incomingMessage
 	done     chan struct{}
 
-	approvalMu sync.Mutex
-	approvalCh chan approvalResponse
+	approvalMu    sync.Mutex
+	approvalCh    chan approvalResponse
+	approvalMsgID int
 }
 
 func NewChannel(bot botSender, chatID int64) *Channel {
@@ -106,22 +107,47 @@ func (c *Channel) RequestApproval(action string) (bool, error) {
 
 	msg := tgbotapi.NewMessage(c.chatID, fmt.Sprintf("Approve action?\n\n%s", action))
 	msg.ReplyMarkup = keyboard
-	if _, err := c.bot.Send(msg); err != nil {
+	sentMsg, err := c.bot.Send(msg)
+	if err != nil {
 		return false, fmt.Errorf("send approval request: %w", err)
 	}
+	c.approvalMu.Lock()
+	c.approvalMsgID = sentMsg.MessageID
+	c.approvalMu.Unlock()
 
 	resp := <-c.approvalCh
 	return resp.approved, resp.err
 }
 
 // HandleCallback processes an inline keyboard callback.
-func (c *Channel) HandleCallback(data string) {
+func (c *Channel) HandleCallback(callbackID string, data string) {
 	c.approvalMu.Lock()
 	ch := c.approvalCh
+	msgID := c.approvalMsgID
+	c.approvalMsgID = 0
 	c.approvalMu.Unlock()
 
+	approved := data == "approve"
+
+	// Answer the callback query (dismisses button loading spinner).
+	label := "Approved"
+	if !approved {
+		label = "Denied"
+	}
+	answer := tgbotapi.NewCallback(callbackID, label)
+	c.bot.Request(answer)
+
+	// Remove inline keyboard buttons.
+	if msgID != 0 {
+		edit := tgbotapi.NewEditMessageReplyMarkup(
+			c.chatID, msgID,
+			tgbotapi.InlineKeyboardMarkup{InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{}},
+		)
+		c.bot.Request(edit)
+	}
+
 	if ch != nil {
-		ch <- approvalResponse{approved: data == "approve"}
+		ch <- approvalResponse{approved: approved}
 	}
 }
 
