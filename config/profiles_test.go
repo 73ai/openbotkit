@@ -93,11 +93,11 @@ func TestValidateProfileName(t *testing.T) {
 		{"ab", false},
 		{"a23456789012345678901234567890", false}, // 30 chars
 
-		{"", true},         // too short
-		{"a", true},        // too short (min 2)
-		{"A-upper", true},  // uppercase
-		{"1start", true},   // starts with number
-		{"-start", true},   // starts with hyphen
+		{"", true},          // too short
+		{"a", true},         // too short (min 2)
+		{"A-upper", true},   // uppercase
+		{"1start", true},    // starts with number
+		{"-start", true},    // starts with hyphen
 		{"has space", true}, // contains space
 		{"has_under", true}, // contains underscore
 

@@ -53,10 +53,10 @@ func TestDefaultContextWindow_NestedModelID(t *testing.T) {
 
 func TestDefaultContextWindow_GroqModels(t *testing.T) {
 	models := map[string]int{
-		"llama-3.1-8b-instant":       131072,
-		"llama-3.3-70b-versatile":    131072,
-		"llama-4-scout-17b-16e":      131072,
-		"llama-4-maverick-17b-128e":  131072,
+		"llama-3.1-8b-instant":      131072,
+		"llama-3.3-70b-versatile":   131072,
+		"llama-4-scout-17b-16e":     131072,
+		"llama-4-maverick-17b-128e": 131072,
 	}
 	for model, want := range models {
 		if got := DefaultContextWindow(model); got != want {
