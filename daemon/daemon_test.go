@@ -10,12 +10,15 @@ import (
 )
 
 func TestDaemon_RunAndShutdown(t *testing.T) {
-	cfg := config.Default()
-
 	tmpDir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmpDir)
+
+	cfg := config.Default()
 	cfg.Daemon.JobsStorage.DSN = tmpDir + "/test-jobs.db"
-	// Point WhatsApp session DB to tmp so it doesn't conflict.
 	cfg.WhatsApp.Storage.DSN = tmpDir + "/wa-data.db"
+	cfg.Scheduler = &config.SchedulerConfig{
+		Storage: config.StorageConfig{Driver: "sqlite", DSN: tmpDir + "/scheduler.db"},
+	}
 
 	d := New(cfg)
 

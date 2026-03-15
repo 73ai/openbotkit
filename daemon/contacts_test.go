@@ -9,8 +9,10 @@ import (
 )
 
 func TestRunContactsSync_StartAndStop(t *testing.T) {
-	cfg := config.Default()
 	tmpDir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmpDir)
+
+	cfg := config.Default()
 	cfg.Contacts.Storage.DSN = tmpDir + "/contacts-test.db"
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -33,8 +35,10 @@ func TestRunContactsSync_StartAndStop(t *testing.T) {
 }
 
 func TestRunContactsSync_NoLinkedSources(t *testing.T) {
-	cfg := config.Default()
 	tmpDir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmpDir)
+
+	cfg := config.Default()
 	cfg.Contacts.Storage.DSN = tmpDir + "/contacts-test.db"
 
 	ctx, cancel := context.WithCancel(context.Background())
