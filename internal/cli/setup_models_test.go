@@ -122,6 +122,43 @@ func TestSetupWithCustomProfile_NotFound(t *testing.T) {
 	}
 }
 
+func TestProfileModels_HaveContextWindows(t *testing.T) {
+	for _, name := range config.ProfileNames {
+		profile := config.Profiles[name]
+		testModels := profileTestModels(profile)
+		for provName, model := range testModels {
+			window := provider.DefaultContextWindow(model)
+			if window == 0 {
+				t.Errorf("profile %q: provider %q model %q has no context window defined", name, provName, model)
+			}
+		}
+	}
+}
+
+func TestSetupWithCustomProfile_NilModels(t *testing.T) {
+	cfg := config.Default()
+	cfg.Models = nil
+	err := setupWithCustomProfile(cfg, "anything")
+	if err == nil {
+		t.Fatal("expected error when Models is nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSetupWithCustomProfile_NilCustomProfiles(t *testing.T) {
+	cfg := config.Default()
+	cfg.Models = &config.ModelsConfig{
+		Providers: make(map[string]config.ModelProviderConfig),
+	}
+	// CustomProfiles is nil (not set), different from empty map.
+	err := setupWithCustomProfile(cfg, "anything")
+	if err == nil {
+		t.Fatal("expected error when CustomProfiles is nil")
+	}
+}
+
 func TestSetupWithCustomProfile_EmptyCustomProfiles(t *testing.T) {
 	cfg := config.Default()
 	cfg.Models = &config.ModelsConfig{
