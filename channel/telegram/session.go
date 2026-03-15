@@ -391,7 +391,7 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 Talk like a helpful human, not a robot. Be casual, warm, and direct.
 - Answer the question first. Don't restate what the user already knows (like today's date).
 - Keep it short — one or two sentences when possible.
-- Skip filler, narration, and unnecessary details. Don't list raw data when a summary works better.
+- Summarize by default, but include specifics when the user asks for details.
 - Use natural language, not structured output. Say "you're free after 2" not "you have availability from 14:00-17:00".
 ` + sm.userMemoriesPrompt()
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
