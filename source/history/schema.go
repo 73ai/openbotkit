@@ -24,13 +24,22 @@ CREATE INDEX IF NOT EXISTS idx_history_msgs_conv ON history_messages(conversatio
 CREATE INDEX IF NOT EXISTS idx_history_msgs_role ON history_messages(role);
 `
 
+const migrateSQLite = `
+ALTER TABLE history_conversations ADD COLUMN ended_at DATETIME;
+`
+
+const migratePostgres = `
+ALTER TABLE history_conversations ADD COLUMN ended_at TIMESTAMPTZ;
+`
+
 const schemaPostgres = `
 CREATE TABLE IF NOT EXISTS history_conversations (
 	id BIGSERIAL PRIMARY KEY,
 	session_id TEXT NOT NULL UNIQUE,
 	cwd TEXT,
 	started_at TIMESTAMPTZ,
-	updated_at TIMESTAMPTZ DEFAULT NOW()
+	updated_at TIMESTAMPTZ DEFAULT NOW(),
+	ended_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS history_messages (
@@ -51,6 +60,15 @@ func Migrate(db *store.DB) error {
 	if db.IsPostgres() {
 		schema = schemaPostgres
 	}
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	migrate := migrateSQLite
+	if db.IsPostgres() {
+		migrate = migratePostgres
+	}
+	// Best-effort: column may already exist from a previous migration.
+	db.Exec(migrate)
+	return nil
 }
