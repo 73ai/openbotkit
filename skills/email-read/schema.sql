@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS gmail_emails (
+CREATE TABLE IF NOT EXISTS emails (
   id INTEGER PRIMARY KEY,
   message_id TEXT NOT NULL,
   account TEXT NOT NULL,
@@ -12,14 +12,14 @@ CREATE TABLE IF NOT EXISTS gmail_emails (
   UNIQUE(message_id, account)
 );
 
-CREATE TABLE IF NOT EXISTS gmail_attachments (
+CREATE TABLE IF NOT EXISTS attachments (
   id INTEGER PRIMARY KEY,
-  email_id INTEGER REFERENCES gmail_emails(id),
+  email_id INTEGER REFERENCES emails(id),
   filename TEXT,
   mime_type TEXT,
   saved_path TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_gmail_emails_account ON gmail_emails(account);
-CREATE INDEX IF NOT EXISTS idx_gmail_emails_date ON gmail_emails(date);
-CREATE INDEX IF NOT EXISTS idx_gmail_emails_from_addr ON gmail_emails(from_addr);
+CREATE INDEX IF NOT EXISTS idx_emails_account ON emails(account);
+CREATE INDEX IF NOT EXISTS idx_emails_date ON emails(date);
+CREATE INDEX IF NOT EXISTS idx_emails_from_addr ON emails(from_addr);

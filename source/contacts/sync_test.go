@@ -97,7 +97,7 @@ func TestSyncGmail(t *testing.T) {
 	contactsDB := testDB(t)
 	gmailDB := openSourceDB(t, gmailsrc.Migrate)
 
-	_, err := gmailDB.Exec(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, date)
+	_, err := gmailDB.Exec(`INSERT INTO emails (message_id, account, from_addr, to_addr, date)
 		VALUES ('e1', 'me@gmail.com', 'Alice Smith <alice@example.com>', 'me@gmail.com', ?)`, time.Now())
 	if err != nil {
 		t.Fatalf("seed gmail: %v", err)
@@ -124,7 +124,7 @@ func TestSyncGmailDedup(t *testing.T) {
 	gmailDB := openSourceDB(t, gmailsrc.Migrate)
 
 	for i := 0; i < 3; i++ {
-		_, _ = gmailDB.Exec(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, date)
+		_, _ = gmailDB.Exec(`INSERT INTO emails (message_id, account, from_addr, to_addr, date)
 			VALUES (?, 'me@gmail.com', 'alice@test.com', 'me@gmail.com', ?)`,
 			"msg"+string(rune('0'+i)), time.Now())
 	}
@@ -216,7 +216,7 @@ func TestCrossSourceDedupEmail(t *testing.T) {
 	imDB := openSourceDB(t, imsrc.Migrate)
 
 	// Same email in both Gmail and iMessage.
-	_, _ = gmailDB.Exec(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, date) VALUES ('e1', 'me@gmail.com', 'alice@test.com', 'me@gmail.com', ?)`, time.Now())
+	_, _ = gmailDB.Exec(`INSERT INTO emails (message_id, account, from_addr, to_addr, date) VALUES ('e1', 'me@gmail.com', 'alice@test.com', 'me@gmail.com', ?)`, time.Now())
 	_, _ = imDB.Exec(`INSERT INTO imessage_handles (handle_id, service) VALUES ('alice@test.com', 'iMessage')`)
 
 	_, _ = syncFromGmail(contactsDB, gmailDB)

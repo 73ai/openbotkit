@@ -197,7 +197,7 @@ Skills (email-read, whatsapp-read, etc.) use `obk db` instead of raw `sqlite3`, 
 Replaces direct `sqlite3` access in skills. Provides a unified interface regardless of deployment mode.
 
 ```bash
-obk db gmail "SELECT subject, sender_name, date FROM gmail_emails ORDER BY date DESC LIMIT 10"
+obk db gmail "SELECT subject, sender_name, date FROM emails ORDER BY date DESC LIMIT 10"
 obk db whatsapp "SELECT text, sender_name FROM whatsapp_messages WHERE chat_jid = '...' LIMIT 20"
 obk db history "SELECT session_id, started_at FROM history_conversations ORDER BY updated_at DESC LIMIT 10"
 obk db user_memory "SELECT content, category FROM memories ORDER BY updated_at DESC"

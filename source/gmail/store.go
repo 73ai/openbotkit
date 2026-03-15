@@ -12,7 +12,7 @@ import (
 func EmailExists(db *store.DB, messageID, account string) (bool, error) {
 	var count int
 	err := db.QueryRow(
-		db.Rebind("SELECT COUNT(*) FROM gmail_emails WHERE message_id = ? AND account = ?"),
+		db.Rebind("SELECT COUNT(*) FROM emails WHERE message_id = ? AND account = ?"),
 		messageID, account,
 	).Scan(&count)
 	if err != nil {
@@ -23,7 +23,7 @@ func EmailExists(db *store.DB, messageID, account string) (bool, error) {
 
 func SaveEmail(db *store.DB, email *Email) (int64, error) {
 	res, err := db.Exec(
-		db.Rebind(`INSERT INTO gmail_emails (message_id, account, from_addr, to_addr, subject, date, body, html_body)
+		db.Rebind(`INSERT INTO emails (message_id, account, from_addr, to_addr, subject, date, body, html_body)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
 		email.MessageID, email.Account, email.From, email.To,
 		email.Subject, email.Date.UTC(), email.Body, email.HTMLBody,
@@ -32,7 +32,7 @@ func SaveEmail(db *store.DB, email *Email) (int64, error) {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "duplicate key") {
 			var id int64
 			err2 := db.QueryRow(
-				db.Rebind("SELECT id FROM gmail_emails WHERE message_id = ? AND account = ?"),
+				db.Rebind("SELECT id FROM emails WHERE message_id = ? AND account = ?"),
 				email.MessageID, email.Account,
 			).Scan(&id)
 			if err2 != nil {
@@ -50,7 +50,7 @@ func SaveEmail(db *store.DB, email *Email) (int64, error) {
 
 	for _, att := range email.Attachments {
 		_, err := db.Exec(
-			db.Rebind(`INSERT INTO gmail_attachments (email_id, filename, mime_type, saved_path) VALUES (?, ?, ?, ?)`),
+			db.Rebind(`INSERT INTO attachments (email_id, filename, mime_type, saved_path) VALUES (?, ?, ?, ?)`),
 			id, att.Filename, att.MimeType, att.SavedPath,
 		)
 		if err != nil {
@@ -98,7 +98,7 @@ func ListEmails(db *store.DB, opts ListOptions) ([]Email, error) {
 
 	query := fmt.Sprintf(
 		`SELECT id, message_id, account, from_addr, to_addr, subject, date, body, html_body
-		 FROM gmail_emails %s ORDER BY date DESC LIMIT ? OFFSET ?`, where)
+		 FROM emails %s ORDER BY date DESC LIMIT ? OFFSET ?`, where)
 	args = append(args, limit, opts.Offset)
 
 	rows, err := db.Query(db.Rebind(query), args...)
@@ -125,7 +125,7 @@ func GetEmail(db *store.DB, messageID string) (*Email, error) {
 	var id int64
 	err := db.QueryRow(
 		db.Rebind(`SELECT id, message_id, account, from_addr, to_addr, subject, date, body, html_body
-		 FROM gmail_emails WHERE message_id = ?`),
+		 FROM emails WHERE message_id = ?`),
 		messageID,
 	).Scan(&id, &e.MessageID, &e.Account, &e.From, &e.To, &e.Subject, &e.Date, &e.Body, &e.HTMLBody)
 	if err != nil {
@@ -133,7 +133,7 @@ func GetEmail(db *store.DB, messageID string) (*Email, error) {
 	}
 
 	rows, err := db.Query(
-		db.Rebind(`SELECT filename, mime_type, saved_path FROM gmail_attachments WHERE email_id = ?`),
+		db.Rebind(`SELECT filename, mime_type, saved_path FROM attachments WHERE email_id = ?`),
 		id,
 	)
 	if err != nil {
@@ -160,7 +160,7 @@ func SearchEmails(db *store.DB, query string, limit int) ([]Email, error) {
 
 	rows, err := db.Query(
 		db.Rebind(`SELECT id, message_id, account, from_addr, to_addr, subject, date, body, html_body
-		 FROM gmail_emails
+		 FROM emails
 		 WHERE LOWER(subject) LIKE ? OR LOWER(body) LIKE ?
 		 ORDER BY date DESC LIMIT ?`),
 		pattern, pattern, limit,
@@ -183,7 +183,7 @@ func SearchEmails(db *store.DB, query string, limit int) ([]Email, error) {
 }
 
 func CountEmails(db *store.DB, account string) (int64, error) {
-	query := "SELECT COUNT(*) FROM gmail_emails"
+	query := "SELECT COUNT(*) FROM emails"
 	var args []any
 	if account != "" {
 		query += " WHERE account = ?"
@@ -197,7 +197,7 @@ func CountEmails(db *store.DB, account string) (int64, error) {
 
 func LastSyncTime(db *store.DB) (*time.Time, error) {
 	var raw sql.NullString
-	err := db.QueryRow("SELECT MAX(fetched_at) FROM gmail_emails").Scan(&raw)
+	err := db.QueryRow("SELECT MAX(fetched_at) FROM emails").Scan(&raw)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ type AttachmentRow struct {
 func GetSyncState(db *store.DB, account string) (*SyncState, error) {
 	var s SyncState
 	err := db.QueryRow(
-		db.Rebind("SELECT account, history_id, updated_at FROM gmail_sync_state WHERE account = ?"),
+		db.Rebind("SELECT account, history_id, updated_at FROM sync_state WHERE account = ?"),
 		account,
 	).Scan(&s.Account, &s.HistoryID, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
@@ -241,7 +241,7 @@ func GetSyncState(db *store.DB, account string) (*SyncState, error) {
 
 func SaveSyncState(db *store.DB, account string, historyID uint64) error {
 	_, err := db.Exec(
-		db.Rebind(`INSERT INTO gmail_sync_state (account, history_id, updated_at)
+		db.Rebind(`INSERT INTO sync_state (account, history_id, updated_at)
 		 VALUES (?, ?, CURRENT_TIMESTAMP)
 		 ON CONFLICT (account) DO UPDATE SET history_id = ?, updated_at = CURRENT_TIMESTAMP`),
 		account, historyID, historyID,
@@ -254,8 +254,8 @@ func SaveSyncState(db *store.DB, account string, historyID uint64) error {
 
 func ListAttachments(db *store.DB, emailMessageID string) ([]AttachmentRow, error) {
 	query := `SELECT e.message_id, a.filename, a.mime_type, a.saved_path
-		FROM gmail_attachments a
-		JOIN gmail_emails e ON e.id = a.email_id`
+		FROM attachments a
+		JOIN emails e ON e.id = a.email_id`
 	var args []any
 	if emailMessageID != "" {
 		query += " WHERE e.message_id = ?"

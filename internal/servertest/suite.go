@@ -224,20 +224,20 @@ func testWhatsAppSendValidation(t *testing.T, b Backend) {
 
 func testDBSeededQueries(t *testing.T, b Backend) {
 	b.SeedDB(t, "gmail", `
-		CREATE TABLE IF NOT EXISTS gmail_emails (
+		CREATE TABLE IF NOT EXISTS emails (
 			id INTEGER PRIMARY KEY,
 			account TEXT,
 			from_addr TEXT,
 			subject TEXT,
 			body TEXT
 		);
-		INSERT INTO gmail_emails VALUES (1, 'user@gmail.com', 'alice@example.com', 'Meeting Tomorrow', 'Lets meet at 2pm.');
-		INSERT INTO gmail_emails VALUES (2, 'user@gmail.com', 'bob@example.com', 'Project Update', 'Here is the latest.');
-		INSERT INTO gmail_emails VALUES (3, 'work@gmail.com', 'charlie@example.com', 'Invoice #123', 'Please find attached.');
+		INSERT INTO emails VALUES (1, 'user@gmail.com', 'alice@example.com', 'Meeting Tomorrow', 'Lets meet at 2pm.');
+		INSERT INTO emails VALUES (2, 'user@gmail.com', 'bob@example.com', 'Project Update', 'Here is the latest.');
+		INSERT INTO emails VALUES (3, 'work@gmail.com', 'charlie@example.com', 'Invoice #123', 'Please find attached.');
 	`)
 
 	// Query with columns
-	resp, err := b.Client.DB("gmail", "SELECT id, from_addr, subject FROM gmail_emails ORDER BY id")
+	resp, err := b.Client.DB("gmail", "SELECT id, from_addr, subject FROM emails ORDER BY id")
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -252,7 +252,7 @@ func testDBSeededQueries(t *testing.T, b Backend) {
 	}
 
 	// Filtered query
-	resp, err = b.Client.DB("gmail", "SELECT subject FROM gmail_emails WHERE account = 'work@gmail.com'")
+	resp, err = b.Client.DB("gmail", "SELECT subject FROM emails WHERE account = 'work@gmail.com'")
 	if err != nil {
 		t.Fatalf("filtered query: %v", err)
 	}
@@ -261,7 +261,7 @@ func testDBSeededQueries(t *testing.T, b Backend) {
 	}
 
 	// Count
-	resp, err = b.Client.DB("gmail", "SELECT COUNT(*) as total FROM gmail_emails")
+	resp, err = b.Client.DB("gmail", "SELECT COUNT(*) as total FROM emails")
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}

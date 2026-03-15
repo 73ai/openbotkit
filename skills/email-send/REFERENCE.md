@@ -29,7 +29,7 @@ obk gmail send --to "david@example.com" --subject "..." --body "..."
 If the user has multiple Gmail accounts, look up which to use:
 
 ```bash
-obk db gmail "SELECT DISTINCT account FROM gmail_emails;"
+obk db gmail "SELECT DISTINCT account FROM emails;"
 ```
 
 ## Examples

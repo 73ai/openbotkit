@@ -14,9 +14,9 @@ func syncFromGmail(contactsDB, gmailDB *store.DB) (*SyncResult, error) {
 
 	rows, err := gmailDB.Query(`
 		SELECT addr, SUM(cnt) as total, MAX(last_date) as last_date FROM (
-			SELECT from_addr as addr, COUNT(*) as cnt, MAX(date) as last_date FROM gmail_emails WHERE from_addr != '' GROUP BY from_addr
+			SELECT from_addr as addr, COUNT(*) as cnt, MAX(date) as last_date FROM emails WHERE from_addr != '' GROUP BY from_addr
 			UNION ALL
-			SELECT to_addr as addr, COUNT(*) as cnt, MAX(date) as last_date FROM gmail_emails WHERE to_addr != '' GROUP BY to_addr
+			SELECT to_addr as addr, COUNT(*) as cnt, MAX(date) as last_date FROM emails WHERE to_addr != '' GROUP BY to_addr
 		) GROUP BY addr`)
 	if err != nil {
 		return nil, fmt.Errorf("query gmail addresses: %w", err)
