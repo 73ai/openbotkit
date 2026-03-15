@@ -69,6 +69,7 @@ Do NOT put --params or --json in the command string — use the params and body 
 Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
 The tool handles authentication, scope checks, and approval for write operations automatically.
 When a tool result includes "user notified", keep your response brief — the user already got the details.
+If a gws_execute call fails, read the error output carefully — it usually contains the correct syntax or hints. Fix the command and retry (up to 3 attempts) before giving up. Common fixes: wrong subcommand name, missing required params, wrong field names in body.
 `)
 	}
 
