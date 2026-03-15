@@ -21,7 +21,9 @@ import (
 	// Register provider factories.
 	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
 	_ "github.com/priyanshujain/openbotkit/provider/gemini"
+	_ "github.com/priyanshujain/openbotkit/provider/groq"
 	_ "github.com/priyanshujain/openbotkit/provider/openai"
+	_ "github.com/priyanshujain/openbotkit/provider/openrouter"
 	"github.com/spf13/cobra"
 )
 
@@ -214,8 +216,8 @@ type cliInteractor struct {
 	ch *clicli.Channel
 }
 
-func (c *cliInteractor) Notify(msg string) error              { return c.ch.Send(msg) }
-func (c *cliInteractor) NotifyLink(text, url string) error    { return c.ch.SendLink(text, url) }
+func (c *cliInteractor) Notify(msg string) error                   { return c.ch.Send(msg) }
+func (c *cliInteractor) NotifyLink(text, url string) error         { return c.ch.SendLink(text, url) }
 func (c *cliInteractor) RequestApproval(desc string) (bool, error) { return c.ch.RequestApproval(desc) }
 
 func openAuditLogger() *audit.Logger {

@@ -412,6 +412,162 @@ func TestModelsConfig_CompactionFields_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestCustomProfile_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Models = &ModelsConfig{
+		Default: "anthropic/claude-haiku-4-5",
+		Profile: "my-setup",
+		CustomProfiles: map[string]CustomProfile{
+			"my-setup": {
+				Label:       "My Budget Setup",
+				Description: "Mixed providers for cost savings.",
+				Tiers: ProfileTiers{
+					Default: "anthropic/claude-haiku-4-5",
+					Complex: "gemini/gemini-2.5-pro",
+					Fast:    "gemini/gemini-2.0-flash-lite",
+					Nano:    "gemini/gemini-2.0-flash-lite",
+				},
+				Providers: []string{"anthropic", "gemini"},
+			},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Models.Profile != "my-setup" {
+		t.Fatalf("Profile = %q, want my-setup", loaded.Models.Profile)
+	}
+	cp, ok := loaded.Models.CustomProfiles["my-setup"]
+	if !ok {
+		t.Fatal("custom profile my-setup not found after reload")
+	}
+	if cp.Label != "My Budget Setup" {
+		t.Fatalf("Label = %q, want My Budget Setup", cp.Label)
+	}
+	if cp.Tiers.Default != "anthropic/claude-haiku-4-5" {
+		t.Fatalf("Tiers.Default = %q, want anthropic/claude-haiku-4-5", cp.Tiers.Default)
+	}
+	if len(cp.Providers) != 2 {
+		t.Fatalf("Providers len = %d, want 2", len(cp.Providers))
+	}
+}
+
+func TestCustomProfile_BackwardCompat_NoField(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+models:
+  default: anthropic/claude-sonnet-4-6
+  profile: standard
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.Models.CustomProfiles != nil {
+		t.Fatal("expected nil CustomProfiles for old config")
+	}
+}
+
+func TestCustomProfile_MultipleProfiles_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Models = &ModelsConfig{
+		Default: "anthropic/claude-haiku-4-5",
+		CustomProfiles: map[string]CustomProfile{
+			"budget": {
+				Label: "Budget",
+				Tiers: ProfileTiers{
+					Default: "gemini/gemini-2.5-flash",
+					Complex: "gemini/gemini-2.5-pro",
+					Fast:    "gemini/gemini-2.0-flash-lite",
+					Nano:    "gemini/gemini-2.0-flash-lite",
+				},
+				Providers: []string{"gemini"},
+			},
+			"premium-mix": {
+				Label: "Premium Mix",
+				Tiers: ProfileTiers{
+					Default: "anthropic/claude-sonnet-4-6",
+					Complex: "anthropic/claude-opus-4-6",
+					Fast:    "gemini/gemini-2.0-flash-lite",
+					Nano:    "gemini/gemini-2.0-flash-lite",
+				},
+				Providers: []string{"anthropic", "gemini"},
+			},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(loaded.Models.CustomProfiles) != 2 {
+		t.Fatalf("expected 2 custom profiles, got %d", len(loaded.Models.CustomProfiles))
+	}
+	if loaded.Models.CustomProfiles["budget"].Label != "Budget" {
+		t.Fatalf("budget label = %q", loaded.Models.CustomProfiles["budget"].Label)
+	}
+	if loaded.Models.CustomProfiles["premium-mix"].Label != "Premium Mix" {
+		t.Fatalf("premium-mix label = %q", loaded.Models.CustomProfiles["premium-mix"].Label)
+	}
+}
+
+func TestCustomProfile_EmptyLabelAndDescription(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Models = &ModelsConfig{
+		Default: "gemini/gemini-2.5-flash",
+		CustomProfiles: map[string]CustomProfile{
+			"minimal": {
+				Tiers: ProfileTiers{
+					Default: "gemini/gemini-2.5-flash",
+					Complex: "gemini/gemini-2.5-pro",
+					Fast:    "gemini/gemini-2.0-flash-lite",
+					Nano:    "gemini/gemini-2.0-flash-lite",
+				},
+				Providers: []string{"gemini"},
+			},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	cp := loaded.Models.CustomProfiles["minimal"]
+	if cp.Label != "" {
+		t.Fatalf("expected empty label, got %q", cp.Label)
+	}
+	if cp.Description != "" {
+		t.Fatalf("expected empty description, got %q", cp.Description)
+	}
+	if cp.Tiers.Default != "gemini/gemini-2.5-flash" {
+		t.Fatal("tiers not preserved with empty label/description")
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

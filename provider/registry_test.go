@@ -103,3 +103,26 @@ func TestRegistryGet_NotFound(t *testing.T) {
 		t.Error("expected ok=false for nonexistent provider")
 	}
 }
+
+func TestNewRegistry_ScansNanoSpec(t *testing.T) {
+	RegisterFactory("test-nano-prov", func(cfg config.ModelProviderConfig, apiKey string) Provider {
+		return &mockProvider{}
+	})
+	defer delete(factories, "test-nano-prov")
+
+	// Set NANO_TEST_KEY env so ResolveAPIKey succeeds.
+	ProviderEnvVars["test-nano-prov"] = "NANO_TEST_KEY"
+	defer delete(ProviderEnvVars, "test-nano-prov")
+	t.Setenv("NANO_TEST_KEY", "fake-key")
+
+	r, err := NewRegistry(&config.ModelsConfig{
+		Default: "test-nano-prov/default-model",
+		Nano:    "test-nano-prov/nano-model",
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+	if _, ok := r.Get("test-nano-prov"); !ok {
+		t.Error("expected test-nano-prov to be instantiated from nano spec")
+	}
+}

@@ -9,9 +9,11 @@ import (
 
 // ProviderEnvVars maps provider names to their conventional env var names.
 var ProviderEnvVars = map[string]string{
-	"anthropic": "ANTHROPIC_API_KEY",
-	"openai":    "OPENAI_API_KEY",
-	"gemini":    "GEMINI_API_KEY",
+	"anthropic":  "ANTHROPIC_API_KEY",
+	"openai":     "OPENAI_API_KEY",
+	"gemini":     "GEMINI_API_KEY",
+	"groq":       "GROQ_API_KEY",
+	"openrouter": "OPENROUTER_API_KEY",
 }
 
 // Factory creates a Provider from a model provider config and resolved API key.
@@ -40,7 +42,7 @@ func NewRegistry(models *config.ModelsConfig) (*Registry, error) {
 
 	// Determine which providers are referenced.
 	needed := make(map[string]bool)
-	for _, spec := range []string{models.Default, models.Complex, models.Fast} {
+	for _, spec := range []string{models.Default, models.Complex, models.Fast, models.Nano} {
 		if spec == "" {
 			continue
 		}
@@ -66,6 +68,11 @@ func NewRegistry(models *config.ModelsConfig) (*Registry, error) {
 	}
 
 	return r, nil
+}
+
+// NewRegistryFromProviders creates a registry from pre-built providers (for testing).
+func NewRegistryFromProviders(providers map[string]Provider) *Registry {
+	return &Registry{providers: providers}
 }
 
 // Get returns the provider with the given name.

@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/huh"
@@ -10,7 +12,9 @@ import (
 	"github.com/priyanshujain/openbotkit/provider"
 	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
 	_ "github.com/priyanshujain/openbotkit/provider/gemini"
+	_ "github.com/priyanshujain/openbotkit/provider/groq"
 	_ "github.com/priyanshujain/openbotkit/provider/openai"
+	_ "github.com/priyanshujain/openbotkit/provider/openrouter"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +56,25 @@ var llmProviders = []providerInfo{
 			huh.NewOption("gemini-2.0-flash-lite (fastest, cheapest)", "gemini-2.0-flash-lite"),
 		},
 	},
+	{
+		name:  "openrouter",
+		label: "OpenRouter (500+ models)",
+		models: []huh.Option[string]{
+			huh.NewOption("anthropic/claude-sonnet-4-6", "anthropic/claude-sonnet-4-6"),
+			huh.NewOption("anthropic/claude-haiku-4-5", "anthropic/claude-haiku-4-5"),
+			huh.NewOption("google/gemini-2.0-flash-lite", "google/gemini-2.0-flash-lite"),
+			huh.NewOption("mistralai/mistral-medium-3.1", "mistralai/mistral-medium-3.1"),
+		},
+	},
+	{
+		name:  "groq",
+		label: "Groq (fast inference)",
+		models: []huh.Option[string]{
+			huh.NewOption("llama-3.1-8b-instant (fastest)", "llama-3.1-8b-instant"),
+			huh.NewOption("llama-3.3-70b-versatile", "llama-3.3-70b-versatile"),
+			huh.NewOption("llama-4-scout-17b-16e", "llama-4-scout-17b-16e"),
+		},
+	},
 }
 
 var vertexRegions = []huh.Option[string]{
@@ -91,6 +114,172 @@ func setupModels(cfg *config.Config) error {
 	if cfg.Models.Providers == nil {
 		cfg.Models.Providers = make(map[string]config.ModelProviderConfig)
 	}
+
+	// Step 1: Choose between profile and custom configuration.
+	var mode string
+	var profileOptions []huh.Option[string]
+	for _, name := range config.ProfileNames {
+		p := config.Profiles[name]
+		profileOptions = append(profileOptions, huh.NewOption(p.Label+" — "+p.Description, name))
+	}
+	// Append custom profiles sorted alphabetically.
+	if len(cfg.Models.CustomProfiles) > 0 {
+		var customNames []string
+		for n := range cfg.Models.CustomProfiles {
+			customNames = append(customNames, n)
+		}
+		sort.Strings(customNames)
+		for _, n := range customNames {
+			cp := cfg.Models.CustomProfiles[n]
+			label := cp.Label
+			if label == "" {
+				label = n
+			}
+			profileOptions = append(profileOptions, huh.NewOption(label+" (custom)", "custom:"+n))
+		}
+	}
+	profileOptions = append(profileOptions, huh.NewOption("Custom (manual configuration)", "custom"))
+
+	// Pre-select existing profile if configured.
+	mode = "custom"
+	if cfg.Models.Profile != "" {
+		if _, ok := config.Profiles[cfg.Models.Profile]; ok {
+			mode = cfg.Models.Profile
+		} else if _, ok := cfg.Models.CustomProfiles[cfg.Models.Profile]; ok {
+			mode = "custom:" + cfg.Models.Profile
+		}
+	}
+
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("How would you like to configure models?").
+				Options(profileOptions...).
+				Value(&mode),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if mode == "custom" {
+		return setupCustom(cfg)
+	}
+	// Handle custom profile selection ("custom:name").
+	if strings.HasPrefix(mode, "custom:") {
+		return setupWithCustomProfile(cfg, strings.TrimPrefix(mode, "custom:"))
+	}
+	return setupWithProfile(cfg, mode)
+}
+
+func setupWithProfile(cfg *config.Config, profileName string) error {
+	return setupWithBuiltProfile(cfg, profileName, config.Profiles[profileName])
+}
+
+func setupWithCustomProfile(cfg *config.Config, name string) error {
+	if cfg.Models == nil || cfg.Models.CustomProfiles == nil {
+		return fmt.Errorf("custom profile %q not found", name)
+	}
+	cp, ok := cfg.Models.CustomProfiles[name]
+	if !ok {
+		return fmt.Errorf("custom profile %q not found", name)
+	}
+	// Convert to ModelProfile and delegate.
+	profile := config.ModelProfile{
+		Name:      name,
+		Label:     cp.Label,
+		Tiers:     cp.Tiers,
+		Providers: cp.Providers,
+	}
+	if profile.Label == "" {
+		profile.Label = name
+	}
+	return setupWithBuiltProfile(cfg, name, profile)
+}
+
+func setupWithBuiltProfile(cfg *config.Config, profileName string, profile config.ModelProfile) error {
+	// Show tier→model mapping for confirmation.
+	fmt.Printf("\n  Profile: %s\n", profile.Label)
+	fmt.Printf("    Default: %s\n", profile.Tiers.Default)
+	fmt.Printf("    Complex: %s\n", profile.Tiers.Complex)
+	fmt.Printf("    Fast:    %s\n", profile.Tiers.Fast)
+	fmt.Printf("    Nano:    %s\n\n", profile.Tiers.Nano)
+
+	// Configure required providers.
+	for _, provName := range profile.Providers {
+		existing := cfg.Models.Providers[provName]
+		fmt.Printf("  Configuring %s...\n", provName)
+		if err := configureAPIKey(&existing, provName, existing); err != nil {
+			return err
+		}
+		cfg.Models.Providers[provName] = existing
+	}
+
+	// Validate each provider with a test model.
+	fmt.Println("\n  Validating providers...")
+	testModels := profileTestModels(profile)
+	for _, provName := range profile.Providers {
+		model := testModels[provName]
+		pcfg := cfg.Models.Providers[provName]
+		if err := validateProvider(provName, pcfg, model); err != nil {
+			fmt.Printf("  ✗ %s: %v\n", provName, err)
+			var retry string
+			retryErr := huh.NewForm(
+				huh.NewGroup(
+					huh.NewSelect[string]().
+						Title(fmt.Sprintf("%s validation failed. What would you like to do?", provName)).
+						Options(
+							huh.NewOption("Skip (keep config anyway)", "skip"),
+							huh.NewOption("Re-enter credentials", "retry"),
+						).
+						Value(&retry),
+				),
+			).Run()
+			if retryErr != nil {
+				return retryErr
+			}
+			if retry == "retry" {
+				pcfg = config.ModelProviderConfig{}
+				if err := configureAPIKey(&pcfg, provName, config.ModelProviderConfig{}); err != nil {
+					return err
+				}
+				cfg.Models.Providers[provName] = pcfg
+			}
+		} else {
+			fmt.Printf("  ✓ %s\n", provName)
+		}
+	}
+
+	// Apply profile tier mappings.
+	cfg.Models.Profile = profileName
+	cfg.Models.Default = profile.Tiers.Default
+	cfg.Models.Complex = profile.Tiers.Complex
+	cfg.Models.Fast = profile.Tiers.Fast
+	cfg.Models.Nano = profile.Tiers.Nano
+
+	fmt.Println("\n  LLM model configuration complete!")
+	return nil
+}
+
+// profileTestModels picks one model per provider from the profile for validation.
+func profileTestModels(profile config.ModelProfile) map[string]string {
+	result := make(map[string]string)
+	for _, spec := range []string{profile.Tiers.Default, profile.Tiers.Complex, profile.Tiers.Fast, profile.Tiers.Nano} {
+		if spec == "" {
+			continue
+		}
+		parts := strings.SplitN(spec, "/", 2)
+		if len(parts) == 2 {
+			if _, ok := result[parts[0]]; !ok {
+				result[parts[0]] = parts[1]
+			}
+		}
+	}
+	return result
+}
+
+func setupCustom(cfg *config.Config) error {
+	cfg.Models.Profile = ""
 
 	// Step 1: Provider selection.
 	var selectedProviders []string
@@ -142,6 +331,9 @@ func setupModels(cfg *config.Config) error {
 	if err := configureTiers(cfg, providerModels); err != nil {
 		return err
 	}
+
+	// Validate default model context window for skill support.
+	warnDefaultContextWindow(cfg.Models.Default)
 
 	// Step 6: Validation.
 	fmt.Println("\n  Validating providers...")
@@ -412,14 +604,15 @@ func configureTiers(cfg *config.Config, providerModels map[string]string) error 
 	cfg.Models.Default = defaultSpec
 
 	if len(modelOptions) > 1 {
+		optionalOptions := append([]huh.Option[string]{noneOption}, modelOptions...)
+
 		// Fast tier.
 		fastSpec := cfg.Models.Fast
-		fastOptions := append([]huh.Option[string]{noneOption}, modelOptions...)
 		err = huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Select fast model (optional)").
-					Options(fastOptions...).
+					Options(optionalOptions...).
 					Value(&fastSpec),
 			),
 		).Run()
@@ -430,12 +623,11 @@ func configureTiers(cfg *config.Config, providerModels map[string]string) error 
 
 		// Complex tier.
 		complexSpec := cfg.Models.Complex
-		complexOptions := append([]huh.Option[string]{noneOption}, modelOptions...)
 		err = huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Select complex model (optional)").
-					Options(complexOptions...).
+					Options(optionalOptions...).
 					Value(&complexSpec),
 			),
 		).Run()
@@ -443,9 +635,39 @@ func configureTiers(cfg *config.Config, providerModels map[string]string) error 
 			return err
 		}
 		cfg.Models.Complex = complexSpec
+
+		// Nano tier.
+		nanoSpec := cfg.Models.Nano
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select nano model (optional — for trivial tasks)").
+					Options(optionalOptions...).
+					Value(&nanoSpec),
+			),
+		).Run()
+		if err != nil {
+			return err
+		}
+		cfg.Models.Nano = nanoSpec
 	}
 
 	return nil
+}
+
+func warnDefaultContextWindow(defaultSpec string) {
+	if defaultSpec == "" {
+		return
+	}
+	parts := strings.SplitN(defaultSpec, "/", 2)
+	if len(parts) != 2 {
+		return
+	}
+	model := parts[1]
+	window := provider.DefaultContextWindow(model)
+	if window > 0 && window < 128000 {
+		fmt.Printf("  Warning: %s has %dk context. 128k+ recommended for skill support.\n", model, window/1000)
+	}
 }
 
 func validateProvider(name string, cfg config.ModelProviderConfig, model string) error {

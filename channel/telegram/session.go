@@ -47,6 +47,8 @@ type SessionManager struct {
 	webSearch    tools.WebSearcher
 	fastProvider provider.Provider
 	fastModel    string
+	nanoProvider provider.Provider
+	nanoModel    string
 
 	mu        sync.Mutex
 	sessionID string
@@ -120,7 +122,7 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 
 	fb := newProcessingFeedback(
 		sm.channel.bot, sm.channel.chatID, messageID,
-		text, sm.fastProvider, sm.fastModel,
+		text, sm.nanoProvider, sm.nanoModel,
 	)
 	fb.Start(ctx)
 
@@ -261,6 +263,10 @@ func (sm *SessionManager) endSession() {
 }
 
 func (sm *SessionManager) extractMemories(ctx context.Context, messages []string) {
+	if sm.cfg.Models == nil || sm.cfg.Models.Default == "" {
+		return
+	}
+
 	memDB, err := store.Open(store.Config{
 		Driver: sm.cfg.UserMemory.Storage.Driver,
 		DSN:    sm.cfg.UserMemoryDataDSN(),
@@ -276,13 +282,13 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	llm, err := sm.buildLLM()
+	extractLLM, reconcileLLM, err := sm.buildMemoryLLMs()
 	if err != nil {
 		slog.Error("telegram session: build LLM for extraction", "error", err)
 		return
 	}
 
-	candidates, err := memory.Extract(ctx, llm, messages)
+	candidates, err := memory.Extract(ctx, extractLLM, messages)
 	if err != nil {
 		slog.Error("telegram session: extract memories", "error", err)
 		return
@@ -292,7 +298,7 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	result, err := memory.Reconcile(ctx, memDB, llm, candidates)
+	result, err := memory.Reconcile(ctx, memDB, reconcileLLM, candidates)
 	if err != nil {
 		slog.Error("telegram session: reconcile memories", "error", err)
 		return
@@ -303,13 +309,15 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		"deleted", result.Deleted, "skipped", result.Skipped)
 }
 
-func (sm *SessionManager) buildLLM() (memory.LLM, error) {
+func (sm *SessionManager) buildMemoryLLMs() (extract memory.LLM, reconcile memory.LLM, err error) {
 	registry, err := provider.NewRegistry(sm.cfg.Models)
 	if err != nil {
-		return nil, fmt.Errorf("create provider registry: %w", err)
+		return nil, nil, fmt.Errorf("create provider registry: %w", err)
 	}
 	router := provider.NewRouter(registry, sm.cfg.Models)
-	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
+	extractLLM := &memory.RouterLLM{Router: router, Tier: provider.TierFast}
+	reconcileLLM := &memory.RouterLLM{Router: router, Tier: provider.TierNano}
+	return extractLLM, reconcileLLM, nil
 }
 
 func (sm *SessionManager) resolveContextWindow() int {
@@ -457,9 +465,14 @@ func (sm *SessionManager) initWebSearch() {
 		sm.fastProvider, sm.fastModel = tools.ResolveFastProvider(
 			sm.cfg.Models, reg, sm.provider, sm.model,
 		)
+		sm.nanoProvider, sm.nanoModel = tools.ResolveNanoProvider(
+			sm.cfg.Models, reg, sm.provider, sm.model,
+		)
 	} else {
 		sm.fastProvider = sm.provider
 		sm.fastModel = sm.model
+		sm.nanoProvider = sm.provider
+		sm.nanoModel = sm.model
 	}
 }
 

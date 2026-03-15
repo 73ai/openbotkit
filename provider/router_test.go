@@ -90,6 +90,59 @@ func TestRouter_NoModelConfigured(t *testing.T) {
 	}
 }
 
+func TestRouter_NanoTier(t *testing.T) {
+	mp := &mockProvider{}
+	r := &Registry{providers: map[string]Provider{"groq": mp}}
+	models := &config.ModelsConfig{
+		Default: "groq/llama-3.3-70b-versatile",
+		Nano:    "groq/llama-3.1-8b-instant",
+	}
+
+	router := NewRouter(r, models)
+	_, err := router.Chat(context.Background(), TierNano, ChatRequest{})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if mp.lastModel != "llama-3.1-8b-instant" {
+		t.Errorf("model = %q, want %q", mp.lastModel, "llama-3.1-8b-instant")
+	}
+}
+
+func TestRouter_NanoCascadesToFast(t *testing.T) {
+	mp := &mockProvider{}
+	r := &Registry{providers: map[string]Provider{"openai": mp}}
+	models := &config.ModelsConfig{
+		Default: "openai/gpt-4o",
+		Fast:    "openai/gpt-4o-mini",
+	}
+
+	router := NewRouter(r, models)
+	_, err := router.Chat(context.Background(), TierNano, ChatRequest{})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if mp.lastModel != "gpt-4o-mini" {
+		t.Errorf("model = %q, want fast fallback %q", mp.lastModel, "gpt-4o-mini")
+	}
+}
+
+func TestRouter_NanoCascadesToDefault(t *testing.T) {
+	mp := &mockProvider{}
+	r := &Registry{providers: map[string]Provider{"anthropic": mp}}
+	models := &config.ModelsConfig{
+		Default: "anthropic/claude-sonnet-4-6",
+	}
+
+	router := NewRouter(r, models)
+	_, err := router.Chat(context.Background(), TierNano, ChatRequest{})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if mp.lastModel != "claude-sonnet-4-6" {
+		t.Errorf("model = %q, want default fallback %q", mp.lastModel, "claude-sonnet-4-6")
+	}
+}
+
 func TestRouter_ProviderNotInRegistry(t *testing.T) {
 	r := &Registry{providers: map[string]Provider{}}
 	models := &config.ModelsConfig{Default: "anthropic/claude-sonnet-4-6"}

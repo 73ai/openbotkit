@@ -232,6 +232,8 @@ func TestNormalMessage_DoesNotReset(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 	}
 	sm.sessionID = "tg-existing"
 	sm.history = []provider.Message{
@@ -500,6 +502,8 @@ func TestHandleMessage_UpdatesHistoryAndMessages(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 	}
 
 	sm.handleMessage(context.Background(), "hello world", 0)
@@ -539,6 +543,8 @@ func TestHandleMessage_SavesHistoryToDB(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 	}
 
 	sm.handleMessage(context.Background(), "test input", 0)
@@ -581,6 +587,8 @@ func TestHandleMessage_MultiTurnAccumulates(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 	}
 
 	sm.handleMessage(context.Background(), "first", 0)
@@ -658,6 +666,8 @@ func TestNewAgent_CreatesAgentWithOptions(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 		taskTracker:  nil,
 	}
 	// taskTracker is required by newAgent's tool registration
@@ -696,6 +706,8 @@ func TestNewAgent_WithHistory(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 		taskTracker:  newTaskTracker(),
 	}
 
@@ -733,6 +745,8 @@ func TestRun_ExitsOnChannelClose(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 		taskTracker:  newTaskTracker(),
 	}
 
@@ -765,6 +779,8 @@ func TestRun_ProcessesMessages(t *testing.T) {
 		model:        "test-model",
 		fastProvider: sp,
 		fastModel:    "test-model",
+		nanoProvider: sp,
+		nanoModel:    "test-model",
 		taskTracker:  newTaskTracker(),
 	}
 
