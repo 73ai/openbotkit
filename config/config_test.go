@@ -412,6 +412,74 @@ func TestModelsConfig_CompactionFields_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestCustomProfile_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Models = &ModelsConfig{
+		Default: "anthropic/claude-haiku-4-5",
+		Profile: "my-setup",
+		CustomProfiles: map[string]CustomProfile{
+			"my-setup": {
+				Label:       "My Budget Setup",
+				Description: "Mixed providers for cost savings.",
+				Tiers: ProfileTiers{
+					Default: "anthropic/claude-haiku-4-5",
+					Complex: "gemini/gemini-2.5-pro",
+					Fast:    "gemini/gemini-2.0-flash-lite",
+					Nano:    "gemini/gemini-2.0-flash-lite",
+				},
+				Providers: []string{"anthropic", "gemini"},
+			},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Models.Profile != "my-setup" {
+		t.Fatalf("Profile = %q, want my-setup", loaded.Models.Profile)
+	}
+	cp, ok := loaded.Models.CustomProfiles["my-setup"]
+	if !ok {
+		t.Fatal("custom profile my-setup not found after reload")
+	}
+	if cp.Label != "My Budget Setup" {
+		t.Fatalf("Label = %q, want My Budget Setup", cp.Label)
+	}
+	if cp.Tiers.Default != "anthropic/claude-haiku-4-5" {
+		t.Fatalf("Tiers.Default = %q, want anthropic/claude-haiku-4-5", cp.Tiers.Default)
+	}
+	if len(cp.Providers) != 2 {
+		t.Fatalf("Providers len = %d, want 2", len(cp.Providers))
+	}
+}
+
+func TestCustomProfile_BackwardCompat_NoField(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+models:
+  default: anthropic/claude-sonnet-4-6
+  profile: standard
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.Models.CustomProfiles != nil {
+		t.Fatal("expected nil CustomProfiles for old config")
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
