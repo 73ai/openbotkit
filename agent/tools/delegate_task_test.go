@@ -875,3 +875,81 @@ func TestDelegateTask_NoScratchDir_FallsBack(t *testing.T) {
 		t.Errorf("expected inline result, got %q", result)
 	}
 }
+
+func TestDelegateTask_EmptyOutput_ReturnsMessage(t *testing.T) {
+	inter := &mockInteractor{approveAll: true}
+	runner := &mockAgentRunner{output: ""}
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		ScratchDir: t.TempDir(),
+	})
+	tool.runners[AgentClaude] = runner
+	tool.streamRunners[AgentClaude] = nil
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "empty research"})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result != "Task produced no output." {
+		t.Errorf("result = %q, want %q", result, "Task produced no output.")
+	}
+}
+
+func TestDelegateTask_AsyncWritesResultFile(t *testing.T) {
+	scratchDir := t.TempDir()
+	inter := newSyncMockInteractor(true)
+	longOutput := strings.Repeat("async research line\n", 100)
+	tracker := NewTaskTracker()
+	agents := []AgentInfo{{Kind: AgentClaude, Binary: "claude"}}
+	tool := NewDelegateTaskTool(DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Timeout:    5 * time.Second,
+		Tracker:    tracker,
+		ScratchDir: scratchDir,
+	})
+	runner := newBlockingRunner(longOutput, nil)
+	tool.runners[AgentClaude] = runner
+	tool.streamRunners[AgentClaude] = nil
+
+	input, _ := json.Marshal(delegateTaskInput{Task: "async research", Async: true})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var resp struct{ TaskID string `json:"task_id"` }
+	json.Unmarshal([]byte(result), &resp)
+
+	<-runner.called
+	close(runner.release)
+
+	select {
+	case <-inter.notifyCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notification")
+	}
+
+	rec, ok := tracker.Get(resp.TaskID)
+	if !ok {
+		t.Fatal("task not found in tracker")
+	}
+	if !strings.Contains(rec.Output, "Full results") {
+		t.Errorf("tracker should store summary with file path, got: %q", rec.Output)
+	}
+	if strings.Contains(rec.Output, strings.Repeat("async research line\n", 50)) {
+		t.Error("tracker should not store full output")
+	}
+
+	files, _ := filepath.Glob(filepath.Join(scratchDir, "delegate_*.md"))
+	if len(files) != 1 {
+		t.Fatalf("expected 1 result file, got %d", len(files))
+	}
+	content, _ := os.ReadFile(files[0])
+	if string(content) != longOutput {
+		t.Errorf("file content mismatch: got %d bytes, want %d", len(content), len(longOutput))
+	}
+}

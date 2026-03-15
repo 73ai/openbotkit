@@ -289,6 +289,41 @@ func TestHandleCallback_AnswersQueryAndRemovesButtons(t *testing.T) {
 	}
 }
 
+func TestHandleCallback_DenyShowsDeniedLabel(t *testing.T) {
+	bot := &mockBot{notify: make(chan struct{}, 1)}
+	ch := NewChannel(bot, 123)
+
+	done := make(chan bool, 1)
+	go func() {
+		approved, _ := ch.RequestApproval("risky action")
+		done <- approved
+	}()
+
+	select {
+	case <-bot.notify:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval message")
+	}
+
+	ch.HandleCallback("cb789", "deny")
+
+	approved := <-done
+	if approved {
+		t.Fatal("expected denial")
+	}
+
+	bot.mu.Lock()
+	defer bot.mu.Unlock()
+
+	cb, ok := bot.requests[0].(tgbotapi.CallbackConfig)
+	if !ok {
+		t.Fatalf("expected CallbackConfig, got %T", bot.requests[0])
+	}
+	if cb.Text != "Denied" {
+		t.Errorf("callback text = %q, want %q", cb.Text, "Denied")
+	}
+}
+
 func TestPoller_PassesMessageID(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
