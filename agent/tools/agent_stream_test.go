@@ -119,7 +119,7 @@ func TestParseStreamLine_EmptyType(t *testing.T) {
 func TestStreamRunner_BuildsClaudeStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentClaude, Binary: "claude"})
 	args := r.buildStreamArgs(runOptions{})
-	want := []string{"--print", "--verbose", "--output-format", "stream-json"}
+	want := []string{"--print", "--verbose", "--output-format", "stream-json", "--dangerously-skip-permissions"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
@@ -133,7 +133,7 @@ func TestStreamRunner_BuildsClaudeStreamArgs(t *testing.T) {
 func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentGemini, Binary: "gemini"})
 	args := r.buildStreamArgs(runOptions{})
-	want := []string{"-o", "stream-json"}
+	want := []string{"--approval-mode", "yolo", "-o", "stream-json"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
@@ -147,7 +147,7 @@ func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 func TestStreamRunner_BuildsCodexStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	args := r.buildStreamArgs(runOptions{})
-	want := []string{"exec", "--json"}
+	want := []string{"exec", "--json", "--full-auto"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}

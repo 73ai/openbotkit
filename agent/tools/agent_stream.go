@@ -106,15 +106,15 @@ func (r *StreamRunner) RunStream(
 func (r *StreamRunner) buildStreamArgs(opts runOptions) []string {
 	switch r.info.Kind {
 	case AgentClaude:
-		args := []string{"--print", "--verbose", "--output-format", "stream-json"}
+		args := []string{"--print", "--verbose", "--output-format", "stream-json", "--dangerously-skip-permissions"}
 		if opts.maxBudgetUSD > 0 {
 			args = append(args, "--max-budget-usd", fmt.Sprintf("%.2f", opts.maxBudgetUSD))
 		}
 		return args
 	case AgentGemini:
-		return []string{"-o", "stream-json"}
+		return []string{"--approval-mode", "yolo", "-o", "stream-json"}
 	case AgentCodex:
-		return []string{"exec", "--json"}
+		return []string{"exec", "--json", "--full-auto"}
 	default:
 		return nil
 	}
