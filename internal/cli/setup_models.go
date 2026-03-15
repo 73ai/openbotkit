@@ -177,6 +177,9 @@ func setupWithProfile(cfg *config.Config, profileName string) error {
 }
 
 func setupWithCustomProfile(cfg *config.Config, name string) error {
+	if cfg.Models == nil || cfg.Models.CustomProfiles == nil {
+		return fmt.Errorf("custom profile %q not found", name)
+	}
 	cp, ok := cfg.Models.CustomProfiles[name]
 	if !ok {
 		return fmt.Errorf("custom profile %q not found", name)
