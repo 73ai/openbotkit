@@ -4,7 +4,7 @@ ALIAS = obk
 SKILLS_DIR = $(HOME)/.obk/skills
 ASSISTANT_SKILLS = assistant/.claude/skills
 
-.PHONY: build install uninstall
+.PHONY: build install uninstall update-local
 
 build:
 	go build -o $(BINARY) .
@@ -24,6 +24,10 @@ install:
 		$(GOBIN)/$(ALIAS) service restart 2>/dev/null || true; \
 		$(GOBIN)/$(ALIAS) server restart 2>/dev/null || true; \
 	fi
+
+update-local: install
+	$(GOBIN)/$(ALIAS) service restart
+	$(GOBIN)/$(ALIAS) server restart
 
 uninstall:
 	rm -f $(GOBIN)/$(BINARY) $(GOBIN)/$(ALIAS)
