@@ -161,7 +161,14 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 			isError := err != nil
 			content := ScrubCredentials(output)
 			if isError {
-				content = ScrubCredentials(err.Error())
+				// Include both the output (e.g. stderr) and the error
+				// so the LLM has enough context to retry intelligently.
+				errMsg := ScrubCredentials(err.Error())
+				if content != "" {
+					content = content + "\n\nError: " + errMsg
+				} else {
+					content = errMsg
+				}
 			}
 			results = append(results, provider.ContentBlock{
 				Type: provider.ContentToolResult,

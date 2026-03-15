@@ -295,6 +295,64 @@ func TestLoop_ScrubsToolError(t *testing.T) {
 	}
 }
 
+func TestLoop_ToolErrorIncludesOutput(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+						ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+					}},
+				},
+				StopReason: provider.StopToolUse,
+			},
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &outputAndErrorExecutor{
+		output: "Usage: gws calendar events list [flags]",
+		err:    "gws: exit status 1",
+	}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(context.Background(), "try")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	msgs := mp.requests[1].Messages
+	last := msgs[len(msgs)-1]
+	content := last.Content[0].ToolResult.Content
+	if !strings.Contains(content, "Usage: gws calendar events list") {
+		t.Errorf("tool result should include command output, got: %q", content)
+	}
+	if !strings.Contains(content, "exit status 1") {
+		t.Errorf("tool result should include error, got: %q", content)
+	}
+	if !last.Content[0].ToolResult.IsError {
+		t.Error("expected IsError=true")
+	}
+}
+
+// outputAndErrorExecutor returns both output and an error (like gws runner does).
+type outputAndErrorExecutor struct {
+	output string
+	err    string
+}
+
+func (m *outputAndErrorExecutor) Execute(_ context.Context, _ provider.ToolCall) (string, error) {
+	return m.output, fmt.Errorf("%s", m.err)
+}
+
+func (m *outputAndErrorExecutor) ToolSchemas() []provider.Tool {
+	return []provider.Tool{
+		{Name: "bash", Description: "Run a command", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+}
+
 func TestLoop_ProviderChatError(t *testing.T) {
 	mp := &mockProvider{responses: nil} // no responses = error on first call
 	exec := &mockExecutor{results: map[string]string{}}
