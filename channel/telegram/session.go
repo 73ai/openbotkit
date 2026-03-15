@@ -262,6 +262,15 @@ func (sm *SessionManager) endSession() {
 
 	config.CleanScratch(sid)
 
+	// Mark session ended in DB so restoreSession won't revive it.
+	if histDB, err := store.Open(store.Config{
+		Driver: sm.cfg.History.Storage.Driver,
+		DSN:    sm.cfg.HistoryDataDSN(),
+	}); err == nil {
+		historysrc.EndSession(histDB, sid)
+		histDB.Close()
+	}
+
 	if len(messages) > 0 {
 		go sm.extractMemories(context.Background(), messages)
 	}
