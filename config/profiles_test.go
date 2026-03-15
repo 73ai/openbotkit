@@ -82,3 +82,41 @@ func TestSingleProviderProfilesHaveOneProvider(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateProfileName(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{"my-setup", false},
+		{"budget", false},
+		{"ab", false},
+		{"a23456789012345678901234567890", false}, // 30 chars
+
+		{"", true},         // too short
+		{"a", true},        // too short (min 2)
+		{"A-upper", true},  // uppercase
+		{"1start", true},   // starts with number
+		{"-start", true},   // starts with hyphen
+		{"has space", true}, // contains space
+		{"has_under", true}, // contains underscore
+
+		// Reserved names
+		{"custom", true},
+		{"gemini", true},     // built-in
+		{"anthropic", true},  // built-in
+		{"starter", true},    // built-in
+		{"standard", true},   // built-in
+		{"premium", true},    // built-in
+		{"openrouter", true}, // built-in
+		{"openai", true},     // built-in
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateProfileName(tt.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateProfileName(%q) error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			}
+		})
+	}
+}
