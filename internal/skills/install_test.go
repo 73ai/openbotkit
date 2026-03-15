@@ -7,102 +7,7 @@ import (
 	"testing"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/oauth/google"
-	"golang.org/x/oauth2"
 )
-
-func TestIsSkillEligible(t *testing.T) {
-	tests := []struct {
-		name          string
-		meta          SkillMeta
-		grantedGoogle map[string]bool
-		sourceAuthed  map[string]bool
-		want          bool
-	}{
-		{
-			name: "no requirements",
-			meta: SkillMeta{},
-			want: true,
-		},
-		{
-			name:         "whatsapp required and authed",
-			meta:         SkillMeta{RequiresAuth: "whatsapp"},
-			sourceAuthed: map[string]bool{"whatsapp": true},
-			want:         true,
-		},
-		{
-			name: "whatsapp required but not authed",
-			meta: SkillMeta{RequiresAuth: "whatsapp"},
-			want: false,
-		},
-		{
-			name:         "applenotes required and linked",
-			meta:         SkillMeta{RequiresAuth: "applenotes"},
-			sourceAuthed: map[string]bool{"applenotes": true},
-			want:         true,
-		},
-		{
-			name: "applenotes required but not linked",
-			meta: SkillMeta{RequiresAuth: "applenotes"},
-			want: false,
-		},
-		{
-			name: "gmail readonly required and granted",
-			meta: SkillMeta{Scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}},
-			grantedGoogle: map[string]bool{
-				"https://www.googleapis.com/auth/gmail.readonly": true,
-			},
-			want: true,
-		},
-		{
-			name:          "gmail readonly required but not granted",
-			meta:          SkillMeta{Scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}},
-			grantedGoogle: map[string]bool{},
-			want:          false,
-		},
-		{
-			name: "gmail readonly satisfied by modify",
-			meta: SkillMeta{Scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}},
-			grantedGoogle: map[string]bool{
-				"https://www.googleapis.com/auth/gmail.modify": true,
-			},
-			want: true,
-		},
-		{
-			name: "gmail modify required and granted",
-			meta: SkillMeta{Scopes: []string{"https://www.googleapis.com/auth/gmail.modify"}, Write: true},
-			grantedGoogle: map[string]bool{
-				"https://www.googleapis.com/auth/gmail.modify": true,
-			},
-			want: true,
-		},
-		{
-			name: "gmail modify required but only readonly granted",
-			meta: SkillMeta{Scopes: []string{"https://www.googleapis.com/auth/gmail.modify"}, Write: true},
-			grantedGoogle: map[string]bool{
-				"https://www.googleapis.com/auth/gmail.readonly": true,
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			granted := tt.grantedGoogle
-			if granted == nil {
-				granted = map[string]bool{}
-			}
-			authed := tt.sourceAuthed
-			if authed == nil {
-				authed = map[string]bool{}
-			}
-			got := isSkillEligible(tt.meta, granted, authed)
-			if got != tt.want {
-				t.Errorf("isSkillEligible() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestParseScopeMap(t *testing.T) {
 	tests := []struct {
@@ -191,27 +96,16 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
-	// With no auth, history-read, memory-save, web-search, web-fetch should be installed.
-	if !slices.Contains(result.Installed, "history-read") {
-		t.Error("history-read should be installed (no auth required)")
-	}
-	if !slices.Contains(result.Installed, "memory-save") {
-		t.Error("memory-save should be installed (no auth required)")
-	}
-	if !slices.Contains(result.Installed, "web-search") {
-		t.Error("web-search should be installed (no auth required)")
-	}
-	if !slices.Contains(result.Installed, "web-fetch") {
-		t.Error("web-fetch should be installed (no auth required)")
-	}
-	if slices.Contains(result.Installed, "email-read") {
-		t.Error("email-read should NOT be installed (no gmail auth)")
-	}
-	if slices.Contains(result.Installed, "whatsapp-read") {
-		t.Error("whatsapp-read should NOT be installed (no whatsapp auth)")
-	}
-	if slices.Contains(result.Installed, "applenotes-read") {
-		t.Error("applenotes-read should NOT be installed (not linked)")
+	// All built-in skills should be installed regardless of auth state.
+	// Auth checks happen at execution time via progressive consent.
+	for _, name := range []string{
+		"history-read", "memory-save", "web-search", "web-fetch",
+		"email-read", "email-send", "whatsapp-read", "whatsapp-send",
+		"applenotes-read", "contacts-search",
+	} {
+		if !slices.Contains(result.Installed, name) {
+			t.Errorf("%s should be installed (built-in skills are always installed)", name)
+		}
 	}
 
 	// Verify SKILL.md was written for history-read.
@@ -313,25 +207,6 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", tmp)
 
-	// Create a token store with gmail.readonly scope.
-	providerDir := filepath.Join(tmp, "providers", "google")
-	if err := os.MkdirAll(providerDir, 0700); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	tokenDB := filepath.Join(providerDir, "tokens.db")
-
-	store, err := google.NewTokenStore(tokenDB)
-	if err != nil {
-		t.Fatalf("create token store: %v", err)
-	}
-	tok := &oauth2.Token{RefreshToken: "test-refresh", AccessToken: "test-access"}
-	if err := store.SaveToken("user@gmail.com", tok, []string{
-		"https://www.googleapis.com/auth/gmail.readonly",
-	}); err != nil {
-		t.Fatalf("save token: %v", err)
-	}
-	store.Close()
-
 	cfg := config.Default()
 
 	result, err := Install(cfg)
@@ -339,38 +214,20 @@ func TestInstallWithGmailReadonly(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
+	// All built-in skills installed regardless of auth.
 	if !slices.Contains(result.Installed, "email-read") {
-		t.Error("email-read should be installed (gmail.readonly granted)")
+		t.Error("email-read should be installed")
+	}
+	if !slices.Contains(result.Installed, "email-send") {
+		t.Error("email-send should be installed")
 	}
 	if !slices.Contains(result.Installed, "history-read") {
 		t.Error("history-read should be installed")
 	}
-	if slices.Contains(result.Installed, "email-send") {
-		t.Error("email-send should NOT be installed (only readonly granted)")
-	}
 }
 
 func TestInstallWithGmailModify(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", tmp)
-
-	providerDir := filepath.Join(tmp, "providers", "google")
-	if err := os.MkdirAll(providerDir, 0700); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	tokenDB := filepath.Join(providerDir, "tokens.db")
-
-	store, err := google.NewTokenStore(tokenDB)
-	if err != nil {
-		t.Fatalf("create token store: %v", err)
-	}
-	tok := &oauth2.Token{RefreshToken: "test-refresh", AccessToken: "test-access"}
-	if err := store.SaveToken("user@gmail.com", tok, []string{
-		"https://www.googleapis.com/auth/gmail.modify",
-	}); err != nil {
-		t.Fatalf("save token: %v", err)
-	}
-	store.Close()
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	cfg := config.Default()
 
@@ -379,26 +236,17 @@ func TestInstallWithGmailModify(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 
+	// Both email skills always installed, auth checked at execution time.
 	if !slices.Contains(result.Installed, "email-read") {
-		t.Error("email-read should be installed (gmail.modify implies readonly)")
+		t.Error("email-read should be installed")
 	}
 	if !slices.Contains(result.Installed, "email-send") {
-		t.Error("email-send should be installed (gmail.modify granted)")
+		t.Error("email-send should be installed")
 	}
 }
 
-func TestInstallWithWhatsApp(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", tmp)
-
-	// Create a fake WhatsApp session file.
-	waDir := filepath.Join(tmp, "whatsapp")
-	if err := os.MkdirAll(waDir, 0700); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(waDir, "session.db"), []byte("fake-session-data"), 0600); err != nil {
-		t.Fatalf("write session: %v", err)
-	}
+func TestInstallAlwaysIncludesWhatsApp(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	cfg := config.Default()
 
@@ -408,21 +256,15 @@ func TestInstallWithWhatsApp(t *testing.T) {
 	}
 
 	if !slices.Contains(result.Installed, "whatsapp-read") {
-		t.Error("whatsapp-read should be installed (session exists)")
+		t.Error("whatsapp-read should be installed (always available)")
 	}
 	if !slices.Contains(result.Installed, "whatsapp-send") {
-		t.Error("whatsapp-send should be installed (session exists)")
+		t.Error("whatsapp-send should be installed (always available)")
 	}
 }
 
-func TestInstallWithAppleNotes(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", tmp)
-
-	// Simulate linked Apple Notes.
-	if err := config.LinkSource("applenotes"); err != nil {
-		t.Fatalf("link source: %v", err)
-	}
+func TestInstallAlwaysIncludesAppleNotes(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
 	cfg := config.Default()
 
@@ -432,23 +274,13 @@ func TestInstallWithAppleNotes(t *testing.T) {
 	}
 
 	if !slices.Contains(result.Installed, "applenotes-read") {
-		t.Error("applenotes-read should be installed (source linked)")
+		t.Error("applenotes-read should be installed (always available)")
 	}
 }
 
-func TestInstallRemovesRevokedSkills(t *testing.T) {
+func TestInstallKeepsSkillsAfterAuthRevoked(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", tmp)
-
-	// First install with WhatsApp auth.
-	waDir := filepath.Join(tmp, "whatsapp")
-	if err := os.MkdirAll(waDir, 0700); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	sessionPath := filepath.Join(waDir, "session.db")
-	if err := os.WriteFile(sessionPath, []byte("fake-session-data"), 0600); err != nil {
-		t.Fatalf("write session: %v", err)
-	}
 
 	cfg := config.Default()
 
@@ -460,26 +292,17 @@ func TestInstallRemovesRevokedSkills(t *testing.T) {
 		t.Fatal("whatsapp-read should be installed in first run")
 	}
 
-	// Remove WhatsApp session (simulates revocation).
-	os.Remove(sessionPath)
-
-	// Re-install.
+	// Re-install — built-in skills stay regardless of auth state.
 	result2, err := Install(cfg)
 	if err != nil {
 		t.Fatalf("second Install: %v", err)
 	}
 
-	if slices.Contains(result2.Installed, "whatsapp-read") {
-		t.Error("whatsapp-read should NOT be installed after session removed")
+	if !slices.Contains(result2.Installed, "whatsapp-read") {
+		t.Error("whatsapp-read should remain installed (auth checked at execution time)")
 	}
-	if !slices.Contains(result2.Removed, "whatsapp-read") {
-		t.Error("whatsapp-read should be in removed list")
-	}
-
-	// Verify file was actually removed.
-	skillDir := filepath.Join(tmp, "skills", "whatsapp-read")
-	if _, err := os.Stat(skillDir); !os.IsNotExist(err) {
-		t.Error("whatsapp-read directory should have been removed")
+	if len(result2.Removed) != 0 {
+		t.Errorf("no built-in skills should be removed, got: %v", result2.Removed)
 	}
 }
 

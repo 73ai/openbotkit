@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/oauth/google"
 	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
 )
 
@@ -52,15 +51,9 @@ func Install(cfg *config.Config) (*InstallResult, error) {
 	desired := make(map[string]SkillEntry)
 	result := &InstallResult{}
 
-	// Determine desired built-in skills.
-	grantedGoogle := resolveGoogleScopes(cfg)
-	sourceAuthed := resolveSourceAuth(cfg)
-
+	// Always install all built-in skills. Scope and auth checks happen
+	// at execution time via progressive consent, not at install time.
 	for name, meta := range builtinSkills {
-		if !isSkillEligible(meta, grantedGoogle, sourceAuthed) {
-			result.Skipped = append(result.Skipped, name)
-			continue
-		}
 		desired[name] = SkillEntry{
 			Source:       "obk",
 			Version:      "0.1.0",
@@ -152,76 +145,6 @@ func installBuiltinSkill(name, destDir string) error {
 		}
 	}
 	return nil
-}
-
-func resolveGoogleScopes(cfg *config.Config) map[string]bool {
-	scopes := make(map[string]bool)
-	tokenDB := cfg.GoogleTokenDBPath()
-	if _, err := os.Stat(tokenDB); os.IsNotExist(err) {
-		return scopes
-	}
-
-	store, err := google.NewTokenStore(tokenDB)
-	if err != nil {
-		return scopes
-	}
-	defer store.Close()
-
-	accounts, err := store.ListAccounts()
-	if err != nil {
-		return scopes
-	}
-
-	for _, account := range accounts {
-		_, granted, err := store.LoadToken(account)
-		if err != nil {
-			continue
-		}
-		for _, s := range granted {
-			scopes[s] = true
-		}
-	}
-	return scopes
-}
-
-// resolveSourceAuth checks which non-Google sources are authenticated.
-func resolveSourceAuth(cfg *config.Config) map[string]bool {
-	authed := make(map[string]bool)
-
-	// WhatsApp: check if session.db exists and is non-empty.
-	sessionDB := cfg.WhatsAppSessionDBPath()
-	if info, err := os.Stat(sessionDB); err == nil && info.Size() > 0 {
-		authed["whatsapp"] = true
-	}
-
-	// Apple Notes: check if linked via config.
-	if config.IsSourceLinked("applenotes") {
-		authed["applenotes"] = true
-	}
-
-	return authed
-}
-
-func isSkillEligible(meta SkillMeta, grantedGoogle map[string]bool, sourceAuthed map[string]bool) bool {
-	// No requirements — always eligible.
-	if len(meta.Scopes) == 0 && meta.RequiresAuth == "" {
-		return true
-	}
-
-	if meta.RequiresAuth != "" {
-		return sourceAuthed[meta.RequiresAuth]
-	}
-
-	// Check Google scopes. gmail.modify implies gmail.readonly.
-	for _, required := range meta.Scopes {
-		if !grantedGoogle[required] {
-			if required == "https://www.googleapis.com/auth/gmail.readonly" && grantedGoogle["https://www.googleapis.com/auth/gmail.modify"] {
-				continue
-			}
-			return false
-		}
-	}
-	return true
 }
 
 // resolveGWSSkills determines which gws skills should be installed.
