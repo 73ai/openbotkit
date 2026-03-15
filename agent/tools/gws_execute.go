@@ -188,18 +188,6 @@ func (g *GWSExecuteTool) run(ctx context.Context, args []string) (string, error)
 		}
 	}
 
-	// If the API is not enabled in the user's GCP project, send them
-	// the enablement URL. No retry — they need to enable it manually.
-	if runErr != nil && (strings.Contains(out, "SERVICE_DISABLED") || strings.Contains(out, "accessNotConfigured")) {
-		service := gwsServiceFromCommand(args)
-		if apiName, ok := serviceToAPIName[service]; ok {
-			url := "https://console.cloud.google.com/apis/library/" + apiName
-			g.interactor.Notify(fmt.Sprintf("The %s API is not enabled in your Google Cloud project. Please enable it and try again.", service))
-			g.interactor.NotifyLink("Enable "+service+" API", url)
-			return fmt.Sprintf("Error: %s API not enabled. User has been sent the enablement link.", service), runErr
-		}
-	}
-
 	out = TruncateHeadTail(out, MaxLinesHeadTail, MaxLinesHeadTail)
 	out = TruncateBytes(out, MaxOutputBytes)
 	return out, runErr
@@ -258,17 +246,6 @@ func (g *GWSExecuteTool) isWriteCommand(args []string) bool {
 		}
 	}
 	return false
-}
-
-// serviceToAPIName maps gws service names to Google Cloud API names for enablement URLs.
-var serviceToAPIName = map[string]string{
-	"calendar": "calendar-json.googleapis.com",
-	"drive":    "drive.googleapis.com",
-	"docs":     "docs.googleapis.com",
-	"sheets":   "sheets.googleapis.com",
-	"tasks":    "tasks.googleapis.com",
-	"people":   "people.googleapis.com",
-	"gmail":    "gmail.googleapis.com",
 }
 
 // serviceToScope maps gws short service names to full Google API scope URLs.
