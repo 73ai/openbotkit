@@ -74,7 +74,69 @@ var configProfilesListCmd = &cobra.Command{
 	},
 }
 
+var configProfilesShowCmd = &cobra.Command{
+	Use:   "show <name>",
+	Short: "Show details of a model profile",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		// Check built-in profiles first.
+		if p, ok := config.Profiles[name]; ok {
+			category := p.Category
+			if category == "single" {
+				category = "single (1 API key)"
+			} else {
+				category = fmt.Sprintf("multi (%d API keys)", len(p.Providers))
+			}
+			fmt.Printf("Name:        %s\n", p.Name)
+			fmt.Printf("Label:       %s\n", p.Label)
+			fmt.Printf("Description: %s\n", p.Description)
+			fmt.Printf("Category:    %s\n", category)
+			fmt.Printf("Providers:   %s\n", strings.Join(p.Providers, ", "))
+			fmt.Println()
+			fmt.Println("Tiers:")
+			fmt.Printf("  Default: %s\n", p.Tiers.Default)
+			fmt.Printf("  Complex: %s\n", p.Tiers.Complex)
+			fmt.Printf("  Fast:    %s\n", p.Tiers.Fast)
+			fmt.Printf("  Nano:    %s\n", p.Tiers.Nano)
+			return nil
+		}
+
+		// Check custom profiles.
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+		if cfg.Models != nil {
+			if cp, ok := cfg.Models.CustomProfiles[name]; ok {
+				label := cp.Label
+				if label == "" {
+					label = name
+				}
+				fmt.Printf("Name:        %s\n", name)
+				fmt.Printf("Label:       %s\n", label)
+				if cp.Description != "" {
+					fmt.Printf("Description: %s\n", cp.Description)
+				}
+				fmt.Printf("Category:    custom\n")
+				fmt.Printf("Providers:   %s\n", strings.Join(cp.Providers, ", "))
+				fmt.Println()
+				fmt.Println("Tiers:")
+				fmt.Printf("  Default: %s\n", cp.Tiers.Default)
+				fmt.Printf("  Complex: %s\n", cp.Tiers.Complex)
+				fmt.Printf("  Fast:    %s\n", cp.Tiers.Fast)
+				fmt.Printf("  Nano:    %s\n", cp.Tiers.Nano)
+				return nil
+			}
+		}
+
+		return fmt.Errorf("profile %q not found", name)
+	},
+}
+
 func init() {
 	configProfilesCmd.AddCommand(configProfilesListCmd)
+	configProfilesCmd.AddCommand(configProfilesShowCmd)
 	configCmd.AddCommand(configProfilesCmd)
 }
