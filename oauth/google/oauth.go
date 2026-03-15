@@ -68,9 +68,10 @@ func getTokenViaCallback(config *oauth2.Config, authOpts ...oauth2.AuthCodeOptio
 
 	opts := append([]oauth2.AuthCodeOption{oauth2.AccessTypeOffline}, authOpts...)
 	authURL := config.AuthCodeURL("state-token", opts...)
-	fmt.Printf("\nOpening browser to authorize...\n")
 	if err := openBrowser(authURL); err != nil {
-		fmt.Printf("Could not open browser automatically. Open this URL:\n%s\n\n", authURL)
+		fmt.Printf("\nOpen this URL to authorize:\n%s\n\n", authURL)
+	} else {
+		fmt.Printf("\nOpening browser... Complete the authorization there.\n")
 	}
 
 	var code string
