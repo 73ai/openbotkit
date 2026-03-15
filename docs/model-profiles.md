@@ -25,7 +25,18 @@ This means existing configs without `nano` work unchanged — nano requests fall
 
 ## Profiles
 
-Profiles preset all four tiers based on monthly budget. User only needs 2 API keys (OpenRouter + Gemini).
+Profiles are organized into two categories: **single-provider** (1 API key) and **multi-provider** (2 API keys).
+
+### Single-provider profiles (1 API key)
+
+| Profile | Default | Complex | Fast | Nano | Provider |
+|---------|---------|---------|------|------|----------|
+| Gemini | gemini-2.5-flash | gemini-2.5-pro | gemini-2.0-flash-lite | gemini-2.0-flash-lite | gemini |
+| Anthropic | claude-haiku-4-5 | claude-sonnet-4-6 | claude-haiku-4-5 | claude-haiku-4-5 | anthropic |
+| OpenRouter | claude-haiku-4-5 (OR) | claude-sonnet-4-6 (OR) | gemini-flash-lite (OR) | gemini-flash-lite (OR) | openrouter |
+| OpenAI | gpt-4o-mini | gpt-4o | gpt-4o-mini | gpt-4o-mini | openai |
+
+### Multi-provider profiles (2 API keys: OpenRouter + Gemini)
 
 | Profile | ~Cost/mo | Default | Complex | Fast | Nano |
 |---------|----------|---------|---------|------|------|
@@ -34,6 +45,15 @@ Profiles preset all four tiers based on monthly budget. User only needs 2 API ke
 | Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.0 Flash-Lite |
 
 *OR = via OpenRouter*
+
+### Custom profiles
+
+Users can create their own profiles via `obk config profiles create`. Custom profiles are stored in `config.yaml` under `models.custom_profiles` and appear in `obk setup models` alongside built-in profiles. Manage with:
+
+- `obk config profiles list` — list all profiles
+- `obk config profiles show <name>` — show profile details
+- `obk config profiles create` — interactive TUI builder
+- `obk config profiles delete <name>` — delete a custom profile
 
 ### Why OpenRouter for default/complex/fast
 
@@ -76,13 +96,18 @@ Same pattern as Groq — reuses OpenAI provider with `https://openrouter.ai/api`
 
 ## CLI setup flow
 
-`obk setup models` now starts with profile selection:
+`obk setup models` starts with profile selection. Single-provider profiles appear first:
 
 ```
 How would you like to configure models?
+→ Gemini (1 API key)
+→ Anthropic (1 API key)
+→ OpenRouter (1 API key)
+→ OpenAI (1 API key)
 → Starter (~$20/mo)
 → Standard (~$50/mo)
 → Premium (~$100/mo)
+→ My Setup (custom)           # if custom profiles exist
 → Custom (manual configuration)
 ```
 
@@ -106,9 +131,20 @@ models:
       api_key_ref: "keychain:obk/openrouter"
     gemini:
       api_key_ref: "keychain:obk/gemini"
+  custom_profiles:
+    my-setup:
+      label: "My Budget Setup"
+      tiers:
+        default: anthropic/claude-haiku-4-5
+        complex: gemini/gemini-2.5-pro
+        fast: gemini/gemini-2.0-flash-lite
+        nano: gemini/gemini-2.0-flash-lite
+      providers:
+        - anthropic
+        - gemini
 ```
 
-The `profile` field is informational — the router only reads the four tier fields. Profiles are config presets, not a runtime concept.
+The `profile` field is informational — the router only reads the four tier fields. Profiles are config presets, not a runtime concept. Custom profiles are stored alongside built-in ones in the config file.
 
 ## Design decisions
 
