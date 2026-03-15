@@ -39,7 +39,8 @@ var googleLoginCmd = &cobra.Command{
 
 		scopes := parseScopes(scopeStr)
 		if len(scopes) == 0 {
-			return fmt.Errorf("--scopes is required (e.g. --scopes gmail.readonly)")
+			// No scopes flag — fall through to interactive TUI.
+			return googleInteractiveRun(cmd, args)
 		}
 
 		gp := google.New(google.Config{
