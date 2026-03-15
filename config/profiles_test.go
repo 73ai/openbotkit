@@ -108,6 +108,7 @@ func TestValidateProfileName(t *testing.T) {
 		{"starter", true},    // built-in
 		{"standard", true},   // built-in
 		{"premium", true},    // built-in
+		{"groq", true},       // built-in
 		{"openrouter", true}, // built-in
 		{"openai", true},     // built-in
 	}

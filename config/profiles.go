@@ -51,6 +51,19 @@ var Profiles = map[string]ModelProfile{
 		},
 		Providers: []string{"anthropic"},
 	},
+	"groq": {
+		Name:        "groq",
+		Label:       "Groq (1 API key, open-source)",
+		Description: "Open-source Llama models with fast inference via Groq.",
+		Category:    "single",
+		Tiers: ProfileTiers{
+			Default: "groq/llama-3.3-70b-versatile",
+			Complex: "groq/llama-4-scout-17b-16e",
+			Fast:    "groq/llama-3.1-8b-instant",
+			Nano:    "groq/llama-3.1-8b-instant",
+		},
+		Providers: []string{"groq"},
+	},
 	"openrouter": {
 		Name:        "openrouter",
 		Label:       "OpenRouter (1 API key)",
@@ -120,7 +133,7 @@ var Profiles = map[string]ModelProfile{
 
 // ProfileNames returns profile names in display order.
 var ProfileNames = []string{
-	"gemini", "anthropic", "openrouter", "openai",
+	"gemini", "anthropic", "groq", "openrouter", "openai",
 	"starter", "standard", "premium",
 }
 
