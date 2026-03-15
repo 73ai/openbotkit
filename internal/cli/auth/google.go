@@ -152,7 +152,6 @@ type scopeChoice struct {
 
 var availableScopeChoices = []scopeChoice{
 	{Label: "Gmail (read)", Scope: "https://www.googleapis.com/auth/gmail.readonly"},
-	{Label: "Gmail (compose + send)", Scope: "https://www.googleapis.com/auth/gmail.compose"},
 	{Label: "Gmail (read + write)", Scope: "https://www.googleapis.com/auth/gmail.modify"},
 	{Label: "Calendar (read)", Scope: "https://www.googleapis.com/auth/calendar.readonly"},
 	{Label: "Calendar (read + write)", Scope: "https://www.googleapis.com/auth/calendar"},
