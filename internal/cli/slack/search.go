@@ -12,7 +12,9 @@ import (
 var searchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Search Slack messages",
-	Args:  cobra.MinimumNArgs(1),
+	Example: `  obk slack search "deploy failed"
+  obk slack search "from:alice in:#general" --limit 5`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := loadClient()
 		if err != nil {

@@ -28,7 +28,7 @@ Personal assistant powered by Claude Code with access to email, WhatsApp, conver
 
 - `obk` must be in PATH: `make install` (from repo root)
 - Gmail synced: `obk gmail sync` (after `obk setup`)
-- WhatsApp synced: `obk auth whatsapp login`
+- WhatsApp synced: `obk whatsapp auth login`
 - Google Workspace (optional): configured via `obk setup` (requires `gws` CLI)
 
 ## What's inside

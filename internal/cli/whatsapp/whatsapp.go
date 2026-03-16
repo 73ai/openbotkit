@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/priyanshujain/openbotkit/config"
+	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/remote"
 	"github.com/spf13/cobra"
 )
@@ -12,7 +13,11 @@ func newRemoteClient(cfg *config.Config) (*remote.Client, error) {
 	if cfg.Remote == nil || cfg.Remote.Server == "" {
 		return nil, fmt.Errorf("remote server not configured — run 'obk setup' to configure")
 	}
-	return remote.NewClient(cfg.Remote.Server, cfg.Remote.Username, cfg.Remote.Password), nil
+	pw, err := cfg.Remote.ResolvedPassword(provider.LoadCredential)
+	if err != nil {
+		return nil, fmt.Errorf("remote password: %w", err)
+	}
+	return remote.NewClient(cfg.Remote.Server, cfg.Remote.Username, pw), nil
 }
 
 var Cmd = &cobra.Command{
@@ -21,6 +26,7 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
+	Cmd.AddCommand(authCmd)
 	Cmd.AddCommand(syncCmd)
 	Cmd.AddCommand(messagesCmd)
 	Cmd.AddCommand(chatsCmd)

@@ -56,7 +56,9 @@ func openContactsDB(cfg *config.Config) (*store.DB, error) {
 var searchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Search contacts by name",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk contacts search "John"
+  obk contacts search "Jane Doe" --limit 10 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -111,7 +113,9 @@ var searchCmd = &cobra.Command{
 var getCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Show full contact details",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk contacts get 42
+  obk contacts get 42 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -181,6 +185,8 @@ var getCmd = &cobra.Command{
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List contacts",
+	Example: `  obk contacts list
+  obk contacts list --limit 100 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -220,8 +226,9 @@ var listCmd = &cobra.Command{
 }
 
 var syncCmd = &cobra.Command{
-	Use:   "sync",
-	Short: "Sync contacts from all linked sources",
+	Use:     "sync",
+	Short:   "Sync contacts from all linked sources",
+	Example: `  obk contacts sync`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

@@ -19,6 +19,9 @@ var notesCmd = &cobra.Command{
 var notesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List stored notes with optional filters",
+	Example: `  obk applenotes notes list
+  obk applenotes notes list --folder "Work" --limit 20
+  obk applenotes notes list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -74,7 +77,9 @@ var notesListCmd = &cobra.Command{
 var notesGetCmd = &cobra.Command{
 	Use:   "get <apple-id>",
 	Short: "Show full details of a stored note",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk applenotes notes get x-coredata://abc123
+  obk applenotes notes get x-coredata://abc123 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -115,7 +120,9 @@ var notesGetCmd = &cobra.Command{
 var notesSearchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Full-text search across title and body",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk applenotes notes search "meeting notes"
+  obk applenotes notes search "project plan" --limit 10 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

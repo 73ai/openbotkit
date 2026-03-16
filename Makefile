@@ -22,12 +22,10 @@ install:
 	@if pgrep -f "$(BINARY)\|$(ALIAS)" > /dev/null 2>&1; then \
 		echo "Restarting running services..."; \
 		$(GOBIN)/$(ALIAS) service restart 2>/dev/null || true; \
-		$(GOBIN)/$(ALIAS) server restart 2>/dev/null || true; \
 	fi
 
 update-local: install
 	$(GOBIN)/$(ALIAS) service restart
-	$(GOBIN)/$(ALIAS) server restart
 
 uninstall:
 	rm -f $(GOBIN)/$(BINARY) $(GOBIN)/$(ALIAS)

@@ -1,4 +1,4 @@
-package auth
+package gmail
 
 import (
 	"context"
@@ -15,15 +15,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var googleCmd = &cobra.Command{
-	Use:   "google",
+var authCmd = &cobra.Command{
+	Use:   "auth",
 	Short: "Manage Google account authentication and scopes",
-	RunE:  googleInteractiveRun,
+	RunE:  authInteractiveRun,
 }
 
-var googleLoginCmd = &cobra.Command{
+var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate a Google account via OAuth2",
+	Example: `  obk gmail auth login --scopes gmail.readonly
+  obk gmail auth login --scopes gmail.modify,calendar --email user@example.com`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -39,8 +41,7 @@ var googleLoginCmd = &cobra.Command{
 
 		scopes := parseScopes(scopeStr)
 		if len(scopes) == 0 {
-			// No scopes flag — fall through to interactive TUI.
-			return googleInteractiveRun(cmd, args)
+			return authInteractiveRun(cmd, args)
 		}
 
 		gp := google.New(google.Config{
@@ -64,17 +65,30 @@ var googleLoginCmd = &cobra.Command{
 	},
 }
 
-var googleRevokeCmd = &cobra.Command{
+var authRevokeCmd = &cobra.Command{
 	Use:   "revoke",
 	Short: "Revoke specific scopes for a Google account",
+	Example: `  obk gmail auth revoke --email user@example.com --scopes gmail.readonly
+  obk gmail auth revoke --email user@example.com --scopes gmail.modify,calendar --force`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		emailFlag, _ := cmd.Flags().GetString("email")
+		scopeStr, _ := cmd.Flags().GetString("scopes")
+
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Printf("About to revoke scopes for %s. Continue? (y/N): ", emailFlag)
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("Cancelled.")
+				return nil
+			}
+		}
+
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
-
-		emailFlag, _ := cmd.Flags().GetString("email")
-		scopeStr, _ := cmd.Flags().GetString("scopes")
 
 		if emailFlag == "" {
 			return fmt.Errorf("--email is required")
@@ -99,9 +113,11 @@ var googleRevokeCmd = &cobra.Command{
 	},
 }
 
-var googleStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show Google account authentication status",
+var authStatusCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List authenticated Google accounts and scopes",
+	Example: `  obk gmail auth list
+  obk gmail auth list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -144,7 +160,6 @@ var googleStatusCmd = &cobra.Command{
 	},
 }
 
-// scopeChoices defines the available scope options for interactive selection.
 type scopeChoice struct {
 	Label string
 	Scope string
@@ -163,8 +178,8 @@ var availableScopeChoices = []scopeChoice{
 	{Label: "Contacts", Scope: "https://www.googleapis.com/auth/contacts"},
 }
 
-func googleInteractiveRun(cmd *cobra.Command, args []string) error {
-	if err := tty.RequireInteractive("obk auth google login --scopes gmail.readonly"); err != nil {
+func authInteractiveRun(cmd *cobra.Command, args []string) error {
+	if err := tty.RequireInteractive("obk gmail auth login --scopes gmail.readonly"); err != nil {
 		return err
 	}
 
@@ -186,13 +201,13 @@ func googleInteractiveRun(cmd *cobra.Command, args []string) error {
 	accounts, _ := gp.Accounts(ctx)
 
 	if len(accounts) == 0 {
-		return googleInteractiveNewAccount(ctx, gp)
+		return authInteractiveNewAccount(ctx, gp)
 	}
 
-	return googleInteractiveManage(ctx, gp, accounts)
+	return authInteractiveManage(ctx, gp, accounts)
 }
 
-func googleInteractiveNewAccount(ctx context.Context, gp *google.Google) error {
+func authInteractiveNewAccount(ctx context.Context, gp *google.Google) error {
 	fmt.Print("\n  No Google accounts connected.\n\n")
 
 	var selectedScopes []string
@@ -231,7 +246,7 @@ func googleInteractiveNewAccount(ctx context.Context, gp *google.Google) error {
 	return nil
 }
 
-func googleInteractiveManage(ctx context.Context, gp *google.Google, accounts []string) error {
+func authInteractiveManage(ctx context.Context, gp *google.Google, accounts []string) error {
 	fmt.Println("\n  Google accounts:")
 	for _, a := range accounts {
 		scopes, _ := gp.GrantedScopes(ctx, a)
@@ -262,10 +277,9 @@ func googleInteractiveManage(ctx context.Context, gp *google.Google, accounts []
 	}
 
 	if action == "__new__" {
-		return googleInteractiveNewAccount(ctx, gp)
+		return authInteractiveNewAccount(ctx, gp)
 	}
 
-	// Manage existing account scopes.
 	existing, _ := gp.GrantedScopes(ctx, action)
 	grantedSet := make(map[string]bool, len(existing))
 	for _, s := range existing {
@@ -299,8 +313,6 @@ func googleInteractiveManage(ctx context.Context, gp *google.Google, accounts []
 		return err
 	}
 
-	// Only manage scopes that were visible in the picker — don't
-	// touch scopes (like drive) that aren't in availableScopeChoices.
 	managedSet := make(map[string]bool, len(availableScopeChoices))
 	for _, sc := range availableScopeChoices {
 		managedSet[sc.Scope] = true
@@ -359,20 +371,20 @@ func scopeLabel(scope string) string {
 }
 
 func init() {
-	googleLoginCmd.Flags().String("scopes", "", "Comma-separated scopes (e.g. gmail.readonly,calendar.readonly)")
-	googleLoginCmd.Flags().String("email", "", "Email hint for account selection")
+	authLoginCmd.Flags().String("scopes", "", "Comma-separated scopes (e.g. gmail.readonly,calendar.readonly)")
+	authLoginCmd.Flags().String("email", "", "Email hint for account selection")
 
-	googleRevokeCmd.Flags().String("email", "", "Account email to revoke scopes for")
-	googleRevokeCmd.Flags().String("scopes", "", "Comma-separated scopes to revoke")
+	authRevokeCmd.Flags().String("email", "", "Account email to revoke scopes for")
+	authRevokeCmd.Flags().String("scopes", "", "Comma-separated scopes to revoke")
+	authRevokeCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 
-	googleStatusCmd.Flags().Bool("json", false, "Output as JSON")
+	authStatusCmd.Flags().Bool("json", false, "Output as JSON")
 
-	googleCmd.AddCommand(googleLoginCmd)
-	googleCmd.AddCommand(googleRevokeCmd)
-	googleCmd.AddCommand(googleStatusCmd)
+	authCmd.AddCommand(authLoginCmd)
+	authCmd.AddCommand(authRevokeCmd)
+	authCmd.AddCommand(authStatusCmd)
 }
 
-// scopeAliases maps short names to full Google API scope URLs.
 var scopeAliases = map[string]string{
 	"gmail.readonly":    "https://www.googleapis.com/auth/gmail.readonly",
 	"gmail.compose":     "https://www.googleapis.com/auth/gmail.compose",

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -13,14 +14,16 @@ import (
 )
 
 type checkResult struct {
-	Name   string
-	Status string // "OK", "FAIL", "WARN"
-	Detail string
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
 }
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Check the health of your obk installation",
+	Example: `  obk doctor
+  obk doctor --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, cfgErr := config.Load()
 
@@ -34,6 +37,11 @@ var doctorCmd = &cobra.Command{
 		}
 		results = append(results, checkServices()...)
 		results = append(results, checkSkills())
+
+		jsonOut, _ := cmd.Flags().GetBool("json")
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(results)
+		}
 
 		for _, r := range results {
 			fmt.Fprintf(os.Stdout, "%-20s %-6s %s\n", r.Name, r.Status, r.Detail)
@@ -117,6 +125,11 @@ func checkDatabases(cfg *config.Config) []checkResult {
 		{"History DB", cfg.HistoryDataDSN()},
 		{"UserMemory DB", cfg.UserMemoryDataDSN()},
 		{"AppleNotes DB", cfg.AppleNotesDataDSN()},
+		{"Contacts DB", cfg.ContactsDataDSN()},
+		{"WebSearch DB", cfg.WebSearchDataDSN()},
+		{"iMessage DB", cfg.IMessageDataDSN()},
+		{"Scheduler DB", cfg.SchedulerDataDSN()},
+		{"Audit DB", config.AuditDBPath()},
 		{"Jobs DB", cfg.JobsDBDSN()},
 	}
 
@@ -161,5 +174,6 @@ func checkSkills() checkResult {
 }
 
 func init() {
+	doctorCmd.Flags().Bool("json", false, "Output as JSON")
 	rootCmd.AddCommand(doctorCmd)
 }

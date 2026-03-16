@@ -14,7 +14,10 @@ import (
 var fetchCmd = &cobra.Command{
 	Use:   "fetch [url]",
 	Short: "Fetch and read a web page",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk websearch fetch "https://example.com/article"
+  obk websearch fetch "https://example.com" -f text
+  obk websearch fetch "https://example.com" --no-cache`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

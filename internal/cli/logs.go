@@ -6,56 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
-	"path/filepath"
 	"time"
-
-	"github.com/priyanshujain/openbotkit/internal/platform"
-	"github.com/spf13/cobra"
 )
-
-func newLogsCmd(serviceName string) *cobra.Command {
-	var (
-		follow bool
-		tail   int
-	)
-
-	cmd := &cobra.Command{
-		Use:   "logs",
-		Short: fmt.Sprintf("Show %s logs", serviceName),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("get home dir: %w", err)
-			}
-			logPath := filepath.Join(home, ".obk", serviceName+".log")
-
-			f, err := os.Open(logPath)
-			if err != nil {
-				return fmt.Errorf("open log file: %w", err)
-			}
-			defer f.Close()
-
-			if err := printTail(f, tail); err != nil {
-				return err
-			}
-
-			if !follow {
-				return nil
-			}
-
-			ctx, stop := signal.NotifyContext(cmd.Context(), platform.ShutdownSignals...)
-			defer stop()
-
-			return followFile(ctx, f)
-		},
-	}
-
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow log output")
-	cmd.Flags().IntVar(&tail, "tail", 50, "number of lines to show from the end")
-
-	return cmd
-}
 
 func printTail(f *os.File, n int) error {
 	info, err := f.Stat()

@@ -13,6 +13,8 @@ import (
 var sendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Send an email via Gmail",
+	Example: `  obk gmail send --to alice@example.com --subject "Hello" --body "Hi there"
+  obk gmail send --to alice@example.com,bob@example.com --cc manager@example.com --subject "Update" --body "See attached" --account me@example.com`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

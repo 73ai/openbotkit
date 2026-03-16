@@ -23,7 +23,9 @@ type historyEntry struct {
 var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Show recent search history",
-	Args:  cobra.NoArgs,
+	Example: `  obk websearch history
+  obk websearch history --limit 50`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

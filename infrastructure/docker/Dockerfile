@@ -22,4 +22,4 @@ WORKDIR /home/obk
 EXPOSE 8443
 
 ENTRYPOINT ["obk"]
-CMD ["server", "run"]
+CMD ["service", "run", "server"]

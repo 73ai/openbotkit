@@ -13,6 +13,7 @@ import (
 var messagesSendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Send a text message to a WhatsApp chat",
+	Example: `  obk whatsapp messages send --to 1234567890@s.whatsapp.net --text "Hello!"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		to, _ := cmd.Flags().GetString("to")
 		text, _ := cmd.Flags().GetString("text")

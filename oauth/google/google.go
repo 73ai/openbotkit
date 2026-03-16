@@ -38,7 +38,7 @@ func (g *Google) Client(ctx context.Context, account string, scopes []string) (*
 		return nil, fmt.Errorf("check scopes: %w", err)
 	}
 	if !has {
-		return nil, fmt.Errorf("account %q missing required scopes; run 'obk auth google login' to grant", account)
+		return nil, fmt.Errorf("account %q missing required scopes; run 'obk gmail auth login' to grant", account)
 	}
 
 	tok, _, err := store.LoadToken(account)

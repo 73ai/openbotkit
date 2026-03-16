@@ -14,6 +14,7 @@ var updateSkillsOnly bool
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Update obk binary and reinstall skills",
+	Example: `  obk update`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

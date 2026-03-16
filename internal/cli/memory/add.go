@@ -1,7 +1,9 @@
 package memory
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/priyanshujain/openbotkit/config"
 	"github.com/priyanshujain/openbotkit/memory"
@@ -17,7 +19,10 @@ var (
 var addCmd = &cobra.Command{
 	Use:   "add <content>",
 	Short: "Add a personal memory",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk memory add "I prefer dark mode"
+  obk memory add "Lives in Da Nang" --category identity
+  obk memory add "Likes Go" --source chat --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := args[0]
 
@@ -25,6 +30,8 @@ var addCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
+
+		jsonOut, _ := cmd.Flags().GetBool("json")
 
 		if cfg.IsRemote() {
 			client, err := newRemoteClient(cfg)
@@ -34,6 +41,9 @@ var addCmd = &cobra.Command{
 			id, err := client.MemoryAdd(content, addCategory, addSource)
 			if err != nil {
 				return fmt.Errorf("add: %w", err)
+			}
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"id": id, "content": content, "category": addCategory})
 			}
 			fmt.Printf("Added memory #%d\n", id)
 			return nil
@@ -61,6 +71,9 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("add: %w", err)
 		}
 
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"id": id, "content": content, "category": addCategory})
+		}
 		fmt.Printf("Added memory #%d\n", id)
 		return nil
 	},
@@ -69,4 +82,5 @@ var addCmd = &cobra.Command{
 func init() {
 	addCmd.Flags().StringVar(&addCategory, "category", "preference", "category (identity, preference, relationship, project)")
 	addCmd.Flags().StringVar(&addSource, "source", "manual", "source of the memory")
+	addCmd.Flags().Bool("json", false, "Output as JSON")
 }

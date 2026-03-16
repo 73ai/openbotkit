@@ -51,9 +51,28 @@ func (c *Config) IsRemote() bool { return c.ResolvedMode() == ModeRemote }
 func (c *Config) IsServer() bool { return c.ResolvedMode() == ModeServer }
 
 type RemoteConfig struct {
-	Server   string `yaml:"server,omitempty"`
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
+	Server      string `yaml:"server,omitempty"`
+	Username    string `yaml:"username,omitempty"`
+	Password    string `yaml:"password,omitempty"`
+	PasswordRef string `yaml:"password_ref,omitempty"`
+}
+
+// ResolvedPassword resolves the password from PasswordRef using the supplied
+// resolver. If PasswordRef is set and resolution fails, the error is returned
+// instead of silently falling back to plain text. When PasswordRef is empty,
+// the plain-text Password field is returned.
+func (r *RemoteConfig) ResolvedPassword(resolve func(string) (string, error)) (string, error) {
+	if r.PasswordRef != "" {
+		if resolve == nil {
+			return "", fmt.Errorf("password_ref %q set but no credential resolver available", r.PasswordRef)
+		}
+		pw, err := resolve(r.PasswordRef)
+		if err != nil {
+			return "", fmt.Errorf("resolving password_ref %q: %w", r.PasswordRef, err)
+		}
+		return pw, nil
+	}
+	return r.Password, nil
 }
 
 type AuthConfig struct {
@@ -132,6 +151,7 @@ type WhatsAppConfig struct {
 type GmailConfig struct {
 	CredentialsFile     string        `yaml:"credentials_file,omitempty"`
 	DownloadAttachments bool          `yaml:"download_attachments,omitempty"`
+	SyncDays            int           `yaml:"sync_days,omitempty"`
 	Storage             StorageConfig `yaml:"storage,omitempty"`
 }
 

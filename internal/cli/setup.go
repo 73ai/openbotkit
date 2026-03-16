@@ -14,9 +14,11 @@ import (
 	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/internal/tty"
 	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/remote"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
+	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
 	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
 	"github.com/priyanshujain/openbotkit/source/slack/desktop"
 	"github.com/priyanshujain/openbotkit/store"
@@ -28,8 +30,9 @@ var gwsServices = []string{"calendar", "drive", "docs", "sheets", "tasks", "peop
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Guided first-time setup for OpenBotKit",
+	Example: `  obk setup`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := tty.RequireInteractive("configure manually with 'obk config' and 'obk auth google login'"); err != nil {
+		if err := tty.RequireInteractive("configure manually with 'obk config' and 'obk gmail auth login'"); err != nil {
 			return err
 		}
 
@@ -72,6 +75,7 @@ var setupCmd = &cobra.Command{
 		if runtime.GOOS == "darwin" {
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Contacts", "applecontacts"))
+			sourceOptions = append(sourceOptions, huh.NewOption("iMessage", "imessage"))
 		}
 
 		err = huh.NewForm(
@@ -163,11 +167,47 @@ var setupCmd = &cobra.Command{
 				if err := setupAppleContacts(cfg); err != nil {
 					return err
 				}
+			case "imessage":
+				if err := setupIMessage(cfg); err != nil {
+					return err
+				}
+			case "whatsapp":
+				if err := config.EnsureSourceDir("whatsapp"); err != nil {
+					return fmt.Errorf("create whatsapp dir: %w", err)
+				}
+				fmt.Println("\n  WhatsApp requires QR code login.")
+				fmt.Println("  Run after setup: obk whatsapp auth login")
 			case "slack":
 				if err := setupSlack(cfg); err != nil {
 					return err
 				}
 			}
+		}
+
+		if cfg.Timezone == "" {
+			systemTZ := time.Now().Location().String()
+			var tz string
+			err := huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Timezone").
+						Description("Used for scheduling and display").
+						Placeholder(systemTZ).
+						Value(&tz),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
+			tz = strings.TrimSpace(tz)
+			if tz == "" {
+				tz = systemTZ
+			}
+			if _, err := time.LoadLocation(tz); err != nil {
+				fmt.Printf("  Invalid timezone %q, using %s\n", tz, systemTZ)
+				tz = systemTZ
+			}
+			cfg.Timezone = tz
 		}
 
 		if err := cfg.Save(); err != nil {
@@ -197,11 +237,13 @@ var setupCmd = &cobra.Command{
 			case "gmail":
 				fmt.Println("    - Run: obk gmail sync")
 			case "whatsapp":
-				fmt.Println("    - Run: obk auth whatsapp login")
+				fmt.Println("    - Run: obk whatsapp auth login")
 			case "applenotes":
 				fmt.Println("    - Apple Notes is ready (synced during setup)")
 			case "applecontacts":
 				fmt.Println("    - Apple Contacts is ready (synced during setup)")
+			case "imessage":
+				fmt.Println("    - iMessage is ready (synced during setup)")
 			case "slack":
 				fmt.Println("    - Slack is ready! Try: obk slack channels")
 			case "telegram":
@@ -257,10 +299,20 @@ func setupRemote() error {
 	}
 
 	cfg.Mode = config.ModeRemote
-	cfg.Remote = &config.RemoteConfig{
-		Server:   serverURL,
-		Username: username,
-		Password: password,
+	passwordRef := "keychain:obk/remote"
+	if err := provider.StoreCredential(passwordRef, password); err != nil {
+		fmt.Printf("  Warning: could not store password in keychain: %v\n", err)
+		cfg.Remote = &config.RemoteConfig{
+			Server:   serverURL,
+			Username: username,
+			Password: password,
+		}
+	} else {
+		cfg.Remote = &config.RemoteConfig{
+			Server:      serverURL,
+			Username:    username,
+			PasswordRef: passwordRef,
+		}
 	}
 
 	if err := cfg.Save(); err != nil {
@@ -365,25 +417,23 @@ func setupGoogle(cfg *config.Config) error {
 	}
 	cfg.Providers.Google.CredentialsFile = credPath
 
-	var scopes []string
+	var scope string
 	err = huh.NewForm(
 		huh.NewGroup(
-			huh.NewMultiSelect[string]().
+			huh.NewSelect[string]().
 				Title("Select Gmail access level").
 				Options(
-					huh.NewOption("Gmail (read)", "https://www.googleapis.com/auth/gmail.readonly").Selected(true),
-					huh.NewOption("Gmail (read + write)", "https://www.googleapis.com/auth/gmail.modify"),
+					huh.NewOption("Read only", "https://www.googleapis.com/auth/gmail.readonly"),
+					huh.NewOption("Read + Write", "https://www.googleapis.com/auth/gmail.modify"),
 				).
-				Value(&scopes),
+				Value(&scope),
 		),
 	).Run()
 	if err != nil {
 		return err
 	}
 
-	if len(scopes) == 0 {
-		scopes = []string{"https://www.googleapis.com/auth/gmail.readonly"}
-	}
+	scopes := []string{scope}
 
 	gp := google.New(google.Config{
 		CredentialsFile: credPath,
@@ -415,6 +465,11 @@ func setupGoogle(cfg *config.Config) error {
 		return err
 	}
 
+	var syncDaysInt int
+	if _, err := fmt.Sscanf(syncDays, "%d", &syncDaysInt); err == nil {
+		cfg.Gmail.SyncDays = syncDaysInt
+	}
+
 	fmt.Printf("  Sync window: %s days\n", syncDays)
 	return nil
 }
@@ -428,8 +483,23 @@ func setupGWS(cfg *config.Config, services []string) error {
 		fmt.Println("\n  Checking for gws... not found.")
 		fmt.Println("  Install gws (requires Node.js):")
 		fmt.Println("    npm install -g @googleworkspace/cli")
-		fmt.Println("\n  Waiting for gws to be installed... (run the command above in another tab)")
-		fmt.Println("  Press Ctrl+C to cancel.")
+
+		var choice string
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("gws is not installed").
+				Options(
+					huh.NewOption("Wait for install (run the command above in another tab)", "wait"),
+					huh.NewOption("Skip GWS setup for now", "skip"),
+				).
+				Value(&choice),
+		)).Run(); err != nil {
+			return err
+		}
+		if choice == "skip" {
+			fmt.Println("  Skipping GWS setup. You can configure it later with: obk setup")
+			return nil
+		}
 
 		const maxAttempts = 60 // 5 minutes
 		for attempt := range maxAttempts {
@@ -573,6 +643,38 @@ func setupAppleContacts(cfg *config.Config) error {
 	return nil
 }
 
+func setupIMessage(cfg *config.Config) error {
+	fmt.Println("\n  Setting up iMessage...")
+	fmt.Println("  iMessage requires Full Disk Access to read the chat database.")
+	fmt.Println("  Grant access in System Settings > Privacy & Security > Full Disk Access.")
+	fmt.Println()
+
+	if err := config.EnsureSourceDir("imessage"); err != nil {
+		return fmt.Errorf("create imessage dir: %w", err)
+	}
+
+	db, err := store.Open(store.Config{
+		Driver: cfg.IMessage.Storage.Driver,
+		DSN:    cfg.IMessageDataDSN(),
+	})
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	result, err := imsrc.Sync(db, imsrc.SyncOptions{})
+	if err != nil {
+		return fmt.Errorf("imessage sync: %w", err)
+	}
+
+	if err := config.LinkSource("imessage"); err != nil {
+		return fmt.Errorf("link source: %w", err)
+	}
+
+	fmt.Printf("  Synced %d messages\n", result.Synced)
+	return nil
+}
+
 func setupSlack(cfg *config.Config) error {
 	fmt.Println("\n  -- Slack Setup --")
 
@@ -610,7 +712,7 @@ func setupSlack(cfg *config.Config) error {
 		fmt.Println("  Falling back to manual token entry.")
 	}
 
-	fmt.Println("  Run: obk auth slack login")
+	fmt.Println("  Run: obk slack auth login")
 	return nil
 }
 

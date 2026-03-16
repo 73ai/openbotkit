@@ -14,7 +14,10 @@ import (
 var newsCmd = &cobra.Command{
 	Use:   "news [query]",
 	Short: "Search for recent news",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk websearch news "AI regulation"
+  obk websearch news "tech layoffs" -n 5 -t d
+  obk websearch news "climate summit" -b duckduckgo -r us-en`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

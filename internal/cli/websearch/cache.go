@@ -17,9 +17,10 @@ var cacheCmd = &cobra.Command{
 }
 
 var cacheClearCmd = &cobra.Command{
-	Use:   "clear",
-	Short: "Clear all cached search results and fetched pages",
-	Args:  cobra.NoArgs,
+	Use:     "clear",
+	Short:   "Clear all cached search results and fetched pages",
+	Example: `  obk websearch cache clear`,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

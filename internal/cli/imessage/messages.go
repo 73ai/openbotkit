@@ -19,6 +19,9 @@ var messagesCmd = &cobra.Command{
 var messagesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List stored messages with optional filters",
+	Example: `  obk imessage messages list
+  obk imessage messages list --chat "iMessage;-;+1234567890" --limit 20
+  obk imessage messages list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -74,7 +77,9 @@ var messagesListCmd = &cobra.Command{
 var messagesGetCmd = &cobra.Command{
 	Use:   "get <guid>",
 	Short: "Show full details of a stored message",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk imessage messages get p:0/abc-def-123
+  obk imessage messages get p:0/abc-def-123 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -115,7 +120,9 @@ var messagesGetCmd = &cobra.Command{
 var messagesSearchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Search messages by text content",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk imessage messages search "dinner tomorrow"
+  obk imessage messages search "flight details" --limit 10 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

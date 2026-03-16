@@ -17,18 +17,24 @@ import (
 var usageCmd = &cobra.Command{
 	Use:   "usage",
 	Short: "Show LLM token usage and estimated costs",
+	Example: `  obk usage
+  obk usage --since 2025-03-01 --json`,
 	RunE:  runUsageDaily,
 }
 
 var usageDailyCmd = &cobra.Command{
 	Use:   "daily",
 	Short: "Show daily usage breakdown",
+	Example: `  obk usage daily --since 2025-03-01
+  obk usage daily --model claude-sonnet-4-6 --json`,
 	RunE:  runUsageDaily,
 }
 
 var usageMonthlyCmd = &cobra.Command{
 	Use:   "monthly",
 	Short: "Show monthly usage breakdown",
+	Example: `  obk usage monthly
+  obk usage monthly --json`,
 	RunE:  runUsageMonthly,
 }
 

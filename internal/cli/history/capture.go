@@ -15,6 +15,7 @@ var captureCmd = &cobra.Command{
 	Use:   "capture",
 	Short: "Capture a conversation from a Claude Code transcript",
 	Long:  "Reads capture input as JSON from stdin. Designed to be called by Claude Code hooks.",
+	Example: `  echo '{"session_id":"abc","transcript_path":"/tmp/t.json"}' | obk history capture`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var input historysrc.CaptureInput
 		if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {

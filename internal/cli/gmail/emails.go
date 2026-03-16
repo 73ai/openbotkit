@@ -20,6 +20,9 @@ var emailsCmd = &cobra.Command{
 var emailsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List stored emails with optional filters",
+	Example: `  obk gmail emails list
+  obk gmail emails list --from alice@example.com --limit 10
+  obk gmail emails list --account user@example.com --after 2025-01-01 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -83,7 +86,9 @@ var emailsListCmd = &cobra.Command{
 var emailsGetCmd = &cobra.Command{
 	Use:   "get <message-id>",
 	Short: "Show full details of a stored email",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk gmail emails get 18a1b2c3d4e5f6
+  obk gmail emails get 18a1b2c3d4e5f6 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -127,7 +132,9 @@ var emailsGetCmd = &cobra.Command{
 var emailsSearchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Full-text search across subject and body",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk gmail emails search "quarterly report"
+  obk gmail emails search "invoice" --limit 5 --json`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

@@ -14,7 +14,10 @@ var quoteCmd = &cobra.Command{
 	Use:   "quote [symbols...]",
 	Short: "Get stock quotes",
 	Long:  "Look up current prices for one or more stock symbols (e.g., AAPL GOOGL MSFT).",
-	Args:  cobra.MinimumNArgs(1),
+	Example: `  obk finance quote AAPL
+  obk finance quote AAPL GOOGL MSFT
+  obk finance quote TSLA --json`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := finsrc.NewClient()
 		quotes, err := client.Quote(cmd.Context(), args...)

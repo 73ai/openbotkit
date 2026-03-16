@@ -30,7 +30,7 @@ func TestDetectPlatform(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	cfg, err := DefaultConfig("daemon", []string{"service", "run"})
+	cfg, err := DefaultConfig("daemon", []string{"service", "run", "daemon"})
 	if err != nil {
 		t.Fatalf("DefaultConfig failed: %v", err)
 	}
@@ -46,6 +46,23 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if !strings.HasSuffix(cfg.LogPath, "daemon.log") {
 		t.Errorf("LogPath %q should end with daemon.log", cfg.LogPath)
+	}
+}
+
+func TestShellescape(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"/usr/local/bin/obk", "'/usr/local/bin/obk'"},
+		{"service", "'service'"},
+		{"/path with spaces/obk", "'/path with spaces/obk'"},
+		{"it's", `'it'\''s'`},
+	}
+	for _, tt := range tests {
+		got := shellescape(tt.in)
+		if got != tt.want {
+			t.Errorf("shellescape(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 

@@ -20,6 +20,9 @@ var messagesCmd = &cobra.Command{
 var messagesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List stored messages with optional filters",
+	Example: `  obk whatsapp messages list
+  obk whatsapp messages list --chat 1234567890@s.whatsapp.net --limit 20
+  obk whatsapp messages list --after 2026-01-01 --before 2026-02-01 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -86,6 +89,8 @@ var messagesSearchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Full-text search across message text",
 	Args:  cobra.ExactArgs(1),
+	Example: `  obk whatsapp messages search "meeting tomorrow"
+  obk whatsapp messages search "invoice" --limit 10 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -141,6 +146,8 @@ var chatsCmd = &cobra.Command{
 var chatsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all synced chats with message counts",
+	Example: `  obk whatsapp chats list
+  obk whatsapp chats list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

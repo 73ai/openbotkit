@@ -10,7 +10,7 @@ import (
 
 var Cmd = &cobra.Command{
 	Use:   "slack",
-	Short: "Slack workspace commands",
+	Short: "Manage Slack data source",
 }
 
 func loadClient() (*slacksrc.Client, error) {
@@ -19,7 +19,7 @@ func loadClient() (*slacksrc.Client, error) {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 	if cfg.Slack == nil || cfg.Slack.DefaultWorkspace == "" {
-		return nil, fmt.Errorf("no Slack workspace configured; run: obk auth slack login")
+		return nil, fmt.Errorf("no Slack workspace configured; run: obk slack auth login")
 	}
 	creds, err := slacksrc.LoadCredentials(cfg.Slack.DefaultWorkspace)
 	if err != nil {
@@ -29,6 +29,7 @@ func loadClient() (*slacksrc.Client, error) {
 }
 
 func init() {
+	Cmd.AddCommand(authCmd)
 	Cmd.AddCommand(searchCmd)
 	Cmd.AddCommand(channelsCmd)
 	Cmd.AddCommand(readCmd)

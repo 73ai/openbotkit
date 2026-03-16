@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -565,6 +566,110 @@ func TestCustomProfile_EmptyLabelAndDescription(t *testing.T) {
 	}
 	if cp.Tiers.Default != "gemini/gemini-2.5-flash" {
 		t.Fatal("tiers not preserved with empty label/description")
+	}
+}
+
+func TestResolvedPassword_FromRef(t *testing.T) {
+	r := &RemoteConfig{
+		Password:    "plain",
+		PasswordRef: "keychain:obk/remote",
+	}
+	resolver := func(ref string) (string, error) {
+		if ref == "keychain:obk/remote" {
+			return "secret-from-keychain", nil
+		}
+		return "", fmt.Errorf("not found")
+	}
+	got, err := r.ResolvedPassword(resolver)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "secret-from-keychain" {
+		t.Fatalf("expected keychain password, got %q", got)
+	}
+}
+
+func TestResolvedPassword_RefFailsReturnsError(t *testing.T) {
+	r := &RemoteConfig{
+		Password:    "plain",
+		PasswordRef: "keychain:obk/missing",
+	}
+	resolver := func(ref string) (string, error) {
+		return "", fmt.Errorf("not found")
+	}
+	_, err := r.ResolvedPassword(resolver)
+	if err == nil {
+		t.Fatal("expected error when resolver fails, got nil")
+	}
+}
+
+func TestResolvedPassword_NoRef(t *testing.T) {
+	r := &RemoteConfig{
+		Password: "plain",
+	}
+	got, err := r.ResolvedPassword(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "plain" {
+		t.Fatalf("expected plain password, got %q", got)
+	}
+}
+
+func TestResolvedPassword_NilResolverWithRef(t *testing.T) {
+	r := &RemoteConfig{
+		Password:    "plain",
+		PasswordRef: "keychain:obk/remote",
+	}
+	_, err := r.ResolvedPassword(nil)
+	if err == nil {
+		t.Fatal("expected error when resolver is nil but password_ref is set")
+	}
+}
+
+func TestPasswordRef_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Mode = ModeRemote
+	cfg.Remote = &RemoteConfig{
+		Server:      "https://example.com:8443",
+		Username:    "user",
+		PasswordRef: "keychain:obk/remote",
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Remote.PasswordRef != "keychain:obk/remote" {
+		t.Fatalf("PasswordRef not preserved: %q", loaded.Remote.PasswordRef)
+	}
+	if loaded.Remote.Password != "" {
+		t.Fatalf("expected empty Password, got %q", loaded.Remote.Password)
+	}
+}
+
+func TestGmailSyncDays_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.Gmail.SyncDays = 30
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Gmail.SyncDays != 30 {
+		t.Fatalf("expected SyncDays=30, got %d", loaded.Gmail.SyncDays)
 	}
 }
 

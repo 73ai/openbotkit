@@ -1,26 +1,28 @@
-package auth
+package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/remote"
 	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
 	"github.com/spf13/cobra"
 )
 
-var whatsappCmd = &cobra.Command{
-	Use:   "whatsapp",
+var authCmd = &cobra.Command{
+	Use:   "auth",
 	Short: "Manage WhatsApp authentication",
 }
 
-var whatsappLoginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Authenticate WhatsApp by scanning a QR code",
+var authLoginCmd = &cobra.Command{
+	Use:     "login",
+	Short:   "Authenticate WhatsApp by scanning a QR code",
+	Example: `  obk whatsapp auth login`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -28,7 +30,7 @@ var whatsappLoginCmd = &cobra.Command{
 		}
 
 		if cfg.IsRemote() {
-			return whatsappLoginRemote(cfg)
+			return authLoginRemote(cfg)
 		}
 
 		if err := config.EnsureSourceDir("whatsapp"); err != nil {
@@ -54,10 +56,23 @@ var whatsappLoginCmd = &cobra.Command{
 	},
 }
 
-var whatsappLogoutCmd = &cobra.Command{
+var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Disconnect and clear WhatsApp session",
+	Example: `  obk whatsapp auth logout
+  obk whatsapp auth logout --force`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Print("About to disconnect WhatsApp session. Continue? (y/N): ")
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("Cancelled.")
+				return nil
+			}
+		}
+
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
@@ -81,34 +96,48 @@ var whatsappLogoutCmd = &cobra.Command{
 	},
 }
 
-var whatsappStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show WhatsApp authentication status",
+var authStatusCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List WhatsApp authentication status",
+	Example: `  obk whatsapp auth list
+  obk whatsapp auth list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		jsonOut, _ := cmd.Flags().GetBool("json")
+
 		ctx := context.Background()
 		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
 		if err != nil {
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false})
+			}
 			fmt.Println("Not authenticated (no session found).")
 			return nil
 		}
 		defer client.Disconnect()
 
 		if !client.IsAuthenticated() {
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false})
+			}
 			fmt.Println("Not authenticated.")
 			return nil
 		}
 
-		fmt.Printf("Authenticated as %s\n", client.WM().Store.ID.User)
+		user := client.WM().Store.ID.User
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": true, "user": user})
+		}
+		fmt.Printf("Authenticated as %s\n", user)
 		return nil
 	},
 }
 
-func whatsappLoginRemote(cfg *config.Config) error {
+func authLoginRemote(cfg *config.Config) error {
 	if cfg.Remote == nil || cfg.Remote.Server == "" {
 		return fmt.Errorf("remote server not configured — run 'obk setup' to configure")
 	}
@@ -116,13 +145,14 @@ func whatsappLoginRemote(cfg *config.Config) error {
 	url := strings.TrimRight(cfg.Remote.Server, "/") + "/auth/whatsapp"
 	fmt.Printf("Open this URL in your browser to authenticate WhatsApp:\n%s\n", url)
 
-	// Try to open the browser automatically.
 	if runtime.GOOS == "darwin" {
 		_ = exec.Command("open", url).Start()
 	}
 
-	// Poll the server until authentication completes.
-	client := remote.NewClient(cfg.Remote.Server, cfg.Remote.Username, cfg.Remote.Password)
+	client, err := newRemoteClient(cfg)
+	if err != nil {
+		return err
+	}
 	fmt.Println("\nWaiting for authentication to complete...")
 	if err := client.WaitWhatsAppAuth(); err != nil {
 		return err
@@ -132,7 +162,9 @@ func whatsappLoginRemote(cfg *config.Config) error {
 }
 
 func init() {
-	whatsappCmd.AddCommand(whatsappLoginCmd)
-	whatsappCmd.AddCommand(whatsappLogoutCmd)
-	whatsappCmd.AddCommand(whatsappStatusCmd)
+	authLogoutCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	authStatusCmd.Flags().Bool("json", false, "Output as JSON")
+	authCmd.AddCommand(authLoginCmd)
+	authCmd.AddCommand(authLogoutCmd)
+	authCmd.AddCommand(authStatusCmd)
 }

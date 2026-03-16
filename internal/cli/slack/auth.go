@@ -1,8 +1,10 @@
-package auth
+package slack
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -13,14 +15,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var slackCmd = &cobra.Command{
-	Use:   "slack",
+var authCmd = &cobra.Command{
+	Use:   "auth",
 	Short: "Manage Slack authentication",
 }
 
-var slackLoginCmd = &cobra.Command{
+var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with a Slack workspace",
+	Example: `  obk slack auth login`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var authMode string
 
@@ -47,16 +50,16 @@ var slackLoginCmd = &cobra.Command{
 
 		switch authMode {
 		case "desktop":
-			return slackLoginDesktop()
+			return authLoginDesktop()
 		case "token":
-			return slackLoginToken()
+			return authLoginToken()
 		default:
 			return fmt.Errorf("unknown auth mode: %s", authMode)
 		}
 	},
 }
 
-func slackLoginDesktop() error {
+func authLoginDesktop() error {
 	fmt.Println("Extracting credentials from Slack Desktop...")
 	fmt.Println("Note: macOS will ask for permission to access \"Slack Safe Storage\" in your keychain.")
 	fmt.Println("Click \"Always Allow\" so you won't be prompted again.")
@@ -97,7 +100,7 @@ func slackLoginDesktop() error {
 	return nil
 }
 
-func slackLoginToken() error {
+func authLoginToken() error {
 	var token, cookie, workspace string
 	err := huh.NewForm(
 		huh.NewGroup(
@@ -171,10 +174,13 @@ func slackLoginToken() error {
 	return nil
 }
 
-var slackLogoutCmd = &cobra.Command{
+var authLogoutCmd = &cobra.Command{
 	Use:   "logout [workspace]",
 	Short: "Remove Slack credentials",
-	Args:  cobra.MaximumNArgs(1),
+	Example: `  obk slack auth logout
+  obk slack auth logout my-company
+  obk slack auth logout my-company --force`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -189,6 +195,17 @@ var slackLogoutCmd = &cobra.Command{
 		}
 		if workspace == "" {
 			return fmt.Errorf("specify a workspace name or configure a default")
+		}
+
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Printf("About to remove credentials for workspace %q. Continue? (y/N): ", workspace)
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("Cancelled.")
+				return nil
+			}
 		}
 
 		slacksrc.DeleteCredentials(workspace)
@@ -212,22 +229,36 @@ var slackLogoutCmd = &cobra.Command{
 	},
 }
 
-var slackStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show Slack authentication status",
+var authStatusCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List Slack workspace credentials",
+	Example: `  obk slack auth list
+  obk slack auth list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		jsonOut, _ := cmd.Flags().GetBool("json")
+
 		if cfg.Slack == nil || len(cfg.Slack.Workspaces) == 0 {
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode([]any{})
+			}
 			fmt.Println("No Slack workspaces configured.")
-			fmt.Println("Run: obk auth slack login")
+			fmt.Println("Run: obk slack auth login")
 			return nil
 		}
 
-		fmt.Printf("Default workspace: %s\n\n", cfg.Slack.DefaultWorkspace)
+		type wsInfo struct {
+			Name     string `json:"name"`
+			TeamName string `json:"team_name"`
+			AuthMode string `json:"auth_mode"`
+			Status   string `json:"status"`
+			Default  bool   `json:"default"`
+		}
+		var workspaces []wsInfo
 
 		for name, ws := range cfg.Slack.Workspaces {
 			creds, err := slacksrc.LoadCredentials(name)
@@ -240,19 +271,32 @@ var slackStatusCmd = &cobra.Command{
 					status = fmt.Sprintf("invalid (%v)", err)
 				}
 			}
+			workspaces = append(workspaces, wsInfo{
+				Name: name, TeamName: ws.TeamName, AuthMode: ws.AuthMode,
+				Status: status, Default: name == cfg.Slack.DefaultWorkspace,
+			})
+		}
 
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(workspaces)
+		}
+
+		fmt.Printf("Default workspace: %s\n\n", cfg.Slack.DefaultWorkspace)
+		for _, ws := range workspaces {
 			marker := " "
-			if name == cfg.Slack.DefaultWorkspace {
+			if ws.Default {
 				marker = "*"
 			}
-			fmt.Printf(" %s %s (team: %s, auth: %s) — %s\n", marker, name, ws.TeamName, ws.AuthMode, status)
+			fmt.Printf(" %s %s (team: %s, auth: %s) — %s\n", marker, ws.Name, ws.TeamName, ws.AuthMode, ws.Status)
 		}
 		return nil
 	},
 }
 
 func init() {
-	slackCmd.AddCommand(slackLoginCmd)
-	slackCmd.AddCommand(slackLogoutCmd)
-	slackCmd.AddCommand(slackStatusCmd)
+	authLogoutCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	authStatusCmd.Flags().Bool("json", false, "Output as JSON")
+	authCmd.AddCommand(authLoginCmd)
+	authCmd.AddCommand(authLogoutCmd)
+	authCmd.AddCommand(authStatusCmd)
 }

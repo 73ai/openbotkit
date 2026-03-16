@@ -50,6 +50,18 @@ func (m *launchdManager) plistPath() (string, error) {
 	return filepath.Join(home, "Library", "LaunchAgents", m.label()+".plist"), nil
 }
 
+func (m *launchdManager) wrapperPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home dir: %w", err)
+	}
+	return filepath.Join(home, ".obk", "bin", "openbotkit-"+m.name), nil
+}
+
+func shellescape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 func (m *launchdManager) Install(cfg *ServiceConfig) error {
 	path, err := m.plistPath()
 	if err != nil {
@@ -60,12 +72,26 @@ func (m *launchdManager) Install(cfg *ServiceConfig) error {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 
-	var argLines []string
-	argLines = append(argLines, fmt.Sprintf("\t\t<string>%s</string>", cfg.BinaryPath))
-	for _, a := range cfg.Args {
-		argLines = append(argLines, fmt.Sprintf("\t\t<string>%s</string>", a))
+	// Create a named wrapper script so macOS Login Items shows
+	// "obk-daemon" / "obk-server" instead of two identical "obk" entries.
+	wrapper, err := m.wrapperPath()
+	if err != nil {
+		return err
 	}
-	argsXML := strings.Join(argLines, "\n")
+	if err := os.MkdirAll(filepath.Dir(wrapper), 0700); err != nil {
+		return fmt.Errorf("create wrapper dir: %w", err)
+	}
+
+	parts := []string{shellescape(cfg.BinaryPath)}
+	for _, a := range cfg.Args {
+		parts = append(parts, shellescape(a))
+	}
+	script := "#!/bin/sh\nexec " + strings.Join(parts, " ") + "\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0755); err != nil {
+		return fmt.Errorf("write wrapper: %w", err)
+	}
+
+	argsXML := fmt.Sprintf("\t\t<string>%s</string>", wrapper)
 
 	var envXML string
 	if len(cfg.Env) > 0 {
@@ -128,6 +154,10 @@ func (m *launchdManager) Uninstall() error {
 
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove plist: %w", err)
+	}
+
+	if wrapper, err := m.wrapperPath(); err == nil {
+		os.Remove(wrapper)
 	}
 
 	return nil

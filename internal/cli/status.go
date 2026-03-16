@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -10,6 +11,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/source"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
 	finsrc "github.com/priyanshujain/openbotkit/source/finance"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
@@ -24,11 +26,15 @@ import (
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show status of all configured data sources",
+	Example: `  obk status
+  obk status --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
+
+		jsonOut, _ := cmd.Flags().GetBool("json")
 
 		if cfg.IsRemote() {
 			client, err := remoteClient(cfg)
@@ -38,6 +44,9 @@ var statusCmd = &cobra.Command{
 			health, err := client.Health()
 			if err != nil {
 				return fmt.Errorf("remote server unreachable: %w", err)
+			}
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode(health)
 			}
 			fmt.Printf("Remote server: %s\n", cfg.Remote.Server)
 			fmt.Printf("Status: %s\n", health["status"])
@@ -75,11 +84,18 @@ var statusCmd = &cobra.Command{
 		source.Register(sl)
 
 		ctx := context.Background()
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SOURCE\tCONNECTED\tACCOUNTS\tITEMS\tLAST SYNC")
+
+		type sourceStatus struct {
+			Name      string  `json:"name"`
+			Connected bool    `json:"connected"`
+			Accounts  int     `json:"accounts"`
+			Items     int64   `json:"items"`
+			LastSync  *string `json:"last_sync,omitempty"`
+			Error     string  `json:"error,omitempty"`
+		}
+		var statuses []sourceStatus
 
 		for _, s := range source.All() {
-			// Try to open the source's database.
 			var db *store.DB
 			switch s.Name() {
 			case "gmail":
@@ -144,33 +160,71 @@ var statusCmd = &cobra.Command{
 			}
 
 			if err != nil {
-				fmt.Fprintf(w, "%s\terror\t-\t-\t-\n", s.Name())
+				statuses = append(statuses, sourceStatus{Name: s.Name(), Error: err.Error()})
 				continue
 			}
 
+			var lastSync *string
+			if st.LastSyncedAt != nil {
+				ts := st.LastSyncedAt.Format("2006-01-02 15:04")
+				lastSync = &ts
+			}
+
+			statuses = append(statuses, sourceStatus{
+				Name:      s.Name(),
+				Connected: st.Connected,
+				Accounts:  len(st.Accounts),
+				Items:     st.ItemCount,
+				LastSync:  lastSync,
+			})
+		}
+
+		// Contacts is a cross-cutting store (populated by gmail, whatsapp,
+		// imessage syncs), not a standalone source. Report its count separately.
+		if cdb, err := store.Open(store.Config{
+			Driver: cfg.Contacts.Storage.Driver,
+			DSN:    cfg.ContactsDataDSN(),
+		}); err == nil {
+			contactsrc.Migrate(cdb)
+			count, _ := contactsrc.CountContacts(cdb)
+			cdb.Close()
+			statuses = append(statuses, sourceStatus{
+				Name:      "contacts",
+				Connected: count > 0,
+				Items:     count,
+			})
+		}
+
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(statuses)
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "SOURCE\tCONNECTED\tACCOUNTS\tITEMS\tLAST SYNC")
+		for _, st := range statuses {
+			if st.Error != "" {
+				fmt.Fprintf(w, "%s\terror\t-\t-\t-\n", st.Name)
+				continue
+			}
 			connected := "no"
 			if st.Connected {
 				connected = "yes"
 			}
-
 			accounts := "-"
-			if len(st.Accounts) > 0 {
-				accounts = fmt.Sprintf("%d", len(st.Accounts))
+			if st.Accounts > 0 {
+				accounts = fmt.Sprintf("%d", st.Accounts)
 			}
-
 			lastSync := "never"
-			if st.LastSyncedAt != nil {
-				lastSync = st.LastSyncedAt.Format("2006-01-02 15:04")
+			if st.LastSync != nil {
+				lastSync = *st.LastSync
 			}
-
-			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
-				s.Name(), connected, accounts, st.ItemCount, lastSync)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", st.Name, connected, accounts, st.Items, lastSync)
 		}
-
 		return w.Flush()
 	},
 }
 
 func init() {
+	statusCmd.Flags().Bool("json", false, "Output as JSON")
 	rootCmd.AddCommand(statusCmd)
 }

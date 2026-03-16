@@ -19,6 +19,9 @@ var contactsCmd = &cobra.Command{
 var contactsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List synced contacts",
+	Example: `  obk whatsapp contacts list
+  obk whatsapp contacts list --query "John" --limit 10
+  obk whatsapp contacts list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

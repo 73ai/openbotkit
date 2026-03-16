@@ -107,6 +107,8 @@ func TestConfigProfilesDelete_NonExistent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", dir)
 
+	configProfilesDeleteCmd.Flags().Set("force", "true")
+	defer configProfilesDeleteCmd.Flags().Set("force", "false")
 	err := configProfilesDeleteCmd.RunE(configProfilesDeleteCmd, []string{"nonexistent"})
 	if err == nil {
 		t.Fatal("expected error deleting non-existent profile")
@@ -142,6 +144,8 @@ func TestConfigProfilesDelete_ClearsActiveProfile(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
+	configProfilesDeleteCmd.Flags().Set("force", "true")
+	defer configProfilesDeleteCmd.Flags().Set("force", "false")
 	err := configProfilesDeleteCmd.RunE(configProfilesDeleteCmd, []string{"my-test"})
 	if err != nil {
 		t.Fatalf("delete: %v", err)

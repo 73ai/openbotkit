@@ -19,6 +19,7 @@ var configCmd = &cobra.Command{
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create default configuration file",
+	Example: `  obk config init`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := config.FilePath()
 		if _, err := os.Stat(path); err == nil {
@@ -33,14 +34,15 @@ var configInitCmd = &cobra.Command{
 		fmt.Printf("Config created at %s\n", path)
 		fmt.Println("\nNext steps:")
 		fmt.Printf("  1. Place your Google OAuth credentials at %s\n", cfg.GoogleCredentialsFile())
-		fmt.Println("  2. Run: obk auth google login --scopes gmail.readonly")
+		fmt.Println("  2. Run: obk gmail auth login --scopes gmail.readonly")
 		return nil
 	},
 }
 
 var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Print resolved configuration",
+	Use:   "list",
+	Short: "List all configuration properties",
+	Example: `  obk config list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -60,6 +62,8 @@ var configShowCmd = &cobra.Command{
 var configSetCmd = &cobra.Command{
 	Use:   "set <key> <value>",
 	Short: "Set a configuration value",
+	Example: `  obk config set timezone America/New_York
+  obk config set gmail.storage.driver postgres`,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
@@ -127,6 +131,7 @@ var configSetCmd = &cobra.Command{
 var configPathCmd = &cobra.Command{
 	Use:   "path",
 	Short: "Print the configuration directory path",
+	Example: `  obk config path`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(config.Dir())
 	},

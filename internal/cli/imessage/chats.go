@@ -20,6 +20,8 @@ var chatsCmd = &cobra.Command{
 var chatsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List stored chats",
+	Example: `  obk imessage chats list
+  obk imessage chats list --limit 20 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

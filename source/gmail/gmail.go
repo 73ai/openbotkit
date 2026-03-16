@@ -48,7 +48,7 @@ func (g *Gmail) resolveAccount(ctx context.Context, account string) (string, err
 		return "", fmt.Errorf("list accounts: %w", err)
 	}
 	if len(accounts) == 0 {
-		return "", fmt.Errorf("no authenticated accounts; run 'obk auth google login' first")
+		return "", fmt.Errorf("no authenticated accounts; run 'obk gmail auth login' first")
 	}
 
 	if account != "" {
@@ -165,7 +165,7 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
 	if len(accounts) == 0 {
-		return nil, fmt.Errorf("no authenticated accounts; run 'obk auth google login' first")
+		return nil, fmt.Errorf("no authenticated accounts; run 'obk gmail auth login' first")
 	}
 
 	if opts.Account != "" {

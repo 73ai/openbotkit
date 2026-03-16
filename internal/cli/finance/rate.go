@@ -15,7 +15,9 @@ var rateCmd = &cobra.Command{
 	Use:   "rate [from] [to]",
 	Short: "Get exchange rate",
 	Long:  "Look up the current exchange rate between two currencies (e.g., USD INR).",
-	Args:  cobra.ExactArgs(2),
+	Example: `  obk finance rate USD INR
+  obk finance rate EUR GBP --json`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		from := strings.ToUpper(args[0])
 		to := strings.ToUpper(args[1])

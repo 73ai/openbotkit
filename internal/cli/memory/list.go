@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -16,11 +17,16 @@ var listCategory string
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List personal memories",
+	Example: `  obk memory list
+  obk memory list --category identity
+  obk memory list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
+
+		jsonOut, _ := cmd.Flags().GetBool("json")
 
 		if cfg.IsRemote() {
 			client, err := newRemoteClient(cfg)
@@ -30,6 +36,9 @@ var listCmd = &cobra.Command{
 			items, err := client.MemoryList(listCategory)
 			if err != nil {
 				return fmt.Errorf("list: %w", err)
+			}
+			if jsonOut {
+				return json.NewEncoder(os.Stdout).Encode(items)
 			}
 			if len(items) == 0 {
 				fmt.Println("No memories stored.")
@@ -70,6 +79,10 @@ var listCmd = &cobra.Command{
 			return fmt.Errorf("list: %w", err)
 		}
 
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(memories)
+		}
+
 		if len(memories) == 0 {
 			fmt.Println("No memories stored.")
 			return nil
@@ -86,4 +99,5 @@ var listCmd = &cobra.Command{
 
 func init() {
 	listCmd.Flags().StringVar(&listCategory, "category", "", "filter by category (identity, preference, relationship, project)")
+	listCmd.Flags().Bool("json", false, "Output as JSON")
 }

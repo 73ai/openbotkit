@@ -18,6 +18,8 @@ var draftsCmd = &cobra.Command{
 var draftsCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new draft email",
+	Example: `  obk gmail drafts create --to alice@example.com --subject "Draft" --body "Work in progress"
+  obk gmail drafts create --to alice@example.com --cc bob@example.com --subject "Review" --body "Please review" --account me@example.com`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

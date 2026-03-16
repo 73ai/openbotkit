@@ -13,11 +13,24 @@ import (
 var deleteCmd = &cobra.Command{
 	Use:   "delete <id>",
 	Short: "Delete a personal memory",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk memory delete 3
+  obk memory delete 7 --force`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
 			return fmt.Errorf("invalid id: %w", err)
+		}
+
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Printf("About to delete memory #%d. Continue? (y/N): ", id)
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("Cancelled.")
+				return nil
+			}
 		}
 
 		cfg, err := config.Load()
@@ -61,4 +74,8 @@ var deleteCmd = &cobra.Command{
 		fmt.Printf("Deleted memory #%d\n", id)
 		return nil
 	},
+}
+
+func init() {
+	deleteCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 }

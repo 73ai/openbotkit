@@ -165,7 +165,7 @@ Gmail OAuth is configured during `obk setup` or via the server's Google OAuth fl
 If you want Apple Notes synced to the remote server:
 
 ```bash
-obk service run --bridge
+obk service run daemon --bridge
 ```
 
 This syncs Apple Notes every 30 seconds and pushes changes to the remote server.
@@ -399,7 +399,7 @@ volumes:
 Apple Notes requires macOS (uses AppleScript), so it can't run in the Docker container. The bridge syncs notes from your Mac and pushes them to the remote server.
 
 ```bash
-obk service run --bridge
+obk service run daemon --bridge
 ```
 
 **Behavior:**
@@ -412,15 +412,15 @@ obk service run --bridge
 ## Operating Modes Summary
 
 ```
-obk daemon              (local mode, default)
+obk service run daemon              (local mode, default)
 ├── Full sync: WhatsApp + Gmail + Apple Notes
 └── Background tasks
 
-obk daemon --bridge     (local machine, remote mode)
+obk service run daemon --bridge     (local machine, remote mode)
 ├── Apple Notes sync only
 └── Pushes to remote API
 
-obk server              (inside Docker container)
+obk service run server              (inside Docker container)
 ├── HTTP API (port 8443)
 ├── Telegram bot
 ├── Data sync: WhatsApp + Gmail (no Apple Notes)

@@ -14,7 +14,11 @@ import (
 var searchCmd = &cobra.Command{
 	Use:   "search [query]",
 	Short: "Search the web for information",
-	Args:  cobra.ExactArgs(1),
+	Example: `  obk websearch search "golang concurrency patterns"
+  obk websearch search "Da Nang restaurants" -n 5 -b duckduckgo
+  obk websearch search "recent CVEs" -t w -r us-en
+  obk websearch search "rust vs go" --no-cache`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

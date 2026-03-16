@@ -91,6 +91,7 @@ var vertexRegions = []huh.Option[string]{
 var setupModelsCmd = &cobra.Command{
 	Use:   "models",
 	Short: "Configure LLM model providers",
+	Example: `  obk setup models`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

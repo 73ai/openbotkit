@@ -21,6 +21,8 @@ var extractLast int
 var extractCmd = &cobra.Command{
 	Use:   "extract",
 	Short: "Extract personal facts from conversation history",
+	Example: `  obk memory extract
+  obk memory extract --last 5`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

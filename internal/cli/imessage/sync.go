@@ -11,6 +11,8 @@ import (
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync messages from iMessage into local storage",
+	Example: `  obk imessage sync
+  obk imessage sync --full`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

@@ -5,7 +5,6 @@ import (
 	"os"
 
 	applenotescli "github.com/priyanshujain/openbotkit/internal/cli/applenotes"
-	authcli "github.com/priyanshujain/openbotkit/internal/cli/auth"
 	contactscli "github.com/priyanshujain/openbotkit/internal/cli/contacts"
 	financecli "github.com/priyanshujain/openbotkit/internal/cli/finance"
 	"github.com/priyanshujain/openbotkit/internal/cli/gmail"
@@ -37,7 +36,6 @@ var versionCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(applenotescli.Cmd)
-	rootCmd.AddCommand(authcli.Cmd)
 	rootCmd.AddCommand(contactscli.Cmd)
 	rootCmd.AddCommand(financecli.Cmd)
 	rootCmd.AddCommand(imessagecli.Cmd)

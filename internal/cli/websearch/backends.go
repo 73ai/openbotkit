@@ -14,9 +14,10 @@ type backendInfo struct {
 }
 
 var backendsCmd = &cobra.Command{
-	Use:   "backends",
-	Short: "List available search backends",
-	Args:  cobra.NoArgs,
+	Use:     "backends",
+	Short:   "List available search backends",
+	Example: `  obk websearch backends`,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		backends := []backendInfo{
 			{Name: "duckduckgo", Priority: 1, News: true},

@@ -20,6 +20,9 @@ import (
 var fetchCmd = &cobra.Command{
 	Use:   "fetch",
 	Short: "Fetch emails on-demand from Gmail API for a specific date range or query",
+	Example: `  obk gmail fetch --account user@example.com --after 2025/01/01
+  obk gmail fetch --account user@example.com --query "from:boss subject:urgent" --json
+  obk gmail fetch --account user@example.com --before 2025/06/01 --download-attachments`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

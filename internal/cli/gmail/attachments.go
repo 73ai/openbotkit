@@ -19,6 +19,8 @@ var attachmentsCmd = &cobra.Command{
 var attachmentsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List attachment metadata",
+	Example: `  obk gmail attachments list
+  obk gmail attachments list --email-id 18a1b2c3d4e5f6 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

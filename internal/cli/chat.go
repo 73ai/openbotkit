@@ -30,6 +30,7 @@ import (
 var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "Start an interactive chat with the AI assistant",
+	Example: `  obk chat`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {

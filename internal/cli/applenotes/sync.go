@@ -11,6 +11,8 @@ import (
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync notes from Apple Notes into local storage",
+	Example: `  obk applenotes sync
+  obk applenotes sync --full`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
