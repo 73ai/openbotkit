@@ -60,29 +60,25 @@ cd openbotkit && make install
 ### 2. Set up your sources
 
 ```bash
-# Initialize configuration
-obk config init
-
-# Connect Gmail (opens browser for OAuth2)
-obk gmail auth login
-obk gmail sync
-
-# Connect WhatsApp (scan QR code with your phone)
-obk whatsapp auth login
-obk whatsapp sync
+# Guided setup — walks you through sources, models, and Telegram
+obk setup
 
 # Check what's connected
 obk status
 ```
 
-### 3. Connect Telegram (for approvals)
+<details>
+<summary>Alternative: manual setup</summary>
 
 ```bash
-# Set up Telegram bot for chat + approval flow
+obk config init
+obk gmail auth login && obk gmail sync
+obk whatsapp auth login && obk whatsapp sync
 obk telegram setup
 ```
+</details>
 
-### 4. Start your assistant
+### 3. Start your assistant
 
 ```bash
 # Start the assistant
@@ -125,14 +121,16 @@ OpenBotKit is a single Go binary. No bloated frameworks, no 200-dependency packa
 | **Sync engine** | Background daemon (launchd/systemd) keeps your local data fresh |
 | **CLI** (`obk`) | Search, read, and send across all sources from the terminal |
 | **Agent** | Built-in agent loop with tool use, safety gates, and multi-LLM support |
-| **Skills** | 14 plain-text skill definitions that the agent loads on demand |
+| **Skills** | 100+ plain-text skill definitions that the agent loads on demand |
 | **Channels** | Telegram bot and CLI for interaction; Telegram for approval flow |
 
 ### Supported LLM Providers
 
 - Anthropic Claude (default)
-- OpenAI
 - Google Gemini
+- OpenAI
+- OpenRouter
+- Groq
 
 ## Data Directory
 
