@@ -10,7 +10,7 @@ import (
 
 var Cmd = &cobra.Command{
 	Use:   "slack",
-	Short: "Slack workspace commands",
+	Short: "Manage Slack data source",
 }
 
 func loadClient() (*slacksrc.Client, error) {

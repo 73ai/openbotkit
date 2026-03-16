@@ -4,7 +4,7 @@ import "github.com/spf13/cobra"
 
 var Cmd = &cobra.Command{
 	Use:   "websearch",
-	Short: "Search the web and fetch web pages",
+	Short: "Manage web search data source",
 }
 
 func init() {
