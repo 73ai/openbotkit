@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/Nav.astro';
+import Terminal from '../components/Terminal.astro';
 import Footer from '../components/Footer.astro';
 ---
 
@@ -247,9 +248,23 @@ import Footer from '../components/Footer.astro';
       <p class="text-[1.25rem] leading-[1.7] text-paragraph">
         Ready to try it?
       </p>
-      <pre
-        class="mt-4 overflow-x-auto rounded-lg border border-border bg-heading p-5 font-mono text-sm leading-relaxed text-bg"
-      ><code>curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh</code></pre>
+      <div class="mt-4">
+        <Terminal title="terminal - install">
+          <div class="text-[#888]"># Install OpenBotKit</div>
+          <div class="mt-3">
+            <span class="text-[#28c840]">$</span>
+            <span class="text-[#e0e0e0]"> curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh</span>
+          </div>
+          <div>
+            <span class="text-[#28c840]">$</span>
+            <span class="text-[#e0e0e0]"> obk setup</span>
+          </div>
+          <div class="mt-3">
+            <span class="text-[#28c840]">✓</span>
+            <span class="text-[#888]"> Ready. Start chatting with obk chat</span>
+          </div>
+        </Terminal>
+      </div>
     </section>
   </main>
   <Footer />
