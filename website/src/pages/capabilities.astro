@@ -6,7 +6,7 @@ import Footer from '../components/Footer.astro';
 ---
 
 <Layout
-  title="Capabilities — OpenBotKit"
+  title="Capabilities - OpenBotKit"
   description="What OpenBotKit can do: integrations, the agent harness, safety architecture, and multi-LLM support."
 >
   <Nav />
@@ -25,7 +25,7 @@ import Footer from '../components/Footer.astro';
       </p>
       <img
         src="/architecture.png"
-        alt="OpenBotKit architecture diagram showing the flow from user through channels, agent loop, safety layer, tool executor, and data sources — all stored in local SQLite"
+        alt="OpenBotKit architecture diagram showing the flow from user through channels, agent loop, safety layer, tool executor, and data sources - all stored in local SQLite"
         class="mt-8 w-full rounded-lg border border-border"
       />
     </section>
@@ -37,11 +37,11 @@ import Footer from '../components/Footer.astro';
       </h2>
       <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
         Chat with your assistant on Telegram. It checks your calendar, sends WhatsApp messages,
-        converts currencies, sets reminders — and asks before every action.
+        converts currencies, sets reminders - and asks before every action.
       </p>
       <img
         src="/demo.png"
-        alt="Telegram conversation showing OpenBotKit checking calendar availability, sending a WhatsApp message, converting currency, and setting a reminder — each with user approval"
+        alt="Telegram conversation showing OpenBotKit checking calendar availability, sending a WhatsApp message, converting currency, and setting a reminder - each with user approval"
         class="mx-auto mt-8 w-full max-w-sm rounded-lg border border-border"
       />
     </section>
@@ -54,48 +54,48 @@ import Footer from '../components/Footer.astro';
 
       <h3 class="mt-8 text-[1.2rem] font-semibold leading-[1.7] text-heading">Sources</h3>
       <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
-        Your assistant reads, searches, and acts across your personal data — all synced locally.
+        Your assistant reads, searches, and acts across your personal data - all synced locally.
       </p>
       <dl class="mt-4 space-y-3 text-[1.25rem] leading-[1.7]">
         <div>
           <dt class="inline font-bold text-heading">Gmail</dt>
-          <dd class="inline text-paragraph"> — read, search, and send email with OAuth2.</dd>
+          <dd class="inline text-paragraph"> - read, search, and send email with OAuth2.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">WhatsApp</dt>
           <dd class="inline text-paragraph">
-            — sync messages locally via QR code pairing. Send with approval.</dd
+            - sync messages locally via QR code pairing. Send with approval.</dd
           >
         </div>
         <div>
           <dt class="inline font-bold text-heading">Apple Notes</dt>
-          <dd class="inline text-paragraph"> — search and read notes on macOS via AppleScript.</dd>
+          <dd class="inline text-paragraph"> - search and read notes on macOS via AppleScript.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">iMessage</dt>
-          <dd class="inline text-paragraph"> — read conversations on macOS.</dd>
+          <dd class="inline text-paragraph"> - read conversations on macOS.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">Slack</dt>
-          <dd class="inline text-paragraph"> — read channels and send messages.</dd>
+          <dd class="inline text-paragraph"> - read channels and send messages.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">Google Workspace</dt>
           <dd class="inline text-paragraph">
-            — Calendar, Docs, Sheets, Drive, and 40+ more APIs via progressive consent.</dd
+            - Calendar, Docs, Sheets, Drive, and 40+ more APIs via progressive consent.</dd
           >
         </div>
         <div>
           <dt class="inline font-bold text-heading">Contacts</dt>
-          <dd class="inline text-paragraph"> — search your address book by name.</dd>
+          <dd class="inline text-paragraph"> - search your address book by name.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">Web Search</dt>
-          <dd class="inline text-paragraph"> — search the web. No API keys needed.</dd>
+          <dd class="inline text-paragraph"> - search the web. No API keys needed.</dd>
         </div>
         <div>
           <dt class="inline font-bold text-heading">Scheduler</dt>
-          <dd class="inline text-paragraph"> — create reminders and recurring tasks.</dd>
+          <dd class="inline text-paragraph"> - create reminders and recurring tasks.</dd>
         </div>
       </dl>
 
@@ -107,12 +107,12 @@ import Footer from '../components/Footer.astro';
         <div>
           <dt class="inline font-bold text-heading">Telegram</dt>
           <dd class="inline text-paragraph">
-            — chat, ask questions, and approve or deny actions with inline buttons.</dd
+            - chat, ask questions, and approve or deny actions with inline buttons.</dd
           >
         </div>
         <div>
           <dt class="inline font-bold text-heading">Terminal</dt>
-          <dd class="inline text-paragraph"> — full CLI for power users via <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk chat</code>.</dd>
+          <dd class="inline text-paragraph"> - full CLI for power users via <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk chat</code>.</dd>
         </div>
       </dl>
 
@@ -146,7 +146,7 @@ import Footer from '../components/Footer.astro';
         <div>
           <dt class="font-bold text-heading">100+ plain-text skills</dt>
           <dd class="mt-1 text-paragraph">
-            Skills are plain language descriptions — not code. Services, helpers, personas, and
+            Skills are plain language descriptions - not code. Services, helpers, personas, and
             recipes you can read, edit, or replace in seconds.
           </dd>
         </div>
@@ -162,7 +162,7 @@ import Footer from '../components/Footer.astro';
           <dd class="mt-1 text-paragraph">
             All data lives in SQLite databases under <code
               class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">~/.obk/</code
-            >. Pure Go driver — no CGO, no external dependencies.
+            >. Pure Go driver - no CGO, no external dependencies.
           </dd>
         </div>
       </dl>
@@ -174,7 +174,7 @@ import Footer from '../components/Footer.astro';
         Safety architecture
       </h2>
       <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
-        8 independent defense layers. Not prompts — code. Inspired by how Anthropic builds Claude
+        8 independent defense layers. Not prompts - code. Inspired by how Anthropic builds Claude
         Code and informed by research from Lasso Security and Trail of Bits.
       </p>
 
@@ -182,7 +182,7 @@ import Footer from '../components/Footer.astro';
         <li>
           <span class="font-bold text-heading">Approval gates.</span>
           <span class="text-paragraph">
-            Every write action — sending a message, creating an event, modifying a file — requires
+            Every write action - sending a message, creating an event, modifying a file - requires
             your explicit OK. Enforced in code via <code
               class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading"
               >GuardedAction</code
