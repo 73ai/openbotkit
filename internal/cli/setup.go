@@ -478,8 +478,23 @@ func setupGWS(cfg *config.Config, services []string) error {
 		fmt.Println("\n  Checking for gws... not found.")
 		fmt.Println("  Install gws (requires Node.js):")
 		fmt.Println("    npm install -g @googleworkspace/cli")
-		fmt.Println("\n  Waiting for gws to be installed... (run the command above in another tab)")
-		fmt.Println("  Press Ctrl+C to cancel.")
+
+		var choice string
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("gws is not installed").
+				Options(
+					huh.NewOption("Wait for install (run the command above in another tab)", "wait"),
+					huh.NewOption("Skip GWS setup for now", "skip"),
+				).
+				Value(&choice),
+		)).Run(); err != nil {
+			return err
+		}
+		if choice == "skip" {
+			fmt.Println("  Skipping GWS setup. You can configure it later with: obk setup")
+			return nil
+		}
 
 		const maxAttempts = 60 // 5 minutes
 		for attempt := range maxAttempts {
