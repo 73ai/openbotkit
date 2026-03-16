@@ -130,9 +130,9 @@ install_macos_helper() {
         swiftc -O -o "$OBK_DIR/bin/obkmacos" "$SWIFT_SRC"
         if [ -n "$SWIFT_SRC_TMP" ]; then rm -f "$SWIFT_SRC_TMP"; fi
     else
-        warn "Xcode Command Line Tools not found — skipping Apple Contacts/Notes"
-        warn "Install with: xcode-select --install"
-        warn "Then re-run this script"
+        log "Xcode Command Line Tools required for Apple Contacts/Notes"
+        xcode-select --install 2>/dev/null || true
+        warn "Complete the Xcode install dialog, then re-run this script"
     fi
 }
 
