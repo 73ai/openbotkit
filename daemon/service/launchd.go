@@ -55,7 +55,7 @@ func (m *launchdManager) wrapperPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)
 	}
-	return filepath.Join(home, ".obk", "bin", "obk-"+m.name), nil
+	return filepath.Join(home, ".obk", "bin", "openbotkit-"+m.name), nil
 }
 
 func shellescape(s string) string {
