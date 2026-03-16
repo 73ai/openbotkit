@@ -10,6 +10,7 @@ import (
 	"github.com/priyanshujain/openbotkit/oauth/google"
 	"github.com/priyanshujain/openbotkit/source"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
 	finsrc "github.com/priyanshujain/openbotkit/source/finance"
 	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
 	historysrc "github.com/priyanshujain/openbotkit/source/history"
@@ -135,6 +136,15 @@ var statusCmd = &cobra.Command{
 				})
 				if db != nil {
 					wssrc.Migrate(db)
+				}
+			case "contacts":
+				dsn := cfg.ContactsDataDSN()
+				db, _ = store.Open(store.Config{
+					Driver: cfg.Contacts.Storage.Driver,
+					DSN:    dsn,
+				})
+				if db != nil {
+					contactsrc.Migrate(db)
 				}
 			}
 
