@@ -14,6 +14,7 @@ import (
 	"github.com/priyanshujain/openbotkit/internal/skills"
 	"github.com/priyanshujain/openbotkit/internal/tty"
 	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/priyanshujain/openbotkit/provider"
 	"github.com/priyanshujain/openbotkit/remote"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
 	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
@@ -293,10 +294,20 @@ func setupRemote() error {
 	}
 
 	cfg.Mode = config.ModeRemote
-	cfg.Remote = &config.RemoteConfig{
-		Server:   serverURL,
-		Username: username,
-		Password: password,
+	passwordRef := "keychain:obk/remote"
+	if err := provider.StoreCredential(passwordRef, password); err != nil {
+		fmt.Printf("  Warning: could not store password in keychain: %v\n", err)
+		cfg.Remote = &config.RemoteConfig{
+			Server:   serverURL,
+			Username: username,
+			Password: password,
+		}
+	} else {
+		cfg.Remote = &config.RemoteConfig{
+			Server:      serverURL,
+			Username:    username,
+			PasswordRef: passwordRef,
+		}
 	}
 
 	if err := cfg.Save(); err != nil {
