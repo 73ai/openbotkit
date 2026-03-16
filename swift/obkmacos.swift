@@ -20,20 +20,24 @@ func errorOutput(_ message: String, code: String) {
 
 func fetchContacts() {
     let store = CNContactStore()
-    let semaphore = DispatchSemaphore(value: 0)
-    var accessGranted = false
-    var accessError: (any Error)?
 
-    store.requestAccess(for: .contacts) { granted, error in
-        accessGranted = granted
-        accessError = error
-        semaphore.signal()
-    }
-    semaphore.wait()
-
-    if !accessGranted {
-        let msg = accessError?.localizedDescription ?? "Contacts access denied. Grant in System Settings > Privacy & Security > Contacts."
-        errorOutput(msg, code: "permission_denied")
+    switch CNContactStore.authorizationStatus(for: .contacts) {
+    case .authorized:
+        break
+    case .notDetermined:
+        let semaphore = DispatchSemaphore(value: 0)
+        var granted = false
+        store.requestAccess(for: .contacts) { g, _ in
+            granted = g
+            semaphore.signal()
+        }
+        semaphore.wait()
+        if !granted {
+            errorOutput("Contacts access denied. Grant in System Settings > Privacy & Security > Contacts.", code: "permission_denied")
+            Foundation.exit(1)
+        }
+    default:
+        errorOutput("Contacts access denied. Grant in System Settings > Privacy & Security > Contacts.", code: "permission_denied")
         Foundation.exit(1)
     }
 
