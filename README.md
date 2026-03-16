@@ -15,7 +15,7 @@ AI agents can now read your email, send messages, and browse the web on your beh
 
 ## How OpenBotKit Is Different
 
-**Every action needs your permission.** When the assistant wants to send an email or a WhatsApp message, it sends you a preview on Telegram with Approve and Deny buttons. You review it, you decide. This is enforced in code — the AI cannot skip this step.
+**Sensitive actions need your permission.** When the assistant wants to send an email, a WhatsApp message, or modify your calendar, it sends you a preview on Telegram with Approve and Deny buttons. You review it, you decide. This is enforced in code — the AI cannot skip this step. Read-only actions like searching your email or reading notes happen instantly without interrupting you.
 
 **Your data stays on your device.** Emails, messages, notes, and contacts sync into SQLite databases on your machine. OpenBotKit connects directly to Gmail's API, WhatsApp's protocol, and Apple Notes. No cloud relay, no third-party middleware.
 
@@ -25,8 +25,8 @@ AI agents can now read your email, send messages, and browse the web on your beh
 
 1. Your data syncs locally from Gmail, WhatsApp, Apple Notes, and other sources
 2. You talk to the assistant via Telegram or the terminal
-3. The assistant reads your local data to answer questions
-4. When it wants to **send** something, it asks for your approval first on Telegram
+3. The assistant reads your local data to answer questions — no approval needed
+4. When it wants to **send a message, email, or modify your calendar**, it asks for your approval first
 5. You approve or deny — then it acts
 
 ## Integrations
@@ -100,7 +100,7 @@ Ask things like:
 
 Safety is not a feature — it's the foundation. OpenBotKit has 8 defense layers:
 
-1. **Approval gates** — Every write action (send email, send message) requires explicit approval, enforced in code. The AI cannot bypass this.
+1. **Approval gates** — Sensitive write actions (send email, send message, modify calendar) require explicit approval, enforced in code. The AI cannot bypass this.
 2. **Local-first data** — Your data lives in SQLite on your machine. Nothing leaves unless you send it.
 3. **Prompt injection defense** — Content boundaries, injection scanning (plain text, base64, homoglyph), and system prompt hardening.
 4. **Tiered risk levels** — Low-risk actions notify you. Medium-risk actions need approval. High-risk actions need approval with full preview.
