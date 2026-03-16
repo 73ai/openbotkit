@@ -182,6 +182,28 @@ var setupCmd = &cobra.Command{
 			}
 		}
 
+		if cfg.Timezone == "" {
+			systemTZ := time.Now().Location().String()
+			var tz string
+			err := huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Timezone").
+						Description("Used for scheduling and display").
+						Placeholder(systemTZ).
+						Value(&tz),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
+			tz = strings.TrimSpace(tz)
+			if tz == "" {
+				tz = systemTZ
+			}
+			cfg.Timezone = tz
+		}
+
 		if err := cfg.Save(); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
