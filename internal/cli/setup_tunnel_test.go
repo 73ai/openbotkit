@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,19 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestErrSetupSkipped_IsSentinel(t *testing.T) {
+	if !errors.Is(errSetupSkipped, errSetupSkipped) {
+		t.Fatal("errSetupSkipped should match itself")
+	}
+	if errors.Is(fmt.Errorf("other error"), errSetupSkipped) {
+		t.Fatal("random error should not match errSetupSkipped")
+	}
+	wrapped := fmt.Errorf("wrap: %w", errSetupSkipped)
+	if !errors.Is(wrapped, errSetupSkipped) {
+		t.Fatal("wrapped errSetupSkipped should still match")
+	}
+}
 
 func TestBuildCallbackURL(t *testing.T) {
 	got := buildCallbackURL("panda-new-kit.ngrok-free.app")
