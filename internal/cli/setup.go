@@ -169,6 +169,12 @@ var setupCmd = &cobra.Command{
 				if err := setupIMessage(cfg); err != nil {
 					return err
 				}
+			case "whatsapp":
+				if err := config.EnsureSourceDir("whatsapp"); err != nil {
+					return fmt.Errorf("create whatsapp dir: %w", err)
+				}
+				fmt.Println("\n  WhatsApp requires QR code login.")
+				fmt.Println("  Run after setup: obk auth whatsapp login")
 			case "slack":
 				if err := setupSlack(cfg); err != nil {
 					return err
