@@ -9,14 +9,21 @@ permissions:
 
 jobs:
   build-obkmacos:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: amd64
+            runner: macos-13
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - run: swiftc -O -o obkmacos swift/obkmacos.swift
+      - run: swiftc -O -o obkmacos-darwin-${{ matrix.arch }} swift/obkmacos.swift
       - uses: actions/upload-artifact@v4
         with:
-          name: obkmacos
-          path: obkmacos
+          name: obkmacos-darwin-${{ matrix.arch }}
+          path: obkmacos-darwin-${{ matrix.arch }}
 
   release:
     needs: build-obkmacos
@@ -28,12 +35,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v4
-        with:
-          name: obkmacos
-          path: dist/obkmacos
       - uses: goreleaser/goreleaser-action@v6
         with:
           args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: obkmacos-*
+          merge-multiple: true
+      - run: |
+          gh release upload "${{ github.ref_name }}" obkmacos-darwin-arm64 obkmacos-darwin-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
