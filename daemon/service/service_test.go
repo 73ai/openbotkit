@@ -30,7 +30,7 @@ func TestDetectPlatform(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	cfg, err := DefaultConfig("daemon", []string{"service", "run"})
+	cfg, err := DefaultConfig("daemon", []string{"service", "run", "daemon"})
 	if err != nil {
 		t.Fatalf("DefaultConfig failed: %v", err)
 	}
