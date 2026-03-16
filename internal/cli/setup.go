@@ -365,25 +365,23 @@ func setupGoogle(cfg *config.Config) error {
 	}
 	cfg.Providers.Google.CredentialsFile = credPath
 
-	var scopes []string
+	var scope string
 	err = huh.NewForm(
 		huh.NewGroup(
-			huh.NewMultiSelect[string]().
+			huh.NewSelect[string]().
 				Title("Select Gmail access level").
 				Options(
-					huh.NewOption("Gmail (read)", "https://www.googleapis.com/auth/gmail.readonly").Selected(true),
-					huh.NewOption("Gmail (read + write)", "https://www.googleapis.com/auth/gmail.modify"),
+					huh.NewOption("Read only", "https://www.googleapis.com/auth/gmail.readonly"),
+					huh.NewOption("Read + Write", "https://www.googleapis.com/auth/gmail.modify"),
 				).
-				Value(&scopes),
+				Value(&scope),
 		),
 	).Run()
 	if err != nil {
 		return err
 	}
 
-	if len(scopes) == 0 {
-		scopes = []string{"https://www.googleapis.com/auth/gmail.readonly"}
-	}
+	scopes := []string{scope}
 
 	gp := google.New(google.Config{
 		CredentialsFile: credPath,
