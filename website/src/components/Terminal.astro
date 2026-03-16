@@ -1,19 +1,13 @@
 ---
-interface Props {
-  title?: string;
-}
-
-const { title = 'terminal' } = Astro.props;
 ---
 
 <div class="overflow-hidden rounded-xl border border-[#333] bg-[#1a1a1a]">
-  <div class="flex items-center gap-2.5 border-b border-[#333] px-4 py-3">
-    <span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span>
-    <span class="h-3 w-3 rounded-full bg-[#febc2e]"></span>
-    <span class="h-3 w-3 rounded-full bg-[#28c840]"></span>
-    <span class="ml-2 font-mono text-sm text-[#888]">{title}</span>
+  <div class="flex items-center gap-2 px-4 py-3 border-b border-[#333]">
+    <span class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]"></span>
+    <span class="h-2.5 w-2.5 rounded-full bg-[#febc2e]"></span>
+    <span class="h-2.5 w-2.5 rounded-full bg-[#28c840]"></span>
   </div>
-  <div class="p-6 font-mono text-[0.95rem] leading-[2]">
+  <div class="p-6 font-mono text-[0.9rem] leading-[2]">
     <slot />
   </div>
 </div>
