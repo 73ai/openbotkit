@@ -117,6 +117,11 @@ func checkDatabases(cfg *config.Config) []checkResult {
 		{"History DB", cfg.HistoryDataDSN()},
 		{"UserMemory DB", cfg.UserMemoryDataDSN()},
 		{"AppleNotes DB", cfg.AppleNotesDataDSN()},
+		{"Contacts DB", cfg.ContactsDataDSN()},
+		{"WebSearch DB", cfg.WebSearchDataDSN()},
+		{"iMessage DB", cfg.IMessageDataDSN()},
+		{"Scheduler DB", cfg.SchedulerDataDSN()},
+		{"Audit DB", config.AuditDBPath()},
 		{"Jobs DB", cfg.JobsDBDSN()},
 	}
 
