@@ -3,15 +3,12 @@ package contacts
 import (
 	"fmt"
 	"log/slog"
-	"os/exec"
 	"runtime"
 	"strings"
 
+	"github.com/priyanshujain/openbotkit/internal/obkmacos"
 	"github.com/priyanshujain/openbotkit/store"
 )
-
-const acFieldSep = "%%FIELD%%"
-const acRecordSep = "%%RECORD%%"
 
 func syncFromAppleContacts(contactsDB *store.DB) (*SyncResult, error) {
 	if runtime.GOOS != "darwin" {
@@ -42,70 +39,19 @@ type applePerson struct {
 }
 
 func fetchAppleContacts() ([]applePerson, error) {
-	script := fmt.Sprintf(`
-tell application "Contacts"
-	set output to ""
-	repeat with p in every person
-		set fn to first name of p
-		if fn is missing value then set fn to ""
-		set ln to last name of p
-		if ln is missing value then set ln to ""
-		set nn to nickname of p
-		if nn is missing value then set nn to ""
-
-		set phoneList to ""
-		repeat with ph in phones of p
-			set phoneList to phoneList & value of ph & ","
-		end repeat
-
-		set emailList to ""
-		repeat with em in emails of p
-			set emailList to emailList & value of em & ","
-		end repeat
-
-		set output to output & fn & "%s" & ln & "%s" & nn & "%s" & phoneList & "%s" & emailList & "%s"
-	end repeat
-	return output
-end tell`, acFieldSep, acFieldSep, acFieldSep, acFieldSep, acRecordSep)
-
-	cmd := exec.Command("osascript", "-e", script)
-	out, err := cmd.CombinedOutput()
+	contacts, err := obkmacos.FetchContacts()
 	if err != nil {
-		return nil, fmt.Errorf("osascript: %s: %w", strings.TrimSpace(string(out)), err)
+		return nil, err
 	}
 
-	output := strings.TrimSpace(string(out))
-	if output == "" {
-		return nil, nil
-	}
-
-	records := strings.Split(output, acRecordSep)
 	var people []applePerson
-	for _, rec := range records {
-		rec = strings.TrimSpace(rec)
-		if rec == "" {
-			continue
-		}
-		fields := strings.Split(rec, acFieldSep)
-		if len(fields) < 5 {
-			continue
-		}
+	for _, c := range contacts {
 		p := applePerson{
-			firstName: strings.TrimSpace(fields[0]),
-			lastName:  strings.TrimSpace(fields[1]),
-			nickname:  strings.TrimSpace(fields[2]),
-		}
-		for _, ph := range strings.Split(fields[3], ",") {
-			ph = strings.TrimSpace(ph)
-			if ph != "" {
-				p.phones = append(p.phones, ph)
-			}
-		}
-		for _, em := range strings.Split(fields[4], ",") {
-			em = strings.TrimSpace(em)
-			if em != "" {
-				p.emails = append(p.emails, em)
-			}
+			firstName: c.FirstName,
+			lastName:  c.LastName,
+			nickname:  c.Nickname,
+			phones:    c.Phones,
+			emails:    c.Emails,
 		}
 		if p.firstName == "" && p.lastName == "" && len(p.phones) == 0 && len(p.emails) == 0 {
 			continue
@@ -116,16 +62,17 @@ end tell`, acFieldSep, acFieldSep, acFieldSep, acFieldSep, acRecordSep)
 }
 
 func CheckAppleContactsPermission() error {
-	cmd := exec.Command("osascript", "-e", `tell application "Contacts" to count of people`)
-	out, err := cmd.CombinedOutput()
+	status, err := obkmacos.CheckPermissions()
 	if err != nil {
-		return fmt.Errorf("osascript: %s: %w", strings.TrimSpace(string(out)), err)
+		return err
+	}
+	if status.Contacts != "authorized" {
+		return fmt.Errorf("contacts permission: %s — grant in System Settings > Privacy & Security > Contacts", status.Contacts)
 	}
 	return nil
 }
 
 func importApplePerson(db *store.DB, p applePerson, result *SyncResult) error {
-	// Try to find existing contact by any phone or email.
 	var contactID int64
 	var found bool
 
