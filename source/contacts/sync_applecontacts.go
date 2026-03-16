@@ -65,14 +65,11 @@ func convertContacts(contacts []obkmacos.Contact) []applePerson {
 }
 
 func CheckAppleContactsPermission() error {
-	status, err := obkmacos.CheckPermissions()
-	if err != nil {
-		return err
-	}
-	if status.Contacts != "authorized" {
-		return fmt.Errorf("contacts permission: %s — grant in System Settings > Privacy & Security > Contacts", status.Contacts)
-	}
-	return nil
+	// FetchContacts triggers CNContactStore.requestAccess which shows the
+	// macOS permission dialog for first-time users. CheckPermissions only
+	// reads status without requesting, so it can't be used here.
+	_, err := obkmacos.FetchContacts()
+	return err
 }
 
 func importApplePerson(db *store.DB, p applePerson, result *SyncResult) error {
