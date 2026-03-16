@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -eu
 
 # OpenBotKit installer
 # curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh
@@ -7,28 +7,50 @@ set -e
 REPO="priyanshujain/openbotkit"
 INSTALL_DIR="${OBK_INSTALL_DIR:-$HOME/.local/bin}"
 OBK_DIR="$HOME/.obk"
+VERSION=""
+SWIFT_SRC_TMP=""
 
 log()   { printf "\033[1;32m==> %s\033[0m\n" "$1"; }
 warn()  { printf "\033[1;33m    %s\033[0m\n" "$1"; }
 fatal() { printf "\033[1;31merror: %s\033[0m\n" "$1" >&2; exit 1; }
 
+check_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+need_cmd() {
+    if ! check_cmd "$1"; then
+        fatal "need '$1' (command not found)"
+    fi
+}
+
 download() {
-    if command -v curl >/dev/null 2>&1; then
+    if check_cmd curl; then
         curl -fsSL -o "$2" "$1"
-    elif command -v wget >/dev/null 2>&1; then
+    elif check_cmd wget; then
         wget -qO "$2" "$1"
     else
-        fatal "curl or wget required"
+        fatal "need 'curl' or 'wget' (neither found)"
     fi
 }
 
 detect_platform() {
+    need_cmd uname
+    need_cmd mktemp
+    need_cmd chmod
+    need_cmd tar
+
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     ARCH=$(uname -m)
+
+    # Detect Rosetta 2: uname -m lies under translation
+    if [ "$OS" = "darwin" ] && [ "$ARCH" = "x86_64" ]; then
+        if sysctl hw.optional.arm64 2>/dev/null | grep -q ': 1'; then
+            ARCH="arm64"
+        fi
+    fi
+
     case "$ARCH" in
         x86_64|amd64)  ARCH="amd64" ;;
         arm64|aarch64) ARCH="arm64" ;;
-        riscv64)       ARCH="riscv64" ;;
         *) fatal "unsupported architecture: $ARCH" ;;
     esac
     case "$OS" in
@@ -45,7 +67,9 @@ get_latest_version() {
 install_binary() {
     VERSION=$(get_latest_version)
     if [ -z "$VERSION" ]; then
-        fatal "no release found — use 'sh install.sh --source' to build from source"
+        fatal "no release found — install from source instead:
+    git clone https://github.com/${REPO} && cd openbotkit && make install
+  requires: go (https://go.dev/dl/)"
     fi
 
     log "Downloading obk ${VERSION} (${OS}/${ARCH})"
@@ -66,10 +90,12 @@ install_binary() {
 }
 
 install_from_source() {
-    command -v go >/dev/null 2>&1 || fatal "Go required for source install — https://go.dev/dl/"
+    if ! check_cmd go; then
+        fatal "go is required to build from source — install it first: https://go.dev/dl/"
+    fi
 
     log "Building obk from source"
-    go install "github.com/priyanshujain/openbotkit@latest"
+    go install "github.com/${REPO}@latest"
 
     GOBIN="$(go env GOPATH)/bin"
     ln -sf "$GOBIN/openbotkit" "$GOBIN/obk"
@@ -91,9 +117,8 @@ install_macos_helper() {
         fi
     fi
 
-    # Build from source
-    if command -v swiftc >/dev/null 2>&1; then
-        # Check if we're running from a repo checkout
+    # Build from source if swiftc available
+    if check_cmd swiftc; then
         SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "")"
         if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/swift/obkmacos.swift" ]; then
             SWIFT_SRC="$SCRIPT_DIR/swift/obkmacos.swift"
@@ -111,28 +136,41 @@ install_macos_helper() {
     fi
 }
 
+# Create an env script that can be sourced from shell rc files
+write_env_script() {
+    mkdir -p "$OBK_DIR"
+    cat > "$OBK_DIR/env" <<ENVEOF
+# OpenBotKit PATH setup (sourced by shell rc)
+case ":\${PATH}:" in
+    *":${INSTALL_DIR}:"*) ;;
+    *) export PATH="${INSTALL_DIR}:\$PATH" ;;
+esac
+ENVEOF
+}
+
 ensure_path() {
-    case ":$PATH:" in
-        *":$INSTALL_DIR:"*) return 0 ;;
-    esac
+    write_env_script
 
-    SHELL_RC=""
-    case "$(basename "$SHELL")" in
-        zsh)  SHELL_RC="$HOME/.zshrc" ;;
-        bash) SHELL_RC="$HOME/.bashrc" ;;
-    esac
+    SOURCE_LINE=". \"$OBK_DIR/env\""
 
-    if [ -n "$SHELL_RC" ] && [ -f "$SHELL_RC" ]; then
-        if ! grep -q "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
-            printf '\nexport PATH="%s:$PATH"\n' "$INSTALL_DIR" >> "$SHELL_RC"
+    for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
+        if [ -f "$rc" ]; then
+            if ! grep -q "$OBK_DIR/env" "$rc" 2>/dev/null; then
+                printf '\n# OpenBotKit\n%s\n' "$SOURCE_LINE" >> "$rc"
+            fi
         fi
+    done
+
+    # Also write GITHUB_PATH for CI environments
+    if [ -n "${GITHUB_PATH:-}" ]; then
+        echo "$INSTALL_DIR" >> "$GITHUB_PATH"
     fi
 
     export PATH="$INSTALL_DIR:$PATH"
 }
 
 install_skills() {
-    if command -v obk >/dev/null 2>&1; then
+    if check_cmd obk; then
         log "Installing skills"
         obk update --skills-only 2>/dev/null || true
     fi
@@ -145,12 +183,15 @@ print_done() {
     echo "  Get started:"
     echo "    \$ obk setup"
     echo ""
+    if ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
+        warn "Restart your shell or run: source $OBK_DIR/env"
+    fi
 }
 
 main() {
     detect_platform
 
-    if [ "$1" = "--source" ]; then
+    if [ "${1:-}" = "--source" ]; then
         install_from_source
     else
         install_binary
