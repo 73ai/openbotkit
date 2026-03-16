@@ -270,10 +270,6 @@ var syncCmd = &cobra.Command{
 			return fmt.Errorf("sync: %w", err)
 		}
 
-		if err := config.LinkSource("contacts"); err != nil {
-			return fmt.Errorf("link source: %w", err)
-		}
-
 		fmt.Printf("\nSync complete: %d created, %d linked", result.Created, result.Linked)
 		if result.Errors > 0 {
 			fmt.Printf(", %d errors", result.Errors)

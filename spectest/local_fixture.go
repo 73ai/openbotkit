@@ -25,6 +25,16 @@ import (
 	"github.com/priyanshujain/openbotkit/store"
 )
 
+// requireSpecEnv skips the test unless OBK_TEST_PROVIDER is set.
+// This prevents spec tests from running during `go test ./...`.
+// Run with e.g. OBK_TEST_PROVIDER=gemini to enable.
+func requireSpecEnv(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OBK_TEST_PROVIDER") == "" {
+		t.Skip("spec tests require OBK_TEST_PROVIDER (e.g. gemini, openai, anthropic-vertex)")
+	}
+}
+
 type LocalFixture struct {
 	dir           string
 	ProviderName  string
@@ -43,6 +53,7 @@ type providerCase struct {
 // NewLocalFixture creates a fixture using the first available provider.
 func NewLocalFixture(t *testing.T) *LocalFixture {
 	t.Helper()
+	requireSpecEnv(t)
 	cases := availableProviders(t)
 	if len(cases) == 0 {
 		t.Skip("no LLM API keys set — skipping spec tests")
@@ -61,11 +72,12 @@ func NewLocalFixture(t *testing.T) *LocalFixture {
 // Set OBK_TEST_PROVIDER to restrict to a single provider (e.g. "gemini").
 func EachProvider(t *testing.T, fn func(t *testing.T, fx *LocalFixture)) {
 	t.Helper()
+	requireSpecEnv(t)
 	cases := availableProviders(t)
 	if len(cases) == 0 {
 		t.Skip("no LLM API keys set — skipping spec tests")
 	}
-	if only := os.Getenv("OBK_TEST_PROVIDER"); only != "" {
+	if only := os.Getenv("OBK_TEST_PROVIDER"); only != "" && only != "all" {
 		filtered := cases[:0]
 		for _, c := range cases {
 			if c.Name == only {

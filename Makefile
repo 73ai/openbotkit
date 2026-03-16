@@ -4,12 +4,19 @@ ALIAS = obk
 SKILLS_DIR = $(HOME)/.obk/skills
 ASSISTANT_SKILLS = assistant/.claude/skills
 
-.PHONY: build install uninstall update-local
+.PHONY: build build-obkmacos install uninstall update-local
 
 build:
 	go build -o $(BINARY) .
 
-install:
+build-obkmacos:
+ifeq ($(shell uname),Darwin)
+	@mkdir -p $(HOME)/.obk/bin
+	swiftc -O -o $(HOME)/.obk/bin/obkmacos swift/obkmacos.swift
+	@echo "Built obkmacos -> $(HOME)/.obk/bin/obkmacos"
+endif
+
+install: build-obkmacos
 	go install .
 	ln -sf $(GOBIN)/$(BINARY) $(GOBIN)/$(ALIAS)
 	mkdir -p $(SKILLS_DIR)

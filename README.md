@@ -51,11 +51,22 @@ AI agents can now read your email, send messages, and browse the web on your beh
 
 ### 1. Install
 
+**macOS and Linux** (Windows is not supported):
+
 ```bash
-# Build from source
+curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh
+```
+
+<details>
+<summary>Alternative: build from source</summary>
+
+Requires [Go 1.25+](https://go.dev/dl/).
+
+```bash
 git clone https://github.com/priyanshujain/openbotkit.git
 cd openbotkit && make install
 ```
+</details>
 
 ### 2. Set up your sources
 
@@ -154,10 +165,17 @@ All data lives under `~/.obk/` (override with `OBK_CONFIG_DIR`):
     └── data.db             # Audit log
 ```
 
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| **macOS** (Apple Silicon & Intel) | Fully supported — all features including Apple Contacts, Notes, iMessage |
+| **Linux** (amd64 & arm64) | Supported — server deployment, all features except Apple-native integrations |
+| **Windows** | Not supported |
+
 ## Prerequisites
 
-- macOS (primary target; Linux supported for server deployment)
-- Go 1.25+
+- macOS or Linux
 - Gmail: API credentials from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 - WhatsApp: Phone with WhatsApp to scan QR code
 - Telegram: Bot token from [@BotFather](https://t.me/botfather) (for approval flow)

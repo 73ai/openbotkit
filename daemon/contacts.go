@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"github.com/priyanshujain/openbotkit/config"
@@ -17,6 +18,8 @@ func runContactsSync(ctx context.Context, cfg *config.Config) <-chan error {
 
 	go func() {
 		defer close(errCh)
+
+		migrateContactsLinking()
 
 		if err := config.EnsureSourceDir("contacts"); err != nil {
 			slog.Error("contacts: failed to create dir", "error", err)
@@ -38,7 +41,7 @@ func runContactsSync(ctx context.Context, cfg *config.Config) <-chan error {
 		sourceDBs := openSourceDBs(cfg)
 		defer closeSourceDBs(sourceDBs)
 
-		if len(sourceDBs) == 0 {
+		if len(sourceDBs) == 0 && !config.IsSourceLinked("applecontacts") {
 			slog.Info("contacts: no linked sources, skipping sync")
 			return
 		}
@@ -62,8 +65,21 @@ func runContactsSync(ctx context.Context, cfg *config.Config) <-chan error {
 	return errCh
 }
 
+func linkedSources(sourceDBs map[string]*store.DB) []string {
+	sources := make([]string, 0, len(sourceDBs)+1)
+	for name := range sourceDBs {
+		sources = append(sources, name)
+	}
+	if config.IsSourceLinked("applecontacts") {
+		sources = append(sources, "applecontacts")
+	}
+	return sources
+}
+
 func syncContacts(db *store.DB, sourceDBs map[string]*store.DB) {
-	result, err := contactsrc.Sync(db, sourceDBs, contactsrc.SyncOptions{})
+	result, err := contactsrc.Sync(db, sourceDBs, contactsrc.SyncOptions{
+		Sources: linkedSources(sourceDBs),
+	})
 	if err != nil {
 		slog.Error("contacts: sync error", "error", err)
 		return
@@ -100,5 +116,18 @@ func openSourceDBs(cfg *config.Config) map[string]*store.DB {
 func closeSourceDBs(dbs map[string]*store.DB) {
 	for _, db := range dbs {
 		db.Close()
+	}
+}
+
+func migrateContactsLinking() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	if config.IsSourceLinked("contacts") && !config.IsSourceLinked("applecontacts") {
+		if err := config.LinkSource("applecontacts"); err != nil {
+			slog.Warn("contacts: failed to migrate contacts->applecontacts linking", "error", err)
+		} else {
+			slog.Info("contacts: migrated contacts->applecontacts linking")
+		}
 	}
 }

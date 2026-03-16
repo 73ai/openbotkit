@@ -12,25 +12,18 @@ func Sync(db *store.DB, opts SyncOptions) (*SyncResult, error) {
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
 
-	slog.Info("applenotes: fetching folders")
-	folders, noteToFolder, err := FetchFolders()
+	slog.Info("applenotes: fetching notes and folders")
+	notes, folders, noteToFolder, err := FetchAll()
 	if err != nil {
-		return nil, fmt.Errorf("fetch folders: %w", err)
+		return nil, fmt.Errorf("fetch notes: %w", err)
 	}
-	slog.Info("applenotes: found folders", "count", len(folders))
+	slog.Info("applenotes: found", "notes", len(notes), "folders", len(folders))
 
 	for i := range folders {
 		if err := SaveFolder(db, &folders[i]); err != nil {
 			slog.Error("applenotes: save folder", "folder", folders[i].Name, "error", err)
 		}
 	}
-
-	slog.Info("applenotes: fetching notes")
-	notes, err := FetchAllNotes()
-	if err != nil {
-		return nil, fmt.Errorf("fetch notes: %w", err)
-	}
-	slog.Info("applenotes: found notes", "count", len(notes))
 
 	result := &SyncResult{}
 	for i := range notes {

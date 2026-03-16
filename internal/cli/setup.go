@@ -608,7 +608,7 @@ func setupAppleContacts(cfg *config.Config) error {
 
 	if err := contactsrc.CheckAppleContactsPermission(); err != nil {
 		fmt.Println("  Permission denied or Contacts not accessible.")
-		fmt.Println("  Grant access in System Settings > Privacy & Security > Automation.")
+		fmt.Println("  Grant access in System Settings > Privacy & Security > Contacts.")
 		fmt.Println("  Then re-run: obk setup")
 		return fmt.Errorf("apple contacts permission: %w", err)
 	}
@@ -635,7 +635,7 @@ func setupAppleContacts(cfg *config.Config) error {
 		return fmt.Errorf("apple contacts sync: %w", err)
 	}
 
-	if err := config.LinkSource("contacts"); err != nil {
+	if err := config.LinkSource("applecontacts"); err != nil {
 		return fmt.Errorf("link source: %w", err)
 	}
 

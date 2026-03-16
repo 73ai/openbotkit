@@ -15,13 +15,14 @@ func TestCheckPermission_Integration(t *testing.T) {
 	}
 }
 
-func TestFetchAllNotes_Integration(t *testing.T) {
-	notes, err := FetchAllNotes()
+func TestFetchAll_Integration(t *testing.T) {
+	notes, folders, noteToFolder, err := FetchAll()
 	if err != nil {
-		t.Fatalf("FetchAllNotes: %v", err)
+		t.Fatalf("FetchAll: %v", err)
 	}
 
-	t.Logf("fetched %d notes from Apple Notes", len(notes))
+	t.Logf("fetched %d notes, %d folders, %d note-to-folder mappings",
+		len(notes), len(folders), len(noteToFolder))
 
 	for i, n := range notes {
 		if i >= 5 {
@@ -31,24 +32,15 @@ func TestFetchAllNotes_Integration(t *testing.T) {
 		if len(bodyPreview) > 80 {
 			bodyPreview = bodyPreview[:77] + "..."
 		}
-		t.Logf("  [%d] title=%q folder=%q protected=%v body=%q",
+		t.Logf("  note[%d] title=%q folder=%q protected=%v body=%q",
 			i, n.Title, n.Folder, n.PasswordProtected, bodyPreview)
 	}
-}
-
-func TestFetchFolders_Integration(t *testing.T) {
-	folders, noteToFolder, err := FetchFolders()
-	if err != nil {
-		t.Fatalf("FetchFolders: %v", err)
-	}
-
-	t.Logf("fetched %d folders, %d note-to-folder mappings", len(folders), len(noteToFolder))
 
 	for i, f := range folders {
 		if i >= 5 {
 			break
 		}
-		t.Logf("  [%d] name=%q account=%q parent=%q",
+		t.Logf("  folder[%d] name=%q account=%q parent=%q",
 			i, f.Name, f.Account, f.ParentAppleID)
 	}
 }

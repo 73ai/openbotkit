@@ -2,6 +2,7 @@ package applenotes
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/priyanshujain/openbotkit/config"
 	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
@@ -14,6 +15,9 @@ var syncCmd = &cobra.Command{
 	Example: `  obk applenotes sync
   obk applenotes sync --full`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if runtime.GOOS != "darwin" {
+			return fmt.Errorf("Apple Notes is only available on macOS")
+		}
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
