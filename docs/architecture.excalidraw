@@ -360,7 +360,12 @@
       "version": 1,
       "versionNonce": 3010,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "agent_text"
+        }
+      ],
       "groupIds": [],
       "frameId": null,
       "roundness": {
@@ -370,10 +375,10 @@
     {
       "id": "agent_text",
       "type": "text",
-      "x": 360,
-      "y": 258,
-      "width": 140,
-      "height": 25,
+      "x": 290,
+      "y": 260,
+      "width": 280,
+      "height": 44,
       "angle": 0,
       "strokeColor": "#2f9e44",
       "backgroundColor": "transparent",
@@ -389,13 +394,13 @@
       "groupIds": [],
       "frameId": null,
       "roundness": null,
-      "text": "Agent Loop",
-      "fontSize": 20,
+      "text": "Agent Loop\nClaude \u00b7 Gemini \u00b7 OpenAI \u00b7 Groq",
+      "fontSize": 14,
       "fontFamily": 1,
       "textAlign": "center",
-      "verticalAlign": "top",
-      "containerId": null,
-      "originalText": "Agent Loop"
+      "verticalAlign": "middle",
+      "containerId": "agent_rect",
+      "originalText": "Agent Loop\nClaude \u00b7 Gemini \u00b7 OpenAI \u00b7 Groq"
     },
     {
       "id": "agent_sub",
@@ -414,7 +419,7 @@
       "seed": 3012,
       "version": 1,
       "versionNonce": 3012,
-      "isDeleted": false,
+      "isDeleted": true,
       "boundElements": null,
       "groupIds": [],
       "frameId": null,
@@ -1211,7 +1216,12 @@
       "version": 1,
       "versionNonce": 5010,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "tools_text"
+        }
+      ],
       "groupIds": [],
       "frameId": null,
       "roundness": {
@@ -1221,10 +1231,10 @@
     {
       "id": "tools_text",
       "type": "text",
-      "x": 350,
-      "y": 602,
-      "width": 160,
-      "height": 25,
+      "x": 290,
+      "y": 604,
+      "width": 280,
+      "height": 44,
       "angle": 0,
       "strokeColor": "#862e9c",
       "backgroundColor": "transparent",
@@ -1240,13 +1250,13 @@
       "groupIds": [],
       "frameId": null,
       "roundness": null,
-      "text": "Tool Executor",
-      "fontSize": 20,
+      "text": "Tool Executor\nbash \u00b7 file_read \u00b7 load_skills",
+      "fontSize": 13,
       "fontFamily": 1,
       "textAlign": "center",
-      "verticalAlign": "top",
-      "containerId": null,
-      "originalText": "Tool Executor"
+      "verticalAlign": "middle",
+      "containerId": "tools_rect",
+      "originalText": "Tool Executor\nbash \u00b7 file_read \u00b7 load_skills"
     },
     {
       "id": "tools_sub",
@@ -1265,7 +1275,7 @@
       "seed": 5012,
       "version": 1,
       "versionNonce": 5012,
-      "isDeleted": false,
+      "isDeleted": true,
       "boundElements": null,
       "groupIds": [],
       "frameId": null,
@@ -2039,7 +2049,12 @@
       "version": 1,
       "versionNonce": 7010,
       "isDeleted": false,
-      "boundElements": [],
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "db_text"
+        }
+      ],
       "groupIds": [],
       "frameId": null,
       "roundness": {
@@ -2049,10 +2064,10 @@
     {
       "id": "db_text",
       "type": "text",
-      "x": 310,
+      "x": 265,
       "y": 832,
-      "width": 240,
-      "height": 22,
+      "width": 330,
+      "height": 40,
       "angle": 0,
       "strokeColor": "#2b8a3e",
       "backgroundColor": "transparent",
@@ -2068,13 +2083,13 @@
       "groupIds": [],
       "frameId": null,
       "roundness": null,
-      "text": "Local SQLite  (~/.obk/)",
-      "fontSize": 18,
+      "text": "Local SQLite (~/.obk/)\nall data stays on your machine",
+      "fontSize": 13,
       "fontFamily": 1,
       "textAlign": "center",
-      "verticalAlign": "top",
-      "containerId": null,
-      "originalText": "Local SQLite  (~/.obk/)"
+      "verticalAlign": "middle",
+      "containerId": "db_rect",
+      "originalText": "Local SQLite (~/.obk/)\nall data stays on your machine"
     },
     {
       "id": "db_sub",
@@ -2093,7 +2108,7 @@
       "seed": 7012,
       "version": 1,
       "versionNonce": 7012,
-      "isDeleted": false,
+      "isDeleted": true,
       "boundElements": null,
       "groupIds": [],
       "frameId": null,
