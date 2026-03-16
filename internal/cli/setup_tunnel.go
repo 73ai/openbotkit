@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,6 +17,8 @@ import (
 	"github.com/priyanshujain/openbotkit/config"
 )
 
+var errSetupSkipped = errors.New("skipped by user")
+
 const serverPort = "8443"
 
 func setupNgrok(cfg *config.Config) error {
@@ -24,6 +27,10 @@ func setupNgrok(cfg *config.Config) error {
 	fmt.Println("  callback needs a public URL. ngrok provides this for free.")
 
 	ngrokPath, err := ensureNgrok()
+	if errors.Is(err, errSetupSkipped) {
+		fmt.Println("  Skipping ngrok setup. You can configure it later with: obk setup")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -187,14 +194,28 @@ func ensureNgrok() (string, error) {
 		return p, nil
 	}
 
-	fmt.Println("\n  ngrok not found. Installing...")
+	fmt.Println("\n  ngrok not found.")
 	if runtime.GOOS == "darwin" {
 		fmt.Println("    brew install ngrok/ngrok/ngrok")
 	} else {
 		fmt.Println("    See https://ngrok.com/download for install instructions")
 	}
-	fmt.Println("\n  Waiting for ngrok to be installed... (run the command above in another tab)")
-	fmt.Println("  Press Ctrl+C to cancel.")
+
+	var choice string
+	if err := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("ngrok is not installed").
+			Options(
+				huh.NewOption("Wait for install (run the command above in another tab)", "wait"),
+				huh.NewOption("Skip ngrok setup for now", "skip"),
+			).
+			Value(&choice),
+	)).Run(); err != nil {
+		return "", err
+	}
+	if choice == "skip" {
+		return "", errSetupSkipped
+	}
 
 	const maxAttempts = 60
 	for attempt := range maxAttempts {
