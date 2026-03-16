@@ -415,6 +415,11 @@ func setupGoogle(cfg *config.Config) error {
 		return err
 	}
 
+	var syncDaysInt int
+	if _, err := fmt.Sscanf(syncDays, "%d", &syncDaysInt); err == nil {
+		cfg.Gmail.SyncDays = syncDaysInt
+	}
+
 	fmt.Printf("  Sync window: %s days\n", syncDays)
 	return nil
 }
