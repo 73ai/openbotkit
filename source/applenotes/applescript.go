@@ -14,7 +14,11 @@ func FetchAll() ([]Note, []Folder, map[string]Folder, error) {
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("fetch notes: %w", err)
 	}
+	notes, folders, noteToFolder := convertNotesResponse(resp)
+	return notes, folders, noteToFolder, nil
+}
 
+func convertNotesResponse(resp *obkmacos.NotesResponse) ([]Note, []Folder, map[string]Folder) {
 	var notes []Note
 	for _, n := range resp.Notes {
 		notes = append(notes, Note{
@@ -45,7 +49,7 @@ func FetchAll() ([]Note, []Folder, map[string]Folder, error) {
 		}
 	}
 
-	return notes, folders, noteToFolder, nil
+	return notes, folders, noteToFolder
 }
 
 var recentlyDeletedNames = map[string]bool{
