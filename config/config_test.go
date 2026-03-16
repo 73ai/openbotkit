@@ -580,13 +580,16 @@ func TestResolvedPassword_FromRef(t *testing.T) {
 		}
 		return "", fmt.Errorf("not found")
 	}
-	got := r.ResolvedPassword(resolver)
+	got, err := r.ResolvedPassword(resolver)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "secret-from-keychain" {
 		t.Fatalf("expected keychain password, got %q", got)
 	}
 }
 
-func TestResolvedPassword_FallbackToPlain(t *testing.T) {
+func TestResolvedPassword_RefFailsReturnsError(t *testing.T) {
 	r := &RemoteConfig{
 		Password:    "plain",
 		PasswordRef: "keychain:obk/missing",
@@ -594,9 +597,9 @@ func TestResolvedPassword_FallbackToPlain(t *testing.T) {
 	resolver := func(ref string) (string, error) {
 		return "", fmt.Errorf("not found")
 	}
-	got := r.ResolvedPassword(resolver)
-	if got != "plain" {
-		t.Fatalf("expected plain password fallback, got %q", got)
+	_, err := r.ResolvedPassword(resolver)
+	if err == nil {
+		t.Fatal("expected error when resolver fails, got nil")
 	}
 }
 
@@ -604,20 +607,23 @@ func TestResolvedPassword_NoRef(t *testing.T) {
 	r := &RemoteConfig{
 		Password: "plain",
 	}
-	got := r.ResolvedPassword(nil)
+	got, err := r.ResolvedPassword(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "plain" {
 		t.Fatalf("expected plain password, got %q", got)
 	}
 }
 
-func TestResolvedPassword_NilResolver(t *testing.T) {
+func TestResolvedPassword_NilResolverWithRef(t *testing.T) {
 	r := &RemoteConfig{
 		Password:    "plain",
 		PasswordRef: "keychain:obk/remote",
 	}
-	got := r.ResolvedPassword(nil)
-	if got != "plain" {
-		t.Fatalf("expected plain password when resolver is nil, got %q", got)
+	_, err := r.ResolvedPassword(nil)
+	if err == nil {
+		t.Fatal("expected error when resolver is nil but password_ref is set")
 	}
 }
 

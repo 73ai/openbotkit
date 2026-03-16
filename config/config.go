@@ -57,15 +57,22 @@ type RemoteConfig struct {
 	PasswordRef string `yaml:"password_ref,omitempty"`
 }
 
-// ResolvedPassword tries PasswordRef first (via the supplied resolver),
-// falling back to the plain-text Password field.
-func (r *RemoteConfig) ResolvedPassword(resolve func(string) (string, error)) string {
-	if r.PasswordRef != "" && resolve != nil {
-		if pw, err := resolve(r.PasswordRef); err == nil && pw != "" {
-			return pw
+// ResolvedPassword resolves the password from PasswordRef using the supplied
+// resolver. If PasswordRef is set and resolution fails, the error is returned
+// instead of silently falling back to plain text. When PasswordRef is empty,
+// the plain-text Password field is returned.
+func (r *RemoteConfig) ResolvedPassword(resolve func(string) (string, error)) (string, error) {
+	if r.PasswordRef != "" {
+		if resolve == nil {
+			return "", fmt.Errorf("password_ref %q set but no credential resolver available", r.PasswordRef)
 		}
+		pw, err := resolve(r.PasswordRef)
+		if err != nil {
+			return "", fmt.Errorf("resolving password_ref %q: %w", r.PasswordRef, err)
+		}
+		return pw, nil
 	}
-	return r.Password
+	return r.Password, nil
 }
 
 type AuthConfig struct {
