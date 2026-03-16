@@ -39,8 +39,8 @@ var configInitCmd = &cobra.Command{
 }
 
 var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Print resolved configuration",
+	Use:   "list",
+	Short: "List all configuration properties",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
