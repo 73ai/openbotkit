@@ -43,7 +43,10 @@ func fetchAppleContacts() ([]applePerson, error) {
 	if err != nil {
 		return nil, err
 	}
+	return convertContacts(contacts), nil
+}
 
+func convertContacts(contacts []obkmacos.Contact) []applePerson {
 	var people []applePerson
 	for _, c := range contacts {
 		p := applePerson{
@@ -58,7 +61,7 @@ func fetchAppleContacts() ([]applePerson, error) {
 		}
 		people = append(people, p)
 	}
-	return people, nil
+	return people
 }
 
 func CheckAppleContactsPermission() error {
