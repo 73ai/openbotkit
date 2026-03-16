@@ -18,6 +18,12 @@ jobs:
           go-version-file: go.mod
       - run: go test ./...
 
+  build-obkmacos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swiftc -O -o obkmacos swift/obkmacos.swift
+
   cross-compile:
     runs-on: ubuntu-latest
     strategy:

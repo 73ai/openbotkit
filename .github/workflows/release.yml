@@ -8,7 +8,18 @@ permissions:
   contents: write
 
 jobs:
+  build-obkmacos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swiftc -O -o obkmacos swift/obkmacos.swift
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obkmacos
+          path: obkmacos
+
   release:
+    needs: build-obkmacos
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +28,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: obkmacos
+          path: dist/obkmacos
       - uses: goreleaser/goreleaser-action@v6
         with:
           args: release --clean
