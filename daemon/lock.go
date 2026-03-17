@@ -3,7 +3,7 @@ package daemon
 import (
 	"path/filepath"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 func lockPath() string {

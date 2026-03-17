@@ -3,7 +3,7 @@ package spectest
 import (
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/agent"
+	"github.com/73ai/openbotkit/agent"
 )
 
 type Email struct {

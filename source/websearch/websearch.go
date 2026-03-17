@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/internal/browser"
-	"github.com/priyanshujain/openbotkit/source"
-	"github.com/priyanshujain/openbotkit/source/websearch/httpclient"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/internal/browser"
+	"github.com/73ai/openbotkit/source"
+	"github.com/73ai/openbotkit/source/websearch/httpclient"
+	"github.com/73ai/openbotkit/store"
 )
 
 type WebSearch struct {

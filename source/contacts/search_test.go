@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func seedContact(t *testing.T, db *store.DB, name string, aliases []string, interactions map[string]int) int64 {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func CreateContact(db *store.DB, displayName string) (int64, error) {

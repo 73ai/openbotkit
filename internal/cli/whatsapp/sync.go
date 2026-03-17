@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os/signal"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/platform"
-	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/platform"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func openTestDB(t *testing.T) *store.DB {

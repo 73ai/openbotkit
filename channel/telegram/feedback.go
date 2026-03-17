@@ -11,7 +11,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 var fallbackMessages = map[string]string{

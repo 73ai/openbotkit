@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 func TestDaemon_RunAndShutdown(t *testing.T) {

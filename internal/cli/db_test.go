@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 func TestDBCmd_InvalidSource(t *testing.T) {

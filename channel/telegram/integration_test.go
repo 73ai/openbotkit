@@ -10,12 +10,12 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/testutil"
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/provider/gemini"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/testutil"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/provider/gemini"
+	historysrc "github.com/73ai/openbotkit/source/history"
+	"github.com/73ai/openbotkit/store"
 )
 
 // TestSession_MessageAndHistorySaved verifies the full session lifecycle:

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/store"
 )
 
 const reconcilePromptTemplate = `Given existing memories and a new candidate fact, decide the action:

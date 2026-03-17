@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 	"github.com/spf13/cobra"
 )
 

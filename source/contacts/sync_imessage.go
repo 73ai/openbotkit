@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func syncFromIMessage(contactsDB, imDB *store.DB) (*SyncResult, error) {

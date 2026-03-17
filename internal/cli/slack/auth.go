@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/priyanshujain/openbotkit/config"
-	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
-	"github.com/priyanshujain/openbotkit/source/slack/desktop"
+	"github.com/73ai/openbotkit/config"
+	slacksrc "github.com/73ai/openbotkit/source/slack"
+	"github.com/73ai/openbotkit/source/slack/desktop"
 	"github.com/spf13/cobra"
 )
 

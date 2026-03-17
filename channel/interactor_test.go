@@ -3,7 +3,7 @@ package channel
 import (
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/agent/tools"
 )
 
 type mockChannel struct {

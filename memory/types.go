@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // LLM is the interface used by Extract and Reconcile for LLM calls.

@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/73ai/openbotkit/oauth/google"
 )
 
 // TokenBridge injects obk's OAuth token into gws command environment.

@@ -3,10 +3,10 @@ package tools
 import (
 	"context"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/source/websearch"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/source/websearch"
+	"github.com/73ai/openbotkit/store"
 )
 
 // WebSearcher abstracts the websearch.WebSearch methods used by web tools.

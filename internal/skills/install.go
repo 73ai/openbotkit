@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/config"
-	embeddedSkills "github.com/priyanshujain/openbotkit/skills"
+	"github.com/73ai/openbotkit/config"
+	embeddedSkills "github.com/73ai/openbotkit/skills"
 )
 
 // SkillMeta defines requirements for a built-in skill.

@@ -54,7 +54,7 @@ AI agents can now read your email, send messages, and browse the web on your beh
 **macOS and Linux** (Windows is not supported):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/73ai/openbotkit/master/install.sh | sh
 ```
 
 <details>
@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/ins
 Requires [Go 1.25+](https://go.dev/dl/).
 
 ```bash
-git clone https://github.com/priyanshujain/openbotkit.git
+git clone https://github.com/73ai/openbotkit.git
 cd openbotkit && make install
 ```
 </details>

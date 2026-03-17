@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 const timeFormat = "2006-01-02T15:04:05Z"

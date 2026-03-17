@@ -3,8 +3,8 @@ package slack
 import (
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/config"
-	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
+	"github.com/73ai/openbotkit/config"
+	slacksrc "github.com/73ai/openbotkit/source/slack"
 	"github.com/spf13/cobra"
 )
 

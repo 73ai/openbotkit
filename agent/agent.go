@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // ToolExecutor handles tool call execution.

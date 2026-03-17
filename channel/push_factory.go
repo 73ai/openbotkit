@@ -3,7 +3,7 @@ package channel
 import (
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/source/scheduler"
 )
 
 func NewPusher(channelType string, meta scheduler.ChannelMeta) (Pusher, error) {

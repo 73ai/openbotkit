@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
+	"github.com/73ai/openbotkit/config"
+	historysrc "github.com/73ai/openbotkit/source/history"
 )
 
 func TestOpenHistoryDB(t *testing.T) {

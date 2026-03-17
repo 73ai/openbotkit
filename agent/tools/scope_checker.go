@@ -1,6 +1,6 @@
 package tools
 
-import "github.com/priyanshujain/openbotkit/oauth/google"
+import "github.com/73ai/openbotkit/oauth/google"
 
 // ScopeChecker abstracts scope queries for testability.
 type ScopeChecker interface {

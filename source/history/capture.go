@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 type transcriptLine struct {

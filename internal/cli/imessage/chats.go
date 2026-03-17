@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/priyanshujain/openbotkit/config"
-	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
+	"github.com/73ai/openbotkit/config"
+	imsrc "github.com/73ai/openbotkit/source/imessage"
 	"github.com/spf13/cobra"
 )
 

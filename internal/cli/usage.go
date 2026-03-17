@@ -8,9 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	usagesrc "github.com/73ai/openbotkit/source/usage"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

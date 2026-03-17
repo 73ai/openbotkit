@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
+	slacksrc "github.com/73ai/openbotkit/source/slack"
 )
 
 type SlackPusher struct {

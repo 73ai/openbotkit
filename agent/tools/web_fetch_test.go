@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/source/websearch"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/source/websearch"
 )
 
 // mockProvider implements provider.Provider for testing.

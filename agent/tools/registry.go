@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/agent/audit"
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/agent/audit"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // Tool is a callable tool with a JSON schema.

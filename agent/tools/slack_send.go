@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/source/slack"
+	"github.com/73ai/openbotkit/source/slack"
 )
 
 type SlackSendTool struct {

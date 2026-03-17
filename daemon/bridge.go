@@ -7,11 +7,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/remote"
-	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
-	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/remote"
+	ansrc "github.com/73ai/openbotkit/source/applenotes"
+	imsrc "github.com/73ai/openbotkit/source/imessage"
+	"github.com/73ai/openbotkit/store"
 )
 
 // RunBridge syncs Apple Notes locally and pushes them to the remote server.

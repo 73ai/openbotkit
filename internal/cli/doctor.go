@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/daemon/service"
-	"github.com/priyanshujain/openbotkit/internal/skills"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon/service"
+	"github.com/73ai/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/provider"
 )
 
 type checkResult struct {

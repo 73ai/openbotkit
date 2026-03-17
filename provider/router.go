@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 // ModelTier represents the complexity level for model routing.

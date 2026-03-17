@@ -6,7 +6,7 @@ Personal assistant powered by Claude Code with access to email, WhatsApp, conver
 
 1. Install and configure obk:
    ```bash
-   go install github.com/priyanshujain/openbotkit@latest
+   go install github.com/73ai/openbotkit@latest
    obk setup
    ```
 

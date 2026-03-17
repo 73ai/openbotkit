@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/agent/audit"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/agent/audit"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/store"
 )
 
 func TestNewStandardRegistry_Tools(t *testing.T) {

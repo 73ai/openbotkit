@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/source/slack"
+	"github.com/73ai/openbotkit/source/slack"
 )
 
 func TestSlackEditTool_Approved(t *testing.T) {

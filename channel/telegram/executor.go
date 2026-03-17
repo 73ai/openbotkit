@@ -3,8 +3,8 @@ package telegram
 import (
 	"context"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // notifyingExecutor wraps a ToolExecutor and calls onToolStart before each execution.

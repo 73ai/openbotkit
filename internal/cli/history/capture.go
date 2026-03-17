@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/priyanshujain/openbotkit/config"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	historysrc "github.com/73ai/openbotkit/source/history"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/charmbracelet/huh"
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/tty"
-	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/tty"
+	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/spf13/cobra"
 )
 

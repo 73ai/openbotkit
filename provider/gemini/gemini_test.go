@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/internal/envload"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/internal/envload"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func TestChat_TextResponse(t *testing.T) {

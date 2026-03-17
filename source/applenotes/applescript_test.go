@@ -3,7 +3,7 @@ package applenotes
 import (
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/internal/obkmacos"
+	"github.com/73ai/openbotkit/internal/obkmacos"
 )
 
 func TestIsRecentlyDeletedFolder(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/internal/obkmacos"
+	"github.com/73ai/openbotkit/internal/obkmacos"
 )
 
 // FetchAll fetches all notes and folders from Apple Notes via the obkmacos helper.

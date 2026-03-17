@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
-	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
-	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
-	"github.com/priyanshujain/openbotkit/store"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
+	gmailsrc "github.com/73ai/openbotkit/source/gmail"
+	imsrc "github.com/73ai/openbotkit/source/imessage"
+	"github.com/73ai/openbotkit/store"
 )
 
 func openSourceDB(t *testing.T, migrateFn func(*store.DB) error) *store.DB {

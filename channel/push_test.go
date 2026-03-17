@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/source/scheduler"
 )
 
 func TestNewPusherUnsupported(t *testing.T) {

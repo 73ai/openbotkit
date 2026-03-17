@@ -11,12 +11,12 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/provider"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/provider"
+	historysrc "github.com/73ai/openbotkit/source/history"
+	"github.com/73ai/openbotkit/store"
 )
 
 type stubProvider struct{}

@@ -134,7 +134,7 @@ _[Live demo / Video]_
 
 ### Slide 11: Try It
 
-github.com/priyanshujain/openbotkit
+github.com/73ai/openbotkit
 
 [QR code]
 

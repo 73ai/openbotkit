@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/priyanshujain/openbotkit/channel/tghtml"
+	"github.com/73ai/openbotkit/channel/tghtml"
 )
 
 // botSender abstracts the Telegram bot API for testing.

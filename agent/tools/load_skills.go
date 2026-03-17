@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/internal/skills"
 )
 
 // LoadSkillsTool reads full SKILL.md content for named skills.

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 func TestParseScopeMap(t *testing.T) {

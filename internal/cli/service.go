@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/daemon"
-	"github.com/priyanshujain/openbotkit/daemon/service"
-	"github.com/priyanshujain/openbotkit/internal/platform"
-	"github.com/priyanshujain/openbotkit/internal/server"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon"
+	"github.com/73ai/openbotkit/daemon/service"
+	"github.com/73ai/openbotkit/internal/platform"
+	"github.com/73ai/openbotkit/internal/server"
 )
 
 var allServices = []string{"daemon", "server"}

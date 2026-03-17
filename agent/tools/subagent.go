@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/provider"
 )
 
 const defaultChildMaxIter = 10

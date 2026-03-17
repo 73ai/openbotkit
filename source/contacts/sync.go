@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"slices"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func Sync(contactsDB *store.DB, sourceDBs map[string]*store.DB, opts SyncOptions) (*SyncResult, error) {

@@ -2,9 +2,9 @@
 set -eu
 
 # OpenBotKit installer
-# curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh
+# curl -fsSL https://raw.githubusercontent.com/73ai/openbotkit/master/install.sh | sh
 
-REPO="priyanshujain/openbotkit"
+REPO="73ai/openbotkit"
 INSTALL_DIR="${OBK_INSTALL_DIR:-$HOME/.local/bin}"
 OBK_DIR="$HOME/.obk"
 VERSION=""

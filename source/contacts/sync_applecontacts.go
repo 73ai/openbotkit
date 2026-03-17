@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/internal/obkmacos"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/internal/obkmacos"
+	"github.com/73ai/openbotkit/store"
 )
 
 func syncFromAppleContacts(contactsDB *store.DB) (*SyncResult, error) {

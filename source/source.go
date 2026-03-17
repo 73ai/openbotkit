@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 type Status struct {

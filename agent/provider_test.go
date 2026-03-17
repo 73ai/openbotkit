@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/provider/anthropic"
-	"github.com/priyanshujain/openbotkit/provider/gemini"
-	"github.com/priyanshujain/openbotkit/internal/testutil"
-	"github.com/priyanshujain/openbotkit/provider/openai"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider/anthropic"
+	"github.com/73ai/openbotkit/provider/gemini"
+	"github.com/73ai/openbotkit/internal/testutil"
+	"github.com/73ai/openbotkit/provider/openai"
 )
 
 // providerTestCase holds a provider instance and model name for provider conformance tests.

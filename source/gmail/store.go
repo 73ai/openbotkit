@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func EmailExists(db *store.DB, messageID, account string) (bool, error) {

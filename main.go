@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/priyanshujain/openbotkit/internal/cli"
+	"github.com/73ai/openbotkit/internal/cli"
 )
 
 func main() {

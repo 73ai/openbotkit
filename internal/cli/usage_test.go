@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	usagesrc "github.com/priyanshujain/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/source/usage"
 )
 
 func TestFormatTokens(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 // ProviderEnvVars maps provider names to their conventional env var names.

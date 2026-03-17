@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/source/websearch"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/source/websearch"
 )
 
 func webAgent(t *testing.T, fx *LocalFixture) *agent.Agent {

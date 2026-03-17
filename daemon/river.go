@@ -10,8 +10,8 @@ import (
 	"github.com/riverqueue/river/riverdriver/riversqlite"
 	"github.com/riverqueue/river/rivermigrate"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/daemon/jobs"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon/jobs"
 )
 
 func newRiverClient(ctx context.Context, cfg *config.Config) (*river.Client[*sql.Tx], *sql.DB, error) {

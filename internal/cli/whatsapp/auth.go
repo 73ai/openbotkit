@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/config"
-	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
+	"github.com/73ai/openbotkit/config"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/spf13/cobra"
 )
 

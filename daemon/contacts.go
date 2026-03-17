@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	contactsrc "github.com/priyanshujain/openbotkit/source/contacts"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	contactsrc "github.com/73ai/openbotkit/source/contacts"
+	"github.com/73ai/openbotkit/store"
 )
 
 const contactsSyncInterval = 5 * time.Minute

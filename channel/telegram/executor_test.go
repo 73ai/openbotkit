@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 type stubExecutor struct {

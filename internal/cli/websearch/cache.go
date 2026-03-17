@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/priyanshujain/openbotkit/config"
-	wssrc "github.com/priyanshujain/openbotkit/source/websearch"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	wssrc "github.com/73ai/openbotkit/source/websearch"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

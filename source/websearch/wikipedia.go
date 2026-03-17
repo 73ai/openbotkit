@@ -13,7 +13,7 @@ import (
 const (
 	wikiOpenSearchURL = "https://en.wikipedia.org/w/api.php"
 	wikiMaxSnippet    = 300
-	wikiUserAgent     = "openbotkit/0.1 (https://github.com/priyanshujain/openbotkit)"
+	wikiUserAgent     = "openbotkit/0.1 (https://github.com/73ai/openbotkit)"
 )
 
 type Wikipedia struct {

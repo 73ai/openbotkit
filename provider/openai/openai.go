@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
 const defaultBaseURL = "https://api.openai.com"

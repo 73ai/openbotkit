@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
-	"github.com/priyanshujain/openbotkit/store"
+	imsrc "github.com/73ai/openbotkit/source/imessage"
+	"github.com/73ai/openbotkit/store"
 )
 
 type imessageItem struct {

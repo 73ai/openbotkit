@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func syncFromGmail(contactsDB, gmailDB *store.DB) (*SyncResult, error) {

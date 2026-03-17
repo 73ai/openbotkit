@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/source"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/source"
+	"github.com/73ai/openbotkit/store"
 	gapi "google.golang.org/api/gmail/v1"
 	"golang.org/x/time/rate"
 )

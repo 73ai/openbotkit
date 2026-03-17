@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
-	"github.com/priyanshujain/openbotkit/store"
+	ansrc "github.com/73ai/openbotkit/source/applenotes"
+	"github.com/73ai/openbotkit/store"
 )
 
 type appleNoteItem struct {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func TestRegistryProviderTools(t *testing.T) {

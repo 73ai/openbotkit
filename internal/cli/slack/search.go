@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	slacksrc "github.com/priyanshujain/openbotkit/source/slack"
+	slacksrc "github.com/73ai/openbotkit/source/slack"
 	"github.com/spf13/cobra"
 )
 

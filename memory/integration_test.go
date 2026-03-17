@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/provider/anthropic"
-	"github.com/priyanshujain/openbotkit/provider/gemini"
-	"github.com/priyanshujain/openbotkit/internal/envload"
-	"github.com/priyanshujain/openbotkit/provider/openai"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider/anthropic"
+	"github.com/73ai/openbotkit/provider/gemini"
+	"github.com/73ai/openbotkit/internal/envload"
+	"github.com/73ai/openbotkit/provider/openai"
 )
 
 type providerTestCase struct {

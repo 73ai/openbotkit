@@ -3,9 +3,9 @@ package slack
 import (
 	"context"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/source"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/source"
+	"github.com/73ai/openbotkit/store"
 )
 
 type Slack struct {

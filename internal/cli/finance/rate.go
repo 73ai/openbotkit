@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	finsrc "github.com/priyanshujain/openbotkit/source/finance"
+	finsrc "github.com/73ai/openbotkit/source/finance"
 	"github.com/spf13/cobra"
 )
 

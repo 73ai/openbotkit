@@ -13,14 +13,14 @@ import (
 	"github.com/riverqueue/river/riverdriver/riversqlite"
 	"github.com/riverqueue/river/rivermigrate"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/channel"
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/daemon/jobs"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/source/scheduler"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/channel"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon/jobs"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/store"
 )
 
 type capturePusher struct {

@@ -3,9 +3,9 @@ package whatsapp
 import (
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/remote"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/remote"
 	"github.com/spf13/cobra"
 )
 

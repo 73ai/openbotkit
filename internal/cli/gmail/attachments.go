@@ -6,8 +6,8 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/priyanshujain/openbotkit/config"
-	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
+	"github.com/73ai/openbotkit/config"
+	gmailsrc "github.com/73ai/openbotkit/source/gmail"
 	"github.com/spf13/cobra"
 )
 

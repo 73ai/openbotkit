@@ -9,9 +9,9 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/source/scheduler"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/store"
 )
 
 type ScheduleToolDeps struct {

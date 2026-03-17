@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/source/websearch"
+	"github.com/73ai/openbotkit/source/websearch"
 )
 
 type mockWebSearcher struct {

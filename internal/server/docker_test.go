@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/internal/servertest"
-	"github.com/priyanshujain/openbotkit/internal/testutil"
-	"github.com/priyanshujain/openbotkit/remote"
+	"github.com/73ai/openbotkit/internal/servertest"
+	"github.com/73ai/openbotkit/internal/testutil"
+	"github.com/73ai/openbotkit/remote"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

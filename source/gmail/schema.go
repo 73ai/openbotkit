@@ -1,6 +1,6 @@
 package gmail
 
-import "github.com/priyanshujain/openbotkit/store"
+import "github.com/73ai/openbotkit/store"
 
 const schemaSQLite = `
 CREATE TABLE IF NOT EXISTS emails (

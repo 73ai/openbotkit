@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/store"
 )
 
 func testServerWithMemoryDB(t *testing.T) *Server {

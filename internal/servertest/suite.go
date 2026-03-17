@@ -3,7 +3,7 @@ package servertest
 import (
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/remote"
+	"github.com/73ai/openbotkit/remote"
 )
 
 // Backend provides a configured client for running the server API contract

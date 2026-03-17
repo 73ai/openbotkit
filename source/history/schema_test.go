@@ -3,7 +3,7 @@ package history
 import (
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func testDB(t *testing.T) *store.DB {

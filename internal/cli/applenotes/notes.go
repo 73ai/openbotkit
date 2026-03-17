@@ -6,8 +6,8 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/priyanshujain/openbotkit/config"
-	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
+	"github.com/73ai/openbotkit/config"
+	ansrc "github.com/73ai/openbotkit/source/applenotes"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func SearchContacts(db *store.DB, query string, limit int) ([]SearchResult, error) {

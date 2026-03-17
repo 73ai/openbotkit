@@ -7,11 +7,11 @@ import (
 
 	"github.com/riverqueue/river"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 
-	"github.com/priyanshujain/openbotkit/oauth/google"
-	gmailsrc "github.com/priyanshujain/openbotkit/source/gmail"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/oauth/google"
+	gmailsrc "github.com/73ai/openbotkit/source/gmail"
+	"github.com/73ai/openbotkit/store"
 )
 
 type GmailSyncArgs struct{}

@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/servertest"
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/remote"
-	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/servertest"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/remote"
+	ansrc "github.com/73ai/openbotkit/source/applenotes"
+	"github.com/73ai/openbotkit/store"
 )
 
 func newLocalBackend(t *testing.T) servertest.Backend {

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/agent"
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/source/slack"
-	"github.com/priyanshujain/openbotkit/source/slack/desktop"
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/source/slack"
+	"github.com/73ai/openbotkit/source/slack/desktop"
 )
 
 // slackClient extracts credentials from the running Slack Desktop app.

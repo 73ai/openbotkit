@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 )
 
 func TestNewRiverClient(t *testing.T) {

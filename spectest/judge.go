@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // AssertJudge uses the fixture's dedicated judge provider to evaluate whether

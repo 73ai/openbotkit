@@ -1,4 +1,4 @@
-module github.com/priyanshujain/openbotkit
+module github.com/73ai/openbotkit
 
 go 1.25.0
 

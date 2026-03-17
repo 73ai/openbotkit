@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (*SyncResult, error) {

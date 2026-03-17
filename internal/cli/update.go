@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ var updateCmd = &cobra.Command{
 
 		if !updateSkillsOnly {
 			fmt.Println("Updating obk binary...")
-			install := exec.Command("go", "install", "github.com/priyanshujain/openbotkit@latest")
+			install := exec.Command("go", "install", "github.com/73ai/openbotkit@latest")
 			install.Stdout = cmd.OutOrStdout()
 			install.Stderr = cmd.ErrOrStderr()
 			if err := install.Run(); err != nil {

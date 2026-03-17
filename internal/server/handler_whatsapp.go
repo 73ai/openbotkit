@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
-	"github.com/priyanshujain/openbotkit/store"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
+	"github.com/73ai/openbotkit/store"
 )
 
 type whatsappSendRequest struct {

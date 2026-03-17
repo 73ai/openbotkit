@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 	_ "modernc.org/sqlite"
 )
 

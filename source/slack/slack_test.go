@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/config"
+	"github.com/73ai/openbotkit/config"
 	"github.com/zalando/go-keyring"
 )
 

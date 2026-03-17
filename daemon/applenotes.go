@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	ansrc "github.com/priyanshujain/openbotkit/source/applenotes"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	ansrc "github.com/73ai/openbotkit/source/applenotes"
+	"github.com/73ai/openbotkit/store"
 )
 
 const appleNotesSyncInterval = 30 * time.Second

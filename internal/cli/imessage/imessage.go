@@ -3,9 +3,9 @@ package imessage
 import (
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/config"
-	imsrc "github.com/priyanshujain/openbotkit/source/imessage"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	imsrc "github.com/73ai/openbotkit/source/imessage"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

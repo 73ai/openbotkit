@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func TestChat_TextResponse(t *testing.T) {

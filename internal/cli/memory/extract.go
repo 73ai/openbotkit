@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/provider"
-	historysrc "github.com/priyanshujain/openbotkit/source/history"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/provider"
+	historysrc "github.com/73ai/openbotkit/source/history"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 
-	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
-	_ "github.com/priyanshujain/openbotkit/provider/gemini"
-	_ "github.com/priyanshujain/openbotkit/provider/openai"
+	_ "github.com/73ai/openbotkit/provider/anthropic"
+	_ "github.com/73ai/openbotkit/provider/gemini"
+	_ "github.com/73ai/openbotkit/provider/openai"
 )
 
 var extractLast int

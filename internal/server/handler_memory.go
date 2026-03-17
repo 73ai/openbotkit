@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/priyanshujain/openbotkit/memory"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/store"
 )
 
 type memoryAddRequest struct {

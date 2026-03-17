@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/internal/skills"
-	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/73ai/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/oauth/google"
 )
 
 const defaultAuthTimeout = 5 * time.Minute

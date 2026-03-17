@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func SaveNote(db *store.DB, note *Note) error {

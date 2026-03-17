@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/remote"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/remote"
 )
 
 func TestBridgeMode_RequiresDarwin(t *testing.T) {

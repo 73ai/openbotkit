@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 const summarizePrompt = `Summarize the conversation below. Preserve: decisions made, user preferences, unresolved tasks, key facts. Omit: greetings, filler, verbose tool output. Keep under 2000 characters.`

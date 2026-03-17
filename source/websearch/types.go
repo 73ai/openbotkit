@@ -1,6 +1,6 @@
 package websearch
 
-import "github.com/priyanshujain/openbotkit/config"
+import "github.com/73ai/openbotkit/config"
 
 type Config struct {
 	WebSearch *config.WebSearchConfig

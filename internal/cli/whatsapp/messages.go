@@ -6,9 +6,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/priyanshujain/openbotkit/config"
-	wasrc "github.com/priyanshujain/openbotkit/source/whatsapp"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/config"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
+	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 

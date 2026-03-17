@@ -9,7 +9,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput) (*SendResult, error) {

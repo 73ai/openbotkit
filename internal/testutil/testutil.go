@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/internal/envload"
+	"github.com/73ai/openbotkit/internal/envload"
 )
 
 // LoadEnv reads a .env file and sets environment variables for the test.

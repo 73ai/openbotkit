@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider"
 )
 
 const extractionPrompt = `You are a Personal Information Organizer. Extract personal facts about the user from this conversation.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func UpsertConversation(db *store.DB, sessionID, cwd string) (int64, error) {

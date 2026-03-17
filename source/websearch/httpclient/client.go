@@ -3,7 +3,7 @@ package httpclient
 import (
 	"net/http"
 
-	"github.com/priyanshujain/openbotkit/internal/browser"
+	"github.com/73ai/openbotkit/internal/browser"
 )
 
 type Client struct {

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 func syncFromWhatsApp(contactsDB, waDB *store.DB) (*SyncResult, error) {

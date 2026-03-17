@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/agent/tools"
-	"github.com/priyanshujain/openbotkit/provider"
+	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/provider"
 )
 
 // mockProvider returns scripted responses in sequence.

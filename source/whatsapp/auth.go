@@ -14,7 +14,7 @@ import (
 
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/store"
 )
 
 const authPage = `<!DOCTYPE html>

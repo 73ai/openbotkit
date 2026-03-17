@@ -1,6 +1,6 @@
 package channel
 
-import "github.com/priyanshujain/openbotkit/agent/tools"
+import "github.com/73ai/openbotkit/agent/tools"
 
 // Interactor adapts a Channel to the tools.Interactor interface.
 // It exposes Notify, NotifyLink, and RequestApproval but not Receive.

@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/priyanshujain/openbotkit/internal/skills"
-	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/73ai/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/oauth/google"
 )
 
 func setupGWSTest(t *testing.T, approveAll bool, scopes map[string]bool) (*GWSExecuteTool, *mockInteractor, *mockRunner) {

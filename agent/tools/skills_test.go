@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/priyanshujain/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/internal/skills"
 )
 
 func TestLoadSkills(t *testing.T) {

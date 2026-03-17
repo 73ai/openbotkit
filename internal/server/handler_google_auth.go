@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/priyanshujain/openbotkit/internal/skills"
+	"github.com/73ai/openbotkit/internal/skills"
 )
 
 func (s *Server) handleGoogleAuthCallback(w http.ResponseWriter, r *http.Request) {

@@ -3,8 +3,8 @@ package usage
 import (
 	"log/slog"
 
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/store"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/store"
 )
 
 // Recorder implements agent.UsageRecorder by writing to the usage store.

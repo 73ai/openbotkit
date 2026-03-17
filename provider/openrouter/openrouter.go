@@ -1,9 +1,9 @@
 package openrouter
 
 import (
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
-	"github.com/priyanshujain/openbotkit/provider/openai"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/provider/openai"
 )
 
 const defaultBaseURL = "https://openrouter.ai/api"

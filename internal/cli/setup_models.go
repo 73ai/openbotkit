@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
-	"github.com/priyanshujain/openbotkit/config"
-	"github.com/priyanshujain/openbotkit/provider"
-	_ "github.com/priyanshujain/openbotkit/provider/anthropic"
-	_ "github.com/priyanshujain/openbotkit/provider/gemini"
-	_ "github.com/priyanshujain/openbotkit/provider/groq"
-	_ "github.com/priyanshujain/openbotkit/provider/openai"
-	_ "github.com/priyanshujain/openbotkit/provider/openrouter"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
+	_ "github.com/73ai/openbotkit/provider/anthropic"
+	_ "github.com/73ai/openbotkit/provider/gemini"
+	_ "github.com/73ai/openbotkit/provider/groq"
+	_ "github.com/73ai/openbotkit/provider/openai"
+	_ "github.com/73ai/openbotkit/provider/openrouter"
 	"github.com/spf13/cobra"
 )
 

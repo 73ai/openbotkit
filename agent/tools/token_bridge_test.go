@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/priyanshujain/openbotkit/oauth/google"
+	"github.com/73ai/openbotkit/oauth/google"
 )
 
 const testCredentials = `{
