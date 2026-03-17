@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Gentium Plus', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  --color-bg: #f7f3eb;
+  --color-heading: #1a1a1a;
+  --color-body: #2a2a2a;
+  --color-paragraph: #444444;
+  --color-muted: #666666;
+  --color-border: #c5bfb3;
+  --color-link: #0066cc;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+#get-started {
+  scroll-margin-top: 5rem;
+}

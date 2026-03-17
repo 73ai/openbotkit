@@ -1,0 +1,45 @@
+---
+---
+
+<div class="terminal-wrapper overflow-hidden rounded-xl border border-[#3a3a3a] bg-[#2a2a2a]">
+  <div class="flex items-center gap-2 px-4 py-3 border-b border-[#3a3a3a]">
+    <span class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]"></span>
+    <span class="h-2.5 w-2.5 rounded-full bg-[#febc2e]"></span>
+    <span class="h-2.5 w-2.5 rounded-full bg-[#28c840]"></span>
+  </div>
+  <div class="terminal-content px-6 py-5 font-mono text-[0.85rem] leading-[2.2] text-[#ccc] break-all">
+    <slot />
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.terminal-wrapper').forEach((wrapper) => {
+    const lines = wrapper.querySelectorAll('.terminal-content > div');
+    lines.forEach((line) => {
+      const lineEl = line as HTMLElement;
+      lineEl.style.position = 'relative';
+      lineEl.style.paddingRight = '2rem';
+
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn text-[#666] hover:text-[#ccc] transition-colors cursor-pointer';
+      btn.style.position = 'absolute';
+      btn.style.right = '0';
+      btn.style.bottom = '0.35em';
+      btn.setAttribute('aria-label', 'Copy command');
+      btn.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+
+      const copyIcon = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      const checkIcon = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+      btn.addEventListener('click', () => {
+        const text = lineEl.textContent?.replace(/^\$\s*/, '').replace(/Copy command$/, '').trim() || '';
+        navigator.clipboard.writeText(text).then(() => {
+          btn.innerHTML = checkIcon;
+          setTimeout(() => { btn.innerHTML = copyIcon; }, 2000);
+        });
+      });
+
+      lineEl.appendChild(btn);
+    });
+  });
+</script>

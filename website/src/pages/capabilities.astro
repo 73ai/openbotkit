@@ -1,0 +1,266 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/Nav.astro';
+import Terminal from '../components/Terminal.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout
+  title="Capabilities - OpenBotKit"
+  description="What OpenBotKit can do: integrations, the agent harness, safety architecture, and multi-LLM support."
+>
+  <Nav />
+  <main class="mx-auto max-w-2xl px-6 pt-32 pb-20">
+    <h1 class="text-[2.4rem] font-bold leading-[1.3] text-heading">Capabilities</h1>
+
+    <!-- Architecture -->
+    <section class="mt-16">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        How it works
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        A single Go binary connects to your data sources, syncs everything to local SQLite, and lets
+        you interact through Telegram or the terminal. Every write action goes through approval
+        gates before it executes.
+      </p>
+      <img
+        src="/architecture.png"
+        alt="OpenBotKit architecture diagram showing the flow from user through channels, agent loop, safety layer, tool executor, and data sources - all stored in local SQLite"
+        class="mt-8 w-full rounded-lg border border-border"
+      />
+    </section>
+
+    <!-- Demo -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        In action
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        Chat with your assistant on Telegram. It checks your calendar, sends WhatsApp messages,
+        converts currencies, sets reminders - and asks before every action.
+      </p>
+      <img
+        src="/demo.png"
+        alt="Telegram conversation showing OpenBotKit checking calendar availability, sending a WhatsApp message, converting currency, and setting a reminder - each with user approval"
+        class="mx-auto mt-8 w-full max-w-sm rounded-lg border border-border"
+      />
+    </section>
+
+    <!-- Integrations -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        Integrations
+      </h2>
+
+      <h3 class="mt-8 text-[1.2rem] font-semibold leading-[1.7] text-heading">Sources</h3>
+      <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
+        Your assistant reads, searches, and acts across your personal data - all synced locally.
+      </p>
+      <dl class="mt-4 space-y-3 text-[1.25rem] leading-[1.7]">
+        <div>
+          <dt class="inline font-bold text-heading">Gmail</dt>
+          <dd class="inline text-paragraph"> - read, search, and send email with OAuth2.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">WhatsApp</dt>
+          <dd class="inline text-paragraph">
+            - sync messages locally via QR code pairing. Send with approval.</dd
+          >
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Apple Notes</dt>
+          <dd class="inline text-paragraph"> - search and read notes on macOS via AppleScript.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">iMessage</dt>
+          <dd class="inline text-paragraph"> - read conversations on macOS.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Slack</dt>
+          <dd class="inline text-paragraph"> - read channels and send messages.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Google Workspace</dt>
+          <dd class="inline text-paragraph">
+            - Calendar, Docs, Sheets, Drive, and 40+ more APIs via progressive consent.</dd
+          >
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Contacts</dt>
+          <dd class="inline text-paragraph"> - search your address book by name.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Web Search</dt>
+          <dd class="inline text-paragraph"> - search the web. No API keys needed.</dd>
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Scheduler</dt>
+          <dd class="inline text-paragraph"> - create reminders and recurring tasks.</dd>
+        </div>
+      </dl>
+
+      <h3 class="mt-12 text-[1.2rem] font-semibold leading-[1.7] text-heading">Channels</h3>
+      <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
+        Interact with your assistant and approve actions through:
+      </p>
+      <dl class="mt-4 space-y-3 text-[1.25rem] leading-[1.7]">
+        <div>
+          <dt class="inline font-bold text-heading">Telegram</dt>
+          <dd class="inline text-paragraph">
+            - chat, ask questions, and approve or deny actions with inline buttons.</dd
+          >
+        </div>
+        <div>
+          <dt class="inline font-bold text-heading">Terminal</dt>
+          <dd class="inline text-paragraph"> - full CLI for power users via <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk chat</code>.</dd>
+        </div>
+      </dl>
+
+      <h3 class="mt-12 text-[1.2rem] font-semibold leading-[1.7] text-heading">LLM Providers</h3>
+      <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
+        Bring your own AI. Not locked into one provider.
+      </p>
+      <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
+        Anthropic Claude (default), Google Gemini, OpenAI, OpenRouter, and Groq. Switch providers
+        with a single config change. Cost profiles included so you know what each model costs before
+        you use it.
+      </p>
+    </section>
+
+    <!-- Agent Harness -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        The agent harness
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        A single Go binary. No bloated frameworks. No containers required.
+      </p>
+      <dl class="mt-6 space-y-4 text-[1.25rem] leading-[1.7]">
+        <div>
+          <dt class="font-bold text-heading">Agent loop with safety gates</dt>
+          <dd class="mt-1 text-paragraph">
+            Multi-turn conversation with tool use. Every tool call goes through risk assessment and
+            approval gates before execution.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">100+ plain-text skills</dt>
+          <dd class="mt-1 text-paragraph">
+            Skills are plain language descriptions - not code. Services, helpers, personas, and
+            recipes you can read, edit, or replace in seconds.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">Background sync daemon</dt>
+          <dd class="mt-1 text-paragraph">
+            Runs as a launchd service on macOS or systemd on Linux. Keeps your Gmail, WhatsApp, and
+            other sources synced in the background.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">Local SQLite storage</dt>
+          <dd class="mt-1 text-paragraph">
+            All data lives in SQLite databases under <code
+              class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">~/.obk/</code
+            >. Pure Go driver - no CGO, no external dependencies.
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Safety -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        Safety architecture
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        8 independent defense layers. Not prompts - code. Inspired by how Anthropic builds Claude
+        Code and informed by research from Lasso Security and Trail of Bits.
+      </p>
+
+      <ol class="mt-8 space-y-6 text-[1.25rem] leading-[1.7]">
+        <li>
+          <span class="font-bold text-heading">Approval gates.</span>
+          <span class="text-paragraph">
+            Every write action - sending a message, creating an event, modifying a file - requires
+            your explicit OK. Enforced in code via <code
+              class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading"
+              >GuardedAction</code
+            >. The AI cannot bypass it.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Local-first data.</span>
+          <span class="text-paragraph">
+            Your data syncs to SQLite on your machine. No cloud relay. Nothing leaves your device
+            unless you send it.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Prompt injection defense.</span>
+          <span class="text-paragraph">
+            Content boundaries with XML markers, injection scanning across plain text, base64, and
+            homoglyph encodings, and system prompt hardening.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Tiered risk levels.</span>
+          <span class="text-paragraph">
+            Low-risk actions notify you. Medium-risk actions require approval. High-risk actions
+            require approval with a full preview of what will happen.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Bash command filtering.</span>
+          <span class="text-paragraph">
+            Dangerous commands are blocked. Scheduled tasks only allow <code
+              class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk</code
+            > and <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading"
+              >sqlite3</code
+            >.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Rubber-stamp detection.</span>
+          <span class="text-paragraph">
+            If you approve 5+ actions in 30 seconds, the system warns you to slow down. Approval
+            fatigue is a real attack vector.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Restricted unattended mode.</span>
+          <span class="text-paragraph">
+            Scheduled tasks get fewer tools, no file write access, and a restricted tool registry.
+          </span>
+        </li>
+        <li>
+          <span class="font-bold text-heading">Audit logging.</span>
+          <span class="text-paragraph">
+            Every tool execution is logged to a local SQLite database. You can review what your
+            assistant did at any time.
+          </span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- Get Started CTA -->
+    <section class="mt-20 border-t border-border pt-12">
+      <p class="text-[1.25rem] leading-[1.7] text-paragraph">
+        Ready to try it?
+      </p>
+      <div class="mt-4">
+        <Terminal>
+          <div>
+            <span class="text-[#28c840]">$</span>
+            <span class="text-[#e0e0e0]"> curl -fsSL https://raw.githubusercontent.com/priyanshujain/openbotkit/master/install.sh | sh</span>
+          </div>
+          <div>
+            <span class="text-[#28c840]">$</span>
+            <span class="text-[#e0e0e0]"> obk setup</span>
+          </div>
+        </Terminal>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
