@@ -188,7 +188,8 @@ var InteractiveAllowlist = []string{
 	"git", "tree", "file", "stat", "jq", "which",
 }
 
-// DefaultBlocklist is the default set of blocked commands for interactive mode.
+// DefaultBlocklist is the legacy blocklist used when no Interactor is provided
+// (e.g. subagents). Interactive mode now uses InteractiveAllowlist instead.
 var DefaultBlocklist = []string{
 	// Network
 	"curl", "wget", "nc", "ncat", "nmap",
