@@ -19,7 +19,7 @@ import (
 	"github.com/73ai/openbotkit/provider/gemini"
 	"github.com/73ai/openbotkit/provider/openai"
 	embeddedSkills "github.com/73ai/openbotkit/skills"
-	"github.com/73ai/openbotkit/source/contacts"
+	"github.com/73ai/openbotkit/service/contacts"
 	gmail "github.com/73ai/openbotkit/source/gmail"
 	"github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"

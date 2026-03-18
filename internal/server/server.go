@@ -22,7 +22,7 @@ import (
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
-	contactsrc "github.com/73ai/openbotkit/source/contacts"
+	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	gmailsrc "github.com/73ai/openbotkit/source/gmail"
 	historysrc "github.com/73ai/openbotkit/service/history"
 	imsrc "github.com/73ai/openbotkit/source/imessage"

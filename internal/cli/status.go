@@ -11,7 +11,7 @@ import (
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/source"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
-	contactsrc "github.com/73ai/openbotkit/source/contacts"
+	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	finsrc "github.com/73ai/openbotkit/source/finance"
 	gmailsrc "github.com/73ai/openbotkit/source/gmail"
 	historysrc "github.com/73ai/openbotkit/service/history"

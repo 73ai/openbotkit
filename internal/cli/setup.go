@@ -17,7 +17,7 @@ import (
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/remote"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
-	contactsrc "github.com/73ai/openbotkit/source/contacts"
+	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
 	"github.com/73ai/openbotkit/source/slack/desktop"
