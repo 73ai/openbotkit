@@ -204,6 +204,8 @@ var statusCmd = &cobra.Command{
 				Items:     count,
 				LastSync:  lastSync,
 			})
+		} else {
+			statuses = append(statuses, sourceStatus{Name: "history", Error: err.Error()})
 		}
 
 		if jsonOut {
