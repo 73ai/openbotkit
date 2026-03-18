@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/73ai/openbotkit/config"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )

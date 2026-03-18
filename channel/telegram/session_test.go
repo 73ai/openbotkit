@@ -13,9 +13,9 @@ import (
 
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/config"
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
-	historysrc "github.com/73ai/openbotkit/source/history"
+	historysrc "github.com/73ai/openbotkit/service/history"
 	"github.com/73ai/openbotkit/store"
 )
 

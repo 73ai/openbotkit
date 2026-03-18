@@ -15,13 +15,13 @@ import (
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
-	historysrc "github.com/73ai/openbotkit/source/history"
-	"github.com/73ai/openbotkit/source/scheduler"
+	historysrc "github.com/73ai/openbotkit/service/history"
+	"github.com/73ai/openbotkit/service/scheduler"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 )
 

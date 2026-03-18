@@ -9,7 +9,7 @@ import (
 	"github.com/73ai/openbotkit/agent"
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/config"
-	"github.com/73ai/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/service/scheduler"
 	"github.com/73ai/openbotkit/store"
 )
 

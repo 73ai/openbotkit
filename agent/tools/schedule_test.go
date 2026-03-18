@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/73ai/openbotkit/config"
-	"github.com/73ai/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/service/scheduler"
 )
 
 func testScheduleDeps(t *testing.T) ScheduleToolDeps {

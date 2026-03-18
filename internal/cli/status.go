@@ -9,15 +9,15 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/oauth/google"
+	contactsrc "github.com/73ai/openbotkit/service/contacts"
+	historysrc "github.com/73ai/openbotkit/service/history"
 	"github.com/73ai/openbotkit/source"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
-	contactsrc "github.com/73ai/openbotkit/source/contacts"
 	finsrc "github.com/73ai/openbotkit/source/finance"
 	gmailsrc "github.com/73ai/openbotkit/source/gmail"
-	historysrc "github.com/73ai/openbotkit/source/history"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
-	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
+	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	wssrc "github.com/73ai/openbotkit/source/websearch"
 	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
@@ -64,9 +64,6 @@ var statusCmd = &cobra.Command{
 			SessionDBPath: cfg.WhatsAppSessionDBPath(),
 		})
 		source.Register(wa)
-
-		hist := historysrc.New(historysrc.Config{})
-		source.Register(hist)
 
 		an := ansrc.New(ansrc.Config{})
 		source.Register(an)
@@ -115,15 +112,6 @@ var statusCmd = &cobra.Command{
 				})
 				if db != nil {
 					wasrc.Migrate(db)
-				}
-			case "history":
-				dsn := cfg.HistoryDataDSN()
-				db, _ = store.Open(store.Config{
-					Driver: cfg.History.Storage.Driver,
-					DSN:    dsn,
-				})
-				if db != nil {
-					historysrc.Migrate(db)
 				}
 			case "applenotes":
 				dsn := cfg.AppleNotesDataDSN()
@@ -193,6 +181,31 @@ var statusCmd = &cobra.Command{
 				Connected: count > 0,
 				Items:     count,
 			})
+		}
+
+		// History is a derived store (captures from chat sessions),
+		// not a standalone source. Report its count separately.
+		if hdb, err := store.Open(store.Config{
+			Driver: cfg.History.Storage.Driver,
+			DSN:    cfg.HistoryDataDSN(),
+		}); err == nil {
+			historysrc.Migrate(hdb)
+			count, _ := historysrc.CountConversations(hdb)
+			lastCapture, _ := historysrc.LastCaptureTime(hdb)
+			hdb.Close()
+			var lastSync *string
+			if lastCapture != nil {
+				ts := lastCapture.Format("2006-01-02 15:04")
+				lastSync = &ts
+			}
+			statuses = append(statuses, sourceStatus{
+				Name:      "history",
+				Connected: count > 0,
+				Items:     count,
+				LastSync:  lastSync,
+			})
+		} else {
+			statuses = append(statuses, sourceStatus{Name: "history", Error: err.Error()})
 		}
 
 		if jsonOut {

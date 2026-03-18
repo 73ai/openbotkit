@@ -15,7 +15,7 @@ import (
 	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
-	"github.com/73ai/openbotkit/source/scheduler"
+	"github.com/73ai/openbotkit/service/scheduler"
 	"github.com/73ai/openbotkit/store"
 )
 

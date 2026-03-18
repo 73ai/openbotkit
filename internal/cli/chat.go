@@ -13,9 +13,9 @@ import (
 	clicli "github.com/73ai/openbotkit/channel/cli"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
-	historysrc "github.com/73ai/openbotkit/source/history"
+	historysrc "github.com/73ai/openbotkit/service/history"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 
 	// Register provider factories.

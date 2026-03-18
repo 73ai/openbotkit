@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/73ai/openbotkit/config"
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )

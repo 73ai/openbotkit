@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
-	historysrc "github.com/73ai/openbotkit/source/history"
+	historysrc "github.com/73ai/openbotkit/service/history"
 )
 
 func TestOpenHistoryDB(t *testing.T) {

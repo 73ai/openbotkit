@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/73ai/openbotkit/config"
-	contactsrc "github.com/73ai/openbotkit/source/contacts"
+	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	"github.com/73ai/openbotkit/store"
 )
 
