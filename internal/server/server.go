@@ -27,7 +27,7 @@ import (
 	historysrc "github.com/73ai/openbotkit/source/history"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
 	schedsrc "github.com/73ai/openbotkit/source/scheduler"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"
 

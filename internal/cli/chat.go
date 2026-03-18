@@ -15,7 +15,7 @@ import (
 	"github.com/73ai/openbotkit/provider"
 	historysrc "github.com/73ai/openbotkit/source/history"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 
 	// Register provider factories.

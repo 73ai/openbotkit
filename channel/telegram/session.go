@@ -21,7 +21,7 @@ import (
 	historysrc "github.com/73ai/openbotkit/source/history"
 	"github.com/73ai/openbotkit/source/scheduler"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
-	usagesrc "github.com/73ai/openbotkit/source/usage"
+	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 )
 
