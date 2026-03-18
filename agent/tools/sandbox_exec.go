@@ -68,7 +68,7 @@ func (s *SandboxExecTool) Execute(ctx context.Context, input json.RawMessage) (s
 
 	ext := languageExtension(in.Language)
 	codePath := filepath.Join(tmpDir, "code"+ext)
-	if err := os.WriteFile(codePath, []byte(in.Code), 0644); err != nil {
+	if err := os.WriteFile(codePath, []byte(in.Code), 0600); err != nil {
 		return "", fmt.Errorf("write code file: %w", err)
 	}
 
