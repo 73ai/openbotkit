@@ -53,14 +53,27 @@ func (r *Registry) Register(t Tool) {
 
 // NewStandardRegistry creates a registry with the standard tool set
 // (bash, file_read, file_write, file_edit, load_skills, search_skills).
-func NewStandardRegistry() *Registry {
+// When inter and rules are provided, bash uses a soft allowlist (unknown
+// commands prompt for approval) and file_write/file_edit require approval.
+// When inter is nil, bash uses the legacy blocklist with no approval gate.
+func NewStandardRegistry(inter Interactor, rules *ApprovalRuleSet) *Registry {
 	r := NewRegistry()
-	r.Register(NewBashTool(30*time.Second,
-		WithCommandFilter(NewBlocklistFilter(DefaultBlocklist)),
-	))
+	var bashOpts []BashOption
+	if inter != nil {
+		bashOpts = append(bashOpts,
+			WithCommandFilter(NewSoftAllowlistFilter(InteractiveAllowlist)),
+			WithInteractor(inter),
+			WithApprovalRuleSet(rules),
+		)
+	} else {
+		bashOpts = append(bashOpts,
+			WithCommandFilter(NewBlocklistFilter(DefaultBlocklist)),
+		)
+	}
+	r.Register(NewBashTool(30*time.Second, bashOpts...))
 	r.Register(&FileReadTool{})
-	r.Register(&FileWriteTool{})
-	r.Register(&FileEditTool{})
+	r.Register(NewFileWriteTool(inter, rules))
+	r.Register(NewFileEditTool(inter, rules))
 	r.Register(&LoadSkillsTool{})
 	r.Register(&SearchSkillsTool{})
 	return r

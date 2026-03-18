@@ -76,8 +76,10 @@ var chatCmd = &cobra.Command{
 			defer auditLogger.Close()
 		}
 
-		// Build tool registry.
-		toolReg := tools.NewStandardRegistry()
+		// Build tool registry with CLI approval gate.
+		inter := NewCLIInteractor(ch)
+		approvalRules := tools.NewApprovalRuleSet()
+		toolReg := tools.NewStandardRegistry(inter, approvalRules)
 		if err := config.EnsureScratchDir(sessionID); err != nil {
 			slog.Warn("scratch dir creation failed", "error", err)
 		}
@@ -91,7 +93,7 @@ var chatCmd = &cobra.Command{
 			Provider: p,
 			Model:    modelName,
 			ToolFactory: func() *tools.Registry {
-				r := tools.NewStandardRegistry()
+				r := tools.NewStandardRegistry(nil, nil)
 				r.SetScratchDir(scratchDir)
 				return r
 			},
@@ -212,14 +214,6 @@ func generateSessionID() string {
 	return fmt.Sprintf("obk-chat-%x", b[:])
 }
 
-// cliInteractor adapts a CLI channel to the tools.Interactor interface.
-type cliInteractor struct {
-	ch *clicli.Channel
-}
-
-func (c *cliInteractor) Notify(msg string) error                   { return c.ch.Send(msg) }
-func (c *cliInteractor) NotifyLink(text, url string) error         { return c.ch.SendLink(text, url) }
-func (c *cliInteractor) RequestApproval(desc string) (bool, error) { return c.ch.RequestApproval(desc) }
 
 func openAuditLogger() *audit.Logger {
 	return audit.OpenDefault(config.AuditDBPath())
@@ -235,7 +229,7 @@ func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Chan
 		return
 	}
 	client := slacksrc.NewClient(creds.Token, creds.Cookie)
-	inter := &cliInteractor{ch: ch}
+	inter := NewCLIInteractor(ch)
 	deps := tools.SlackToolDeps{Client: client, Interactor: inter}
 
 	reg.Register(tools.NewSlackSearchTool(deps))
@@ -251,7 +245,7 @@ func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
 	if len(agents) == 0 {
 		return
 	}
-	inter := &cliInteractor{ch: ch}
+	inter := NewCLIInteractor(ch)
 	tracker := tools.NewTaskTracker()
 	reg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
 		Interactor: inter,

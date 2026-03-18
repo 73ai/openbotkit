@@ -46,7 +46,7 @@ func (p *capturePusher) Messages() []string {
 // makeAgentRunner creates an AgentRunner that uses the given LLM provider.
 func makeAgentRunner(p provider.Provider, model string) jobs.AgentRunner {
 	return func(ctx context.Context, task string) (string, error) {
-		toolReg := tools.NewStandardRegistry()
+		toolReg := tools.NewStandardRegistry(nil, nil)
 		identity := "You are a scheduled task agent. Execute the task and return a concise result.\n"
 		blocks := tools.BuildSystemBlocks(identity, toolReg)
 		a := agent.New(p, model, toolReg, agent.WithSystemBlocks(blocks))

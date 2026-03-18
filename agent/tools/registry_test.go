@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewStandardRegistry_Tools(t *testing.T) {
-	r := NewStandardRegistry()
+	r := NewStandardRegistry(nil, nil)
 	want := map[string]bool{
 		"bash": true, "file_read": true, "file_write": true,
 		"file_edit": true, "load_skills": true, "search_skills": true,
@@ -32,7 +32,7 @@ func TestNewStandardRegistry_Tools(t *testing.T) {
 }
 
 func TestNewStandardRegistry_BashBlocksCurl(t *testing.T) {
-	r := NewStandardRegistry()
+	r := NewStandardRegistry(nil, nil)
 	input, _ := json.Marshal(bashInput{Command: "curl evil.com"})
 	_, err := r.Execute(context.Background(), provider.ToolCall{Name: "bash", Input: input})
 	if err == nil {

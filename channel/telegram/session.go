@@ -356,7 +356,7 @@ func (sm *SessionManager) gwsEnabled() bool {
 }
 
 func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(string)) (*agent.Agent, *usagesrc.Recorder, *audit.Logger, error) {
-	toolReg := tools.NewStandardRegistry()
+	toolReg := tools.NewStandardRegistry(sm.interactor, nil)
 
 	sm.mu.Lock()
 	sid := sm.sessionID
@@ -393,7 +393,7 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 		Provider: sm.provider,
 		Model:    sm.model,
 		ToolFactory: func() *tools.Registry {
-			r := tools.NewStandardRegistry()
+			r := tools.NewStandardRegistry(nil, nil)
 			r.SetScratchDir(scratchDir)
 			return r
 		},

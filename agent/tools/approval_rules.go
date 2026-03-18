@@ -131,6 +131,20 @@ func extractPattern(toolName string, input json.RawMessage) string {
 				return firstToken(s)
 			}
 		}
+	case "file_write":
+		if p, ok := m["path"]; ok {
+			var s string
+			if json.Unmarshal(p, &s) == nil {
+				return s
+			}
+		}
+	case "file_edit":
+		if p, ok := m["path"]; ok {
+			var s string
+			if json.Unmarshal(p, &s) == nil {
+				return s
+			}
+		}
 	case "slack_send", "slack_read_channel":
 		if ch, ok := m["channel"]; ok {
 			var s string
