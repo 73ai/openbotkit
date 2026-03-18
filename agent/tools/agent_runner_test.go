@@ -200,7 +200,7 @@ func TestAgentRunner_RealClaude(t *testing.T) {
 		}
 	}
 	r := NewAgentRunner(info)
-	out, err := r.Run(context.Background(), "Say hello in exactly one word.", 30*time.Second)
+	out, err := r.Run(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestAgentRunner_RealGemini(t *testing.T) {
 		}
 	}
 	r := NewAgentRunner(info)
-	out, err := r.Run(context.Background(), "Say hello in exactly one word.", 30*time.Second)
+	out, err := r.Run(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout)
 	if err != nil {
 		if strings.Contains(err.Error(), "Permission") || strings.Contains(err.Error(), "denied") || strings.Contains(err.Error(), "auth") {
 			t.Skipf("gemini auth not configured: %v", err)
@@ -247,7 +247,7 @@ func TestAgentRunner_RealCodex(t *testing.T) {
 		}
 	}
 	r := NewAgentRunner(info)
-	out, err := r.Run(context.Background(), "Say hello in exactly one word.", 30*time.Second)
+	out, err := r.Run(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout)
 	if err != nil {
 		if strings.Contains(err.Error(), "auth") || strings.Contains(err.Error(), "API key") || strings.Contains(err.Error(), "login") {
 			t.Skipf("codex auth not configured: %v", err)

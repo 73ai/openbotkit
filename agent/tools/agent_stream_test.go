@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestParseStreamLine_Text(t *testing.T) {
@@ -218,7 +217,7 @@ func TestStreamRunner_RealClaude(t *testing.T) {
 	}
 	r := NewStreamRunner(info)
 	var eventCount int
-	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", 30*time.Second, func(evt StreamEvent) {
+	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout, func(evt StreamEvent) {
 		eventCount++
 	})
 	if err != nil {
@@ -246,7 +245,7 @@ func TestStreamRunner_RealGemini(t *testing.T) {
 	}
 	r := NewStreamRunner(info)
 	var eventCount int
-	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", 30*time.Second, func(evt StreamEvent) {
+	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout, func(evt StreamEvent) {
 		eventCount++
 	})
 	if err != nil {
@@ -274,7 +273,7 @@ func TestStreamRunner_RealCodex(t *testing.T) {
 	}
 	r := NewStreamRunner(info)
 	var eventCount int
-	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", 30*time.Second, func(evt StreamEvent) {
+	out, err := r.RunStream(context.Background(), "Say hello in exactly one word.", defaultDelegateTimeout, func(evt StreamEvent) {
 		eventCount++
 	})
 	if err != nil {
