@@ -131,14 +131,7 @@ func extractPattern(toolName string, input json.RawMessage) string {
 				return firstToken(s)
 			}
 		}
-	case "file_write":
-		if p, ok := m["path"]; ok {
-			var s string
-			if json.Unmarshal(p, &s) == nil {
-				return s
-			}
-		}
-	case "file_edit":
+	case "file_write", "file_edit":
 		if p, ok := m["path"]; ok {
 			var s string
 			if json.Unmarshal(p, &s) == nil {
