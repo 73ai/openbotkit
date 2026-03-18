@@ -18,7 +18,7 @@ import (
 	tgchannel "github.com/73ai/openbotkit/channel/telegram"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"

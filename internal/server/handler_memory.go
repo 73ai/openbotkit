@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/store"
 )

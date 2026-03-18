@@ -13,7 +13,7 @@ import (
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/testutil"
-	"github.com/73ai/openbotkit/memory"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/provider/anthropic"
 	"github.com/73ai/openbotkit/provider/gemini"
