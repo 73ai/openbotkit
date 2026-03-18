@@ -108,35 +108,68 @@ Auto-approved actions still notify the user ("Auto-approved: Send message to #ge
 
 If the user approves 5+ actions within 30 seconds, the system flags it: "You've approved several actions quickly. Take a moment to review." This rubber-stamp detection is deliberately conservative.
 
-### Defense layer 6: Bash command filtering
+### Defense layer 6: Three-tier tool safety model
 
-The bash tool filters commands through either an allowlist or blocklist.
+Tools are classified into three tiers based on their risk profile:
 
-**Interactive mode** uses a blocklist. Blocked commands include network tools (`curl`, `wget`, `nc`), remote access (`ssh`, `scp`, `sudo`), shell wrappers that could bypass the filter (`bash -c`, `env`, `xargs`), and interpreters (`python`, `ruby`, `node`, `perl`). The filter:
+| Tier | Gate | Tools |
+|------|------|-------|
+| **1: Free** | None | `file_read`, `dir_explore`, `content_search` |
+| **2: Approved** | User confirms | `bash`, `file_write`, `file_edit` |
+| **3: Sandboxed** | OS sandbox (no approval needed) | `sandbox_exec` |
 
+**Tier 1 (free)** tools are pure Go implementations with no subprocess execution. They can only read data and cannot be exploited to execute arbitrary commands.
+
+**Tier 2 (approved)** tools use a soft allowlist in interactive mode. Commands on the `InteractiveAllowlist` (`ls`, `cat`, `git`, `grep`, etc.) run freely. Commands not on the list trigger a user approval prompt via `GuardedAction`. `file_write` and `file_edit` always require approval. After 3 approvals of the same pattern, the system auto-approves similar actions for the session.
+
+**Tier 3 (sandboxed)** tools run code inside an OS-level sandbox (Seatbelt on macOS, bubblewrap on Linux) with read-only filesystem and no network access. The sandbox is the safety — no approval prompt needed.
+
+### Defense layer 7: Bash command filtering
+
+The bash tool filters commands through a three-outcome check (`FilterResult`):
+
+- **FilterAllow**: Command is on the interactive allowlist — execute directly
+- **FilterPrompt**: Command is not on the allowlist — ask the user for approval
+- **FilterDeny**: Command is hard-blocked (scheduled mode only)
+
+The interactive allowlist includes safe read-only commands: `ls`, `cat`, `head`, `tail`, `grep`, `find`, `git`, `jq`, `echo`, `diff`, `wc`, `sort`, `uniq`, `date`, `cal`, `printf`, `tree`, `file`, `stat`, `which`, `rg`, `obk`, `sqlite3`.
+
+**Scheduled tasks** use a strict allowlist. Only `obk` and `sqlite3` are permitted. Everything else is hard-denied (no prompt, since there's no user).
+
+The filter:
 - Splits on pipes, chains, and semicolons
 - Checks inside `$()` and backtick substitutions
 - Strips path prefixes (`/usr/bin/curl` matches `curl`)
-- In blocklist mode, checks all tokens in each segment (catches `env curl evil.com`)
 
-**Scheduled tasks** use an allowlist. Only `obk` and `sqlite3` are permitted. Everything else is rejected.
+### Defense layer 8: OS-level sandboxing
 
-### Defense layer 7: Restricted registries
+The `sandbox_exec` tool provides kernel-level isolation:
+
+**macOS (Seatbelt)**: Uses `sandbox-exec` with a profile that denies default actions, allows file reads, denies `~/.ssh` reads, allows writes only to a temp directory, and denies all network access.
+
+**Linux (bubblewrap)**: Uses `bwrap` with read-only root bind, isolated `/tmp`, network namespace isolation (`--unshare-net`), PID isolation (`--unshare-pid`), and `--die-with-parent` to prevent orphan processes.
+
+Both runtimes enforce a 30-second timeout. If neither is available, the tool gracefully reports unavailability and directs the user to the bash tool (which requires approval).
+
+### Defense layer 9: Restricted registries
 
 Scheduled tasks get a separate tool registry with fewer tools:
 
 | Interactive registry | Scheduled registry |
 |---------------------|-------------------|
-| bash (blocklist) | bash (allowlist: obk, sqlite3) |
+| bash (soft allowlist + approval) | bash (strict allowlist: obk, sqlite3) |
 | file_read | file_read |
-| file_write | - |
-| file_edit | - |
+| file_write (approval required) | - |
+| file_edit (approval required) | - |
+| dir_explore | dir_explore |
+| content_search | content_search |
+| sandbox_exec | - |
 | load_skills | load_skills |
 | search_skills | search_skills |
 
-No file writes, no file edits. Bash restricted to known-safe commands. The scheduled registry physically cannot register write tools.
+No file writes, no file edits, no sandbox execution in scheduled mode. Bash restricted to known-safe commands. The scheduled registry physically cannot register write tools.
 
-### Defense layer 8: Audit logging
+### Defense layer 10: Audit logging
 
 Every tool execution is recorded to `~/.obk/audit/data.db`:
 
@@ -161,7 +194,7 @@ Logging is fire-and-forget — a failed log write never blocks tool execution. T
 
 Claude Code's safety architecture was the primary reference for our layered approach. Several specific lessons informed our design:
 
-**Blocklists are fragile.** Claude Code originally used a blocklist for bash commands and had to patch 8 distinct bypass techniques (CVE-2025-66032) before switching to an allowlist. We use a blocklist for interactive mode as a speed bump (not a security boundary) and a strict allowlist for unattended scheduled tasks where the stakes are higher.
+**Blocklists are fragile.** Claude Code originally used a blocklist for bash commands and had to patch 8 distinct bypass techniques (CVE-2025-66032) before switching to an allowlist. We switched from a blocklist to a soft allowlist + approval model: commands on the allowlist auto-run, unknown commands require user approval, and scheduled tasks use a strict allowlist.
 
 **Defense in depth works.** No single layer of Claude Code's safety is sufficient on its own. The permission system can be social-engineered through prompt injection. The sandbox can be disabled via the escape hatch. Hooks can be bypassed through bash. But the combination of all layers makes attacks much harder. We follow the same principle — system prompt hardening, content boundaries, injection scanning, approval gates, command filtering, restricted registries, and audit logging all work together.
 
@@ -177,11 +210,11 @@ Trail of Bits observed that sandboxes can be socially engineered — an agent ca
 
 **Prompt injection is not solved.** Our defenses raise the bar but a sufficiently clever injection payload can still influence LLM behavior. The boundary markers and scanning are detection and deterrence, not prevention.
 
-**The blocklist is a speed bump.** In interactive mode, the bash command filter is a blocklist. A determined attacker who controls email or message content could craft commands that bypass it. The scheduled task allowlist is a real security boundary; the interactive blocklist is not.
+**The allowlist is not exhaustive.** In interactive mode, commands not on the allowlist trigger an approval prompt rather than being blocked. A user who rubber-stamps approvals could still allow dangerous commands. The rubber-stamp detection mitigates but doesn't eliminate this risk.
 
 **The shell parser is simplified.** `splitShellSegments` doesn't handle quoted strings. `echo "a || b"` would be incorrectly split on `||`. This hasn't caused issues in practice because the LLM doesn't typically generate commands with operators inside quotes, but it's a known gap.
 
-**No OS-level sandboxing.** Claude Code uses Seatbelt (macOS) and bubblewrap (Linux) for kernel-level filesystem and network isolation. We don't have an equivalent yet. The bash filter and restricted registry are application-level controls that can be bypassed if code execution is achieved through other means.
+**Sandbox availability varies.** The `sandbox_exec` tool requires Seatbelt (macOS) or bubblewrap (Linux). On systems without either, the tool gracefully degrades but sandboxed execution is unavailable. The Seatbelt profile allows read access to most of the filesystem — it's network isolation, not full containment.
 
 **Audit is append-only, not real-time.** The audit log records what happened but doesn't prevent anything. There's no real-time alerting on suspicious patterns. The log is useful for post-incident review, not active defense.
 
