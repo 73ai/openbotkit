@@ -3,13 +3,11 @@ package tty
 import (
 	"fmt"
 	"os"
-
-	"github.com/mattn/go-isatty"
 )
 
 // IsInteractive returns true if both stdin and stdout are terminals.
 func IsInteractive() bool {
-	return isatty.IsTerminal(os.Stdin.Fd()) && isatty.IsTerminal(os.Stdout.Fd())
+	return isTerminal(os.Stdin.Fd()) && isTerminal(os.Stdout.Fd())
 }
 
 // RequireInteractive returns an error if the session is not interactive,
