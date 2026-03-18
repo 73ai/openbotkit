@@ -58,3 +58,15 @@ func TestCLIInteractor_RequestApproval_DefaultDeny(t *testing.T) {
 		t.Error("expected default to deny")
 	}
 }
+
+func TestCLIInteractor_NotifyLink(t *testing.T) {
+	var out bytes.Buffer
+	ch := clicli.New(strings.NewReader(""), &out)
+	inter := NewCLIInteractor(ch)
+	if err := inter.NotifyLink("Click here", "https://example.com"); err != nil {
+		t.Fatalf("NotifyLink: %v", err)
+	}
+	if !strings.Contains(out.String(), "https://example.com") {
+		t.Errorf("output = %q, want to contain URL", out.String())
+	}
+}
