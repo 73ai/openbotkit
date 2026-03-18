@@ -26,17 +26,28 @@ func NewScopeWaiter() *ScopeWaiter {
 	return &ScopeWaiter{pending: make(map[string]*pendingAuth)}
 }
 
-// Wait blocks until Signal is called for the given state or the timeout expires.
-// The scopes and account are stored so the callback can retrieve them via Lookup.
-func (w *ScopeWaiter) Wait(state string, timeout time.Duration, scopes []string, account string) error {
+// Register adds a pending auth entry so that Signal can resolve it
+// even before Await is called — eliminating the race where Signal
+// fires between NotifyLink and Await.
+func (w *ScopeWaiter) Register(state string, scopes []string, account string) {
 	w.mu.Lock()
-	p := &pendingAuth{
+	w.pending[state] = &pendingAuth{
 		ch:      make(chan error, 1),
 		scopes:  scopes,
 		account: account,
 	}
-	w.pending[state] = p
 	w.mu.Unlock()
+}
+
+// Await blocks until Signal is called for a previously registered state
+// or the timeout expires.
+func (w *ScopeWaiter) Await(state string, timeout time.Duration) error {
+	w.mu.Lock()
+	p, ok := w.pending[state]
+	w.mu.Unlock()
+	if !ok {
+		return errors.New("state not registered")
+	}
 
 	defer func() {
 		w.mu.Lock()
@@ -50,6 +61,13 @@ func (w *ScopeWaiter) Wait(state string, timeout time.Duration, scopes []string,
 	case <-time.After(timeout):
 		return ErrAuthTimeout
 	}
+}
+
+// Wait registers a state and blocks until Signal is called or timeout.
+// For race-free usage prefer Register + Await.
+func (w *ScopeWaiter) Wait(state string, timeout time.Duration, scopes []string, account string) error {
+	w.Register(state, scopes, account)
+	return w.Await(state, timeout)
 }
 
 // Lookup returns the scopes and account associated with a pending state.

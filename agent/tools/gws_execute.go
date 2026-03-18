@@ -210,6 +210,9 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 	if err != nil {
 		return fmt.Errorf("generate auth URL: %w", err)
 	}
+	// Register before notifying so Signal can't race ahead of Await.
+	g.scopeWaiter.Register(state, scopes, g.account)
+
 	if err := g.interactor.Notify("I need additional Google access to complete this request."); err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}
@@ -217,7 +220,7 @@ func (g *GWSExecuteTool) requestConsent(ctx context.Context, scopes []string) er
 		return fmt.Errorf("notify link: %w", err)
 	}
 
-	if err := g.scopeWaiter.Wait(state, g.authTimeout, scopes, g.account); err != nil {
+	if err := g.scopeWaiter.Await(state, g.authTimeout); err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
 
