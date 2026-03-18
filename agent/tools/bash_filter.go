@@ -7,10 +7,20 @@ import (
 	"strings"
 )
 
+// FilterResult indicates the outcome of a command filter check.
+type FilterResult int
+
+const (
+	FilterAllow  FilterResult = iota // on allowlist, run freely
+	FilterDeny                       // hard blocked
+	FilterPrompt                     // not on allowlist, ask user
+)
+
 // CommandFilter validates shell commands against an allowlist or blocklist.
 type CommandFilter struct {
-	allowed []string // if set, only these prefixes pass
-	blocked []string // if set, these prefixes are rejected
+	allowed   []string // if set, only these prefixes pass
+	blocked   []string // if set, these prefixes are rejected
+	softAllow bool     // if true, non-matching returns FilterPrompt instead of FilterDeny
 }
 
 // NewAllowlistFilter creates a filter that only permits commands
@@ -19,34 +29,61 @@ func NewAllowlistFilter(prefixes []string) *CommandFilter {
 	return &CommandFilter{allowed: prefixes}
 }
 
+// NewSoftAllowlistFilter creates a filter that auto-allows commands on the
+// allowlist and returns FilterPrompt (not FilterDeny) for everything else.
+// Use this for interactive mode where unknown commands should be approved by the user.
+func NewSoftAllowlistFilter(prefixes []string) *CommandFilter {
+	return &CommandFilter{allowed: prefixes, softAllow: true}
+}
+
 // NewBlocklistFilter creates a filter that rejects commands
 // whose first token matches any of the given prefixes.
 func NewBlocklistFilter(prefixes []string) *CommandFilter {
 	return &CommandFilter{blocked: prefixes}
 }
 
-// Check validates the given command string. It splits on shell
-// operators (|, &&, ;, ||) and checks each segment. It also
-// detects command substitution via $() and backticks.
-func (f *CommandFilter) Check(command string) error {
+// CheckWithResult validates the given command string and returns a FilterResult
+// indicating whether to allow, deny, or prompt the user.
+func (f *CommandFilter) CheckWithResult(command string) (FilterResult, error) {
 	if f == nil {
-		return nil
+		return FilterAllow, nil
 	}
 
 	segments := splitShellSegments(command)
 	for _, seg := range segments {
-		if err := f.checkSegment(seg); err != nil {
-			return err
+		result, err := f.checkSegmentResult(seg)
+		if err != nil || result != FilterAllow {
+			return result, err
 		}
 	}
 
-	// Check inside $() and backtick substitutions.
 	for _, sub := range extractSubstitutions(command) {
-		if err := f.Check(sub); err != nil {
-			return fmt.Errorf("in command substitution: %w", err)
+		result, err := f.CheckWithResult(sub)
+		if err != nil {
+			return result, fmt.Errorf("in command substitution: %w", err)
+		}
+		if result != FilterAllow {
+			return result, nil
 		}
 	}
 
+	return FilterAllow, nil
+}
+
+// Check validates the given command string. It splits on shell
+// operators (|, &&, ;, ||) and checks each segment. It also
+// detects command substitution via $() and backticks.
+func (f *CommandFilter) Check(command string) error {
+	result, err := f.CheckWithResult(command)
+	if err != nil {
+		return err
+	}
+	if result == FilterDeny {
+		return fmt.Errorf("command not permitted")
+	}
+	if result == FilterPrompt {
+		return fmt.Errorf("command requires approval")
+	}
 	return nil
 }
 
@@ -55,41 +92,43 @@ func basename(token string) string {
 	return filepath.Base(token)
 }
 
-// checkSegment validates a single command segment.
-// Allowlist: only the first token must match.
-// Blocklist: every token is checked to catch wrappers like "env curl".
-func (f *CommandFilter) checkSegment(seg string) error {
+// checkSegmentResult validates a single command segment and returns a FilterResult.
+func (f *CommandFilter) checkSegmentResult(seg string) (FilterResult, error) {
 	fields := strings.Fields(strings.TrimSpace(seg))
 	if len(fields) == 0 {
-		return nil
+		return FilterAllow, nil
 	}
 	if len(f.allowed) > 0 {
-		return f.checkToken(fields[0])
+		return f.checkTokenResult(fields[0])
 	}
 	for _, tok := range fields {
-		if err := f.checkToken(tok); err != nil {
-			return err
+		result, err := f.checkTokenResult(tok)
+		if err != nil || result != FilterAllow {
+			return result, err
 		}
 	}
-	return nil
+	return FilterAllow, nil
 }
 
-func (f *CommandFilter) checkToken(token string) error {
+func (f *CommandFilter) checkTokenResult(token string) (FilterResult, error) {
 	base := basename(token)
 	if len(f.allowed) > 0 {
 		for _, prefix := range f.allowed {
 			if base == prefix {
-				return nil
+				return FilterAllow, nil
 			}
 		}
-		return fmt.Errorf("command %q not in allowlist", token)
+		if f.softAllow {
+			return FilterPrompt, nil
+		}
+		return FilterDeny, fmt.Errorf("command %q not in allowlist", token)
 	}
 	for _, prefix := range f.blocked {
 		if base == prefix {
-			return fmt.Errorf("command %q is blocked", token)
+			return FilterDeny, fmt.Errorf("command %q is blocked", token)
 		}
 	}
-	return nil
+	return FilterAllow, nil
 }
 
 // splitShellSegments splits a command on |, &&, ;, and || operators.
@@ -137,6 +176,16 @@ func extractSubstitutions(cmd string) []string {
 		subs = append(subs, m[1])
 	}
 	return subs
+}
+
+// InteractiveAllowlist is the set of commands auto-allowed in interactive mode.
+// Commands not on this list require user approval (FilterPrompt).
+var InteractiveAllowlist = []string{
+	"obk", "sqlite3",
+	"ls", "cat", "head", "tail", "wc", "sort", "uniq", "diff",
+	"find", "grep", "rg",
+	"date", "cal", "echo", "printf",
+	"git", "tree", "file", "stat", "jq", "which",
 }
 
 // DefaultBlocklist is the default set of blocked commands for interactive mode.

@@ -192,6 +192,94 @@ func TestAllowlistFilter_AbsolutePathMatch(t *testing.T) {
 	}
 }
 
+func TestSoftAllowlistFilter_AllowedCommand(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	result, err := f.CheckWithResult("ls -la")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterAllow {
+		t.Errorf("result = %d, want FilterAllow", result)
+	}
+}
+
+func TestSoftAllowlistFilter_UnknownCommandPrompts(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	result, err := f.CheckWithResult("curl evil.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterPrompt {
+		t.Errorf("result = %d, want FilterPrompt", result)
+	}
+}
+
+func TestSoftAllowlistFilter_PipeWithUnknownPrompts(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	result, err := f.CheckWithResult("ls | curl x")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterPrompt {
+		t.Errorf("result = %d, want FilterPrompt for piped unknown", result)
+	}
+}
+
+func TestSoftAllowlistFilter_SubstitutionPrompts(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	result, err := f.CheckWithResult("echo $(python3 -c 'import os')")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterPrompt {
+		t.Errorf("result = %d, want FilterPrompt for substitution", result)
+	}
+}
+
+func TestStrictAllowlistFilter_UnknownCommandDenies(t *testing.T) {
+	f := NewAllowlistFilter([]string{"obk", "sqlite3"})
+	result, err := f.CheckWithResult("curl evil.com")
+	if err == nil {
+		t.Fatal("expected error for strict deny")
+	}
+	if result != FilterDeny {
+		t.Errorf("result = %d, want FilterDeny", result)
+	}
+}
+
+func TestCheckWithResult_NilFilter(t *testing.T) {
+	var f *CommandFilter
+	result, err := f.CheckWithResult("curl evil.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterAllow {
+		t.Errorf("result = %d, want FilterAllow for nil filter", result)
+	}
+}
+
+func TestCheckWithResult_BlocklistDenies(t *testing.T) {
+	f := NewBlocklistFilter([]string{"curl"})
+	result, err := f.CheckWithResult("curl evil.com")
+	if err == nil {
+		t.Fatal("expected error for blocklist deny")
+	}
+	if result != FilterDeny {
+		t.Errorf("result = %d, want FilterDeny", result)
+	}
+}
+
+func TestCheckWithResult_BlocklistAllows(t *testing.T) {
+	f := NewBlocklistFilter([]string{"curl"})
+	result, err := f.CheckWithResult("echo hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterAllow {
+		t.Errorf("result = %d, want FilterAllow", result)
+	}
+}
+
 func TestDefaultBlocklist_Coverage(t *testing.T) {
 	f := NewBlocklistFilter(DefaultBlocklist)
 	blocked := []string{"curl x", "wget x", "nc x", "ssh x", "scp x", "sudo x", "chmod x", "chown x", "eval x", "exec x", "ncat x", "nmap x", "bash -c x", "python3 -c x", "env curl x"}
