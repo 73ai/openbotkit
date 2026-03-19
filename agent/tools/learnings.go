@@ -1,0 +1,290 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"github.com/73ai/openbotkit/agent"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/service/learnings"
+)
+
+// LearningsNotifier sends push notifications for learning events.
+// This avoids importing the channel package (which imports tools).
+type LearningsNotifier interface {
+	Push(ctx context.Context, message string) error
+}
+
+type LearningsDeps struct {
+	Store    *learnings.Store
+	BaseURL  string
+	Notifier LearningsNotifier
+}
+
+type LearningsExtractDeps struct {
+	LearningsDeps
+	Provider provider.Provider
+	Model    string
+}
+
+// LearningSaveTool
+
+type LearningSaveTool struct {
+	deps LearningsDeps
+}
+
+func NewLearningSaveTool(deps LearningsDeps) *LearningSaveTool {
+	return &LearningSaveTool{deps: deps}
+}
+
+func (t *LearningSaveTool) Name() string        { return "learnings_save" }
+func (t *LearningSaveTool) Description() string { return "Save learnings as bullet points under a topic" }
+func (t *LearningSaveTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"topic": {
+				"type": "string",
+				"description": "Topic name (e.g. Go, SQL, Docker)"
+			},
+			"bullets": {
+				"type": "array",
+				"items": {"type": "string"},
+				"description": "List of learning bullet points"
+			}
+		},
+		"required": ["topic", "bullets"]
+	}`)
+}
+
+type learningSaveInput struct {
+	Topic   string   `json:"topic"`
+	Bullets []string `json:"bullets"`
+}
+
+func (t *LearningSaveTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+	var in learningSaveInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return "", fmt.Errorf("parse input: %w", err)
+	}
+	if in.Topic == "" {
+		return "", fmt.Errorf("topic is required")
+	}
+	if len(in.Bullets) == 0 {
+		return "", fmt.Errorf("at least one bullet is required")
+	}
+
+	if err := t.deps.Store.Save(in.Topic, in.Bullets); err != nil {
+		return "", fmt.Errorf("save learning: %w", err)
+	}
+
+	if t.deps.Notifier != nil {
+		slug := t.deps.Store.Slug(in.Topic)
+		msg := fmt.Sprintf("Learned about **%s**:\n- %s", in.Topic, strings.Join(in.Bullets, "\n- "))
+		if t.deps.BaseURL != "" {
+			msg += fmt.Sprintf("\n\n%s/learnings/%s", t.deps.BaseURL, slug)
+		}
+		if err := t.deps.Notifier.Push(ctx, msg); err != nil {
+			slog.Warn("learnings: notification failed", "error", err)
+		}
+	}
+
+	return fmt.Sprintf("Saved %d bullet(s) under topic %q.", len(in.Bullets), in.Topic), nil
+}
+
+// LearningReadTool
+
+type LearningReadTool struct {
+	deps LearningsDeps
+}
+
+func NewLearningReadTool(deps LearningsDeps) *LearningReadTool {
+	return &LearningReadTool{deps: deps}
+}
+
+func (t *LearningReadTool) Name() string        { return "learnings_read" }
+func (t *LearningReadTool) Description() string { return "Read a learning topic or list all topics" }
+func (t *LearningReadTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"topic": {
+				"type": "string",
+				"description": "Topic name to read. Omit to list all topics."
+			}
+		}
+	}`)
+}
+
+type learningReadInput struct {
+	Topic string `json:"topic"`
+}
+
+func (t *LearningReadTool) Execute(_ context.Context, input json.RawMessage) (string, error) {
+	var in learningReadInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return "", fmt.Errorf("parse input: %w", err)
+	}
+
+	if in.Topic == "" {
+		topics, err := t.deps.Store.List()
+		if err != nil {
+			return "", err
+		}
+		if len(topics) == 0 {
+			return "No learning topics saved yet.", nil
+		}
+		return "Topics:\n- " + strings.Join(topics, "\n- "), nil
+	}
+
+	content, err := t.deps.Store.Read(in.Topic)
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
+// LearningSearchTool
+
+type LearningSearchTool struct {
+	deps LearningsDeps
+}
+
+func NewLearningSearchTool(deps LearningsDeps) *LearningSearchTool {
+	return &LearningSearchTool{deps: deps}
+}
+
+func (t *LearningSearchTool) Name() string { return "learnings_search" }
+func (t *LearningSearchTool) Description() string {
+	return "Search across all saved learnings"
+}
+func (t *LearningSearchTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "Search query"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+type learningSearchInput struct {
+	Query string `json:"query"`
+}
+
+func (t *LearningSearchTool) Execute(_ context.Context, input json.RawMessage) (string, error) {
+	var in learningSearchInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return "", fmt.Errorf("parse input: %w", err)
+	}
+	if in.Query == "" {
+		return "", fmt.Errorf("query is required")
+	}
+
+	results, err := t.deps.Store.Search(in.Query)
+	if err != nil {
+		return "", err
+	}
+	if len(results) == 0 {
+		return "No results found.", nil
+	}
+
+	var b strings.Builder
+	for _, r := range results {
+		fmt.Fprintf(&b, "[%s] %s\n", r.Topic, r.Line)
+	}
+	return b.String(), nil
+}
+
+// LearningExtractTool
+
+type LearningExtractTool struct {
+	deps LearningsExtractDeps
+}
+
+func NewLearningExtractTool(deps LearningsExtractDeps) *LearningExtractTool {
+	return &LearningExtractTool{deps: deps}
+}
+
+func (t *LearningExtractTool) Name() string { return "learnings_extract" }
+func (t *LearningExtractTool) Description() string {
+	return "Extract and save key learnings from source material (runs in background)"
+}
+func (t *LearningExtractTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"context": {
+				"type": "string",
+				"description": "Source material to extract learnings from"
+			}
+		},
+		"required": ["context"]
+	}`)
+}
+
+type learningExtractInput struct {
+	Context string `json:"context"`
+}
+
+func (t *LearningExtractTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
+	var in learningExtractInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return "", fmt.Errorf("parse input: %w", err)
+	}
+	if in.Context == "" {
+		return "", fmt.Errorf("context is required")
+	}
+
+	go t.run(context.Background(), in.Context)
+
+	return "Extraction started. You'll get a notification when done.", nil
+}
+
+func (t *LearningExtractTool) run(ctx context.Context, material string) {
+	subDeps := LearningsDeps{Store: t.deps.Store}
+	toolReg := NewRegistry()
+	toolReg.Register(NewLearningSaveTool(subDeps))
+	toolReg.Register(NewLearningReadTool(subDeps))
+
+	system := `You are a learning extraction assistant. Read the provided material and extract key learnings.
+For each distinct topic, call learnings_save with a topic name and concise bullet points.
+Use learnings_read first to check existing topics so you can append to them rather than creating duplicates.
+Keep bullet points casual, concise, and useful. No emdashes.`
+
+	blocks := []provider.SystemBlock{
+		{Text: system, CacheControl: &provider.CacheControl{Type: "ephemeral"}},
+	}
+
+	a := agent.New(t.deps.Provider, t.deps.Model, toolReg,
+		agent.WithSystemBlocks(blocks),
+		agent.WithMaxIterations(15),
+	)
+
+	result, err := a.Run(ctx, material)
+	if err != nil {
+		slog.Error("learnings: extraction failed", "error", err)
+		return
+	}
+
+	if t.deps.Notifier != nil {
+		msg := "Finished extracting learnings from your material."
+		if result != "" {
+			if len(result) > 200 {
+				result = result[:200] + "..."
+			}
+			msg += "\n\n" + result
+		}
+		if err := t.deps.Notifier.Push(ctx, msg); err != nil {
+			slog.Warn("learnings: extract notification failed", "error", err)
+		}
+	}
+
+	slog.Info("learnings: extraction complete")
+}
