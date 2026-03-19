@@ -137,6 +137,18 @@ For recurring tasks, use type "recurring" with a UTC cron expression.
 `)
 	}
 
+	// Learnings section — only if learnings tools are registered.
+	if reg.Has("learnings_save") {
+		b.WriteString(`
+## Learnings
+Use learnings_save to save things the user learned as bullet points under a topic.
+Use learnings_read to check existing learnings or list all topics.
+Use learnings_search to search across all saved learnings.
+Use learnings_extract to automatically extract and save key learnings from conversation context or other sources. This runs in the background.
+Keep language casual and friendly. No emdashes. Keep bullet points concise and not too detailed.
+`)
+	}
+
 	// Skills section.
 	b.WriteString("\n## Skills\n")
 	if reg.Has("gws_execute") {
