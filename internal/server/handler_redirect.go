@@ -37,7 +37,7 @@ a.btn{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#428
 <script>
 (function(){
   var link = document.getElementById('auth-link');
-  if (!/Telegram/i.test(navigator.userAgent)) {
+  if (!window.TelegramWebviewProxy && !/Telegram/i.test(navigator.userAgent)) {
     window.location.replace(link.href);
   }
 })();
