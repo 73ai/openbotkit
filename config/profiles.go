@@ -27,7 +27,7 @@ type ProfileTiers struct {
 var Profiles = map[string]ModelProfile{
 	"gemini": {
 		Name:        "gemini",
-		Label:       "Gemini (1 API key)",
+		Label:       "Gemini (single provider)",
 		Description: "Google Gemini models. Free tier available.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -40,7 +40,7 @@ var Profiles = map[string]ModelProfile{
 	},
 	"anthropic": {
 		Name:        "anthropic",
-		Label:       "Anthropic (1 API key)",
+		Label:       "Anthropic (single provider)",
 		Description: "Claude models from Anthropic.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -53,7 +53,7 @@ var Profiles = map[string]ModelProfile{
 	},
 	"groq": {
 		Name:        "groq",
-		Label:       "Groq (1 API key, open-source)",
+		Label:       "Groq (single provider)",
 		Description: "Open-source Llama models with fast inference via Groq.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -66,7 +66,7 @@ var Profiles = map[string]ModelProfile{
 	},
 	"openrouter": {
 		Name:        "openrouter",
-		Label:       "OpenRouter (1 API key)",
+		Label:       "OpenRouter (single provider)",
 		Description: "Access 500+ models through OpenRouter.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -79,7 +79,7 @@ var Profiles = map[string]ModelProfile{
 	},
 	"openai": {
 		Name:        "openai",
-		Label:       "OpenAI (1 API key)",
+		Label:       "OpenAI (single provider)",
 		Description: "GPT models from OpenAI.",
 		Category:    "single",
 		Tiers: ProfileTiers{

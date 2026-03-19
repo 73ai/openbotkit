@@ -152,7 +152,7 @@ func modelsCategory(svc *Service) *Category {
 
 	return &Category{
 		Key:      "models",
-		Label:    "Models",
+		Label:    "LLM Models",
 		Children: children,
 	}
 }
@@ -160,7 +160,7 @@ func modelsCategory(svc *Service) *Category {
 func profileField(svc *Service) *Field {
 	return &Field{
 		Key:   "models.profile",
-		Label: "Profile",
+		Label: "LLM Cost Profile",
 		Type:  TypeString,
 		Get: func(c *config.Config) string {
 			if c.Models == nil || c.Models.Profile == "" {
