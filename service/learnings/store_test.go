@@ -80,6 +80,18 @@ func TestReadNotFound(t *testing.T) {
 	}
 }
 
+func TestReadRejectsPathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	st := New(dir)
+
+	for _, bad := range []string{"../etc/passwd", "foo/bar", "test\\path"} {
+		_, err := st.Read(bad)
+		if err == nil {
+			t.Errorf("expected error for topic %q", bad)
+		}
+	}
+}
+
 func TestList(t *testing.T) {
 	dir := t.TempDir()
 	st := New(dir)

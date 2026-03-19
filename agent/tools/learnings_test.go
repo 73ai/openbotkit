@@ -70,7 +70,8 @@ func TestLearningReadToolListTopics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if !strings.Contains(result, "go") || !strings.Contains(result, "sql") {
+	lower := strings.ToLower(result)
+	if !strings.Contains(lower, "go") || !strings.Contains(lower, "sql") {
 		t.Errorf("expected both topics, got: %s", result)
 	}
 }
