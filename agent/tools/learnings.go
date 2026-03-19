@@ -259,10 +259,13 @@ func (t *LearningExtractTool) run(ctx context.Context, material string) {
 	toolReg.Register(NewLearningReadTool(subDeps))
 
 	system := `You are a learning extraction assistant. Read the provided material and extract key learnings.
+Learnings are knowledge, techniques, insights, or skills the user picked up. Things like how something works, a useful pattern, a gotcha to avoid.
+Do NOT save: personal info (name, timezone, contacts), factual lookups (currency conversions, weather), trivial Q&A, or preferences. Those are not learnings.
+If the material has nothing worth saving as a learning, just reply "Nothing to save here" and do not call any tools.
 For each distinct topic, call learnings_save with a topic name and concise bullet points.
 Use learnings_read first to check existing topics so you can append to them rather than creating duplicates.
 Keep bullet points casual, concise, and useful. No emdashes.
-After saving everything, reply with a short friendly 1-2 sentence summary of what you saved (e.g. "Saved some notes on Go concurrency and SQL indexing"). This will be sent as a notification.`
+After saving, reply with a short friendly 1-2 sentence summary of what you saved. If you saved nothing, say so. This message will be sent as a notification.`
 
 	blocks := []provider.SystemBlock{
 		{Text: system, CacheControl: &provider.CacheControl{Type: "ephemeral"}},
