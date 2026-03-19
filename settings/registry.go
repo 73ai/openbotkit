@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/73ai/openbotkit/config"
@@ -71,12 +72,31 @@ func generalCategory() *Category {
 
 func modelsCategory(svc *Service) *Category {
 	children := []Node{
-		{Category: providersCategory(svc)},
 		{Field: profileField(svc)},
-		{Field: modelTierField(svc, "models.default", "Default Model", "default")},
-		{Field: modelTierField(svc, "models.complex", "Complex Model", "complex")},
-		{Field: modelTierField(svc, "models.fast", "Fast Model", "fast")},
-		{Field: modelTierField(svc, "models.nano", "Nano Model", "nano")},
+		{Field: modelTierDisplay("models.default", "Default Model", func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			return c.Models.Default
+		})},
+		{Field: modelTierDisplay("models.complex", "Complex Model", func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			return c.Models.Complex
+		})},
+		{Field: modelTierDisplay("models.fast", "Fast Model", func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			return c.Models.Fast
+		})},
+		{Field: modelTierDisplay("models.nano", "Nano Model", func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			return c.Models.Nano
+		})},
 		{Field: &Field{
 			Key:   "models.context_window",
 			Label: "Context Window",
@@ -127,6 +147,7 @@ func modelsCategory(svc *Service) *Category {
 				return nil
 			},
 		}},
+		{Category: providersCategory(svc)},
 	}
 
 	return &Category{
@@ -140,75 +161,42 @@ func profileField(svc *Service) *Field {
 	return &Field{
 		Key:   "models.profile",
 		Label: "Profile",
-		Type:  TypeSelect,
-		OptionsFunc: func(c *config.Config) []Option {
-			configured := configuredProviders(c)
-			opts := []Option{{"(none)", ""}}
-			for _, name := range config.ProfileNames {
-				p := config.Profiles[name]
-				if !allProvidersConfigured(p.Providers, configured) {
-					continue
+		Type:  TypeString,
+		Get: func(c *config.Config) string {
+			if c.Models == nil || c.Models.Profile == "" {
+				if c.Models != nil && c.Models.Default != "" {
+					return "(custom)"
 				}
-				opts = append(opts, Option{p.Label, name})
+				return "(not configured)"
 			}
-			if c.Models != nil && len(c.Models.CustomProfiles) > 0 {
-				var names []string
-				for n := range c.Models.CustomProfiles {
-					names = append(names, n)
-				}
-				sort.Strings(names)
-				for _, n := range names {
-					cp := c.Models.CustomProfiles[n]
-					if !allProvidersConfigured(cp.Providers, configured) {
-						continue
-					}
+			name := c.Models.Profile
+			if p, ok := config.Profiles[name]; ok {
+				return p.Label
+			}
+			if c.Models.CustomProfiles != nil {
+				if cp, ok := c.Models.CustomProfiles[name]; ok {
 					label := cp.Label
 					if label == "" {
-						label = n
+						label = name
 					}
-					opts = append(opts, Option{label + " (custom)", n})
+					return label + " (custom)"
 				}
 			}
-			return opts
+			return name
 		},
-		Get: func(c *config.Config) string {
-			if c.Models == nil {
-				return ""
-			}
-			return c.Models.Profile
-		},
-		Set: func(c *config.Config, v string) error {
-			ensureModels(c)
-			c.Models.Profile = v
-			return nil
-		},
+		Set:      func(c *config.Config, v string) error { return nil },
+		EditFunc: profileWizard,
 	}
 }
 
-func modelTierField(svc *Service, key, label, tier string) *Field {
+// modelTierDisplay creates a display-only field for a model tier.
+// Editable only when profile is custom (no fixed profile set).
+func modelTierDisplay(key, label string, getter func(*config.Config) string) *Field {
 	return &Field{
 		Key:   key,
 		Label: label,
 		Type:  TypeSelect,
-		OptionsFunc: func(c *config.Config) []Option {
-			return modelOptionsForTier(c, tier)
-		},
-		Get: func(c *config.Config) string {
-			if c.Models == nil {
-				return ""
-			}
-			switch key {
-			case "models.default":
-				return c.Models.Default
-			case "models.complex":
-				return c.Models.Complex
-			case "models.fast":
-				return c.Models.Fast
-			case "models.nano":
-				return c.Models.Nano
-			}
-			return ""
-		},
+		Get:   getter,
 		Set: func(c *config.Config, v string) error {
 			ensureModels(c)
 			switch key {
@@ -223,7 +211,269 @@ func modelTierField(svc *Service, key, label, tier string) *Field {
 			}
 			return nil
 		},
+		OptionsFunc: func(c *config.Config) []Option {
+			return modelOptionsForTier(c, tierFromKey(key))
+		},
+		ReadOnly: func(c *config.Config) bool {
+			if c.Models == nil || c.Models.Profile == "" {
+				return false
+			}
+			if _, ok := config.Profiles[c.Models.Profile]; ok {
+				return true
+			}
+			return false
+		},
 	}
+}
+
+func tierFromKey(key string) string {
+	switch key {
+	case "models.default":
+		return "default"
+	case "models.complex":
+		return "complex"
+	case "models.fast":
+		return "fast"
+	case "models.nano":
+		return "nano"
+	}
+	return ""
+}
+
+// profileWizard runs the multi-step profile configuration flow.
+func profileWizard(svc *Service) (string, error) {
+	cfg := svc.cfg
+
+	// Step 1: Select profile.
+	var profileName string
+	profileOptions := buildProfileSelectOptions()
+
+	if cfg.Models != nil && cfg.Models.Profile != "" {
+		profileName = cfg.Models.Profile
+	}
+
+	err := runProfileSelect(&profileName, profileOptions)
+	if err != nil {
+		return "", err
+	}
+
+	if profileName == "custom" {
+		return setupCustomProfile(svc)
+	}
+
+	return setupFixedProfile(svc, profileName)
+}
+
+func buildProfileSelectOptions() []Option {
+	var opts []Option
+	for _, name := range config.ProfileNames {
+		p := config.Profiles[name]
+		opts = append(opts, Option{p.Label + " — " + p.Description, name})
+	}
+	opts = append(opts, Option{"Custom (choose models manually)", "custom"})
+	return opts
+}
+
+// ProfilePreview returns a human-readable preview for a profile name.
+func ProfilePreview(name string) string {
+	p, ok := config.Profiles[name]
+	if !ok {
+		return ""
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Profile: %s\n", p.Label)
+	fmt.Fprintf(&b, "  Default: %s\n", p.Tiers.Default)
+	fmt.Fprintf(&b, "  Complex: %s\n", p.Tiers.Complex)
+	fmt.Fprintf(&b, "  Fast:    %s\n", p.Tiers.Fast)
+	fmt.Fprintf(&b, "  Nano:    %s\n", p.Tiers.Nano)
+	fmt.Fprintf(&b, "  Providers: %s", strings.Join(p.Providers, ", "))
+	return b.String()
+}
+
+func setupFixedProfile(svc *Service, profileName string) (string, error) {
+	p, ok := config.Profiles[profileName]
+	if !ok {
+		return "", fmt.Errorf("unknown profile %q", profileName)
+	}
+
+	fmt.Printf("\n%s\n\n", ProfilePreview(profileName))
+
+	// Configure required providers.
+	for _, provName := range p.Providers {
+		if err := configureProviderAuth(svc, provName); err != nil {
+			return "", err
+		}
+	}
+
+	// Verify all providers.
+	fmt.Println("\n  Verifying providers...")
+	for _, provName := range p.Providers {
+		pcfg := providerConfig(svc.cfg, provName)
+		if err := svc.VerifyProvider(provName, pcfg); err != nil {
+			return "", fmt.Errorf("  %s: verification failed: %w\n\n  Profile not saved. Fix provider auth and try again", provName, err)
+		}
+		fmt.Printf("  %s: verified\n", provName)
+	}
+
+	// All verified — save.
+	ensureModels(svc.cfg)
+	svc.cfg.Models.Profile = profileName
+	svc.cfg.Models.Default = p.Tiers.Default
+	svc.cfg.Models.Complex = p.Tiers.Complex
+	svc.cfg.Models.Fast = p.Tiers.Fast
+	svc.cfg.Models.Nano = p.Tiers.Nano
+
+	if err := svc.saveFn(svc.cfg); err != nil {
+		return "", fmt.Errorf("save: %w", err)
+	}
+
+	svc.RebuildTree()
+	return "Profile saved!", nil
+}
+
+func setupCustomProfile(svc *Service) (string, error) {
+	cfg := svc.cfg
+	configured := configuredProviders(cfg)
+
+	if len(configured) == 0 {
+		// Need at least one provider.
+		fmt.Println("\n  No providers configured. Set up at least one provider first.")
+		provName, err := selectProvider()
+		if err != nil {
+			return "", err
+		}
+		if err := configureProviderAuth(svc, provName); err != nil {
+			return "", err
+		}
+		configured = []string{provName}
+	}
+
+	// Select models for each tier.
+	ensureModels(cfg)
+	tiers := []struct {
+		label string
+		tier  string
+		dest  *string
+	}{
+		{"Default model", "default", &cfg.Models.Default},
+		{"Complex model", "complex", &cfg.Models.Complex},
+		{"Fast model", "fast", &cfg.Models.Fast},
+		{"Nano model", "nano", &cfg.Models.Nano},
+	}
+
+	// Collect which providers are actually needed.
+	neededProviders := make(map[string]bool)
+
+	for _, td := range tiers {
+		opts := modelOptionsForTier(cfg, td.tier)
+		selected, err := selectModel(td.label, opts, *td.dest)
+		if err != nil {
+			return "", err
+		}
+		*td.dest = selected
+		if selected != "" {
+			parts := strings.SplitN(selected, "/", 2)
+			if len(parts) >= 1 {
+				neededProviders[parts[0]] = true
+			}
+		}
+	}
+
+	// Configure auth for any needed providers that aren't configured.
+	for provName := range neededProviders {
+		pcfg := providerConfig(cfg, provName)
+		if pcfg.APIKeyRef == "" && pcfg.AuthMethod != "vertex_ai" {
+			fmt.Printf("\n  Provider %q requires authentication.\n", provName)
+			if err := configureProviderAuth(svc, provName); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	// Verify all needed providers.
+	fmt.Println("\n  Verifying providers...")
+	for provName := range neededProviders {
+		pcfg := providerConfig(cfg, provName)
+		if err := svc.VerifyProvider(provName, pcfg); err != nil {
+			return "", fmt.Errorf("  %s: verification failed: %w\n\n  Profile not saved. Fix provider auth and try again", provName, err)
+		}
+		fmt.Printf("  %s: verified\n", provName)
+	}
+
+	cfg.Models.Profile = ""
+	if err := svc.saveFn(cfg); err != nil {
+		return "", fmt.Errorf("save: %w", err)
+	}
+
+	svc.RebuildTree()
+	return "Custom profile saved!", nil
+}
+
+// configureProviderAuth prompts for API key if not already configured.
+func configureProviderAuth(svc *Service, provName string) error {
+	pcfg := providerConfig(svc.cfg, provName)
+
+	if pcfg.APIKeyRef != "" {
+		masked := maskCredential(svc, pcfg.APIKeyRef)
+		fmt.Printf("  %s: %s (leave blank to keep)\n", provName, masked)
+	} else {
+		fmt.Printf("  %s: not configured\n", provName)
+	}
+
+	var apiKey string
+	apiKey, err := promptAPIKey(provName, pcfg.APIKeyRef != "")
+	if err != nil {
+		return err
+	}
+
+	if apiKey == "" && pcfg.APIKeyRef != "" {
+		return nil
+	}
+	if apiKey == "" {
+		return fmt.Errorf("%s API key is required", provName)
+	}
+
+	ref := fmt.Sprintf("keychain:obk/%s", provName)
+	if err := svc.StoreCredential(ref, apiKey); err != nil {
+		return fmt.Errorf("store credential: %w", err)
+	}
+
+	ensureModels(svc.cfg)
+	if svc.cfg.Models.Providers == nil {
+		svc.cfg.Models.Providers = make(map[string]config.ModelProviderConfig)
+	}
+	pc := svc.cfg.Models.Providers[provName]
+	pc.APIKeyRef = ref
+	svc.cfg.Models.Providers[provName] = pc
+	return nil
+}
+
+// maskCredential loads a credential and returns a masked version like "sk-ant...4x2f".
+func maskCredential(svc *Service, ref string) string {
+	if svc.loadCred == nil {
+		return "(configured)"
+	}
+	key, err := svc.loadCred(ref)
+	if err != nil || key == "" {
+		return "(configured)"
+	}
+	return MaskKey(key)
+}
+
+// MaskKey masks an API key showing first 6 and last 4 chars.
+func MaskKey(key string) string {
+	if len(key) <= 10 {
+		return "****"
+	}
+	return key[:6] + "..." + key[len(key)-4:]
+}
+
+func providerConfig(cfg *config.Config, name string) config.ModelProviderConfig {
+	if cfg.Models != nil && cfg.Models.Providers != nil {
+		return cfg.Models.Providers[name]
+	}
+	return config.ModelProviderConfig{}
 }
 
 // modelOptionsForTier returns select options for a tier based on configured providers.
@@ -269,19 +519,6 @@ func configuredProviders(c *config.Config) []string {
 	return names
 }
 
-func allProvidersConfigured(required []string, configured []string) bool {
-	set := make(map[string]bool, len(configured))
-	for _, c := range configured {
-		set[c] = true
-	}
-	for _, r := range required {
-		if !set[r] {
-			return false
-		}
-	}
-	return true
-}
-
 func providersCategory(svc *Service) *Category {
 	type providerDef struct {
 		key        string
@@ -310,9 +547,9 @@ func providersCategory(svc *Service) *Category {
 	var children []Node
 	for _, p := range providers {
 		var fields []Node
-
 		ref := "keychain:" + p.keychainID
 		provKey := p.key
+
 		fields = append(fields, Node{Field: &Field{
 			Key:   "models.providers." + p.key + ".api_key",
 			Label: "API Key",
@@ -325,12 +562,7 @@ func providersCategory(svc *Service) *Category {
 				if !ok || pc.APIKeyRef == "" {
 					return "not configured"
 				}
-				if svc.loadCred != nil {
-					if _, err := svc.loadCred(pc.APIKeyRef); err == nil {
-						return "configured"
-					}
-				}
-				return "configured (ref: " + pc.APIKeyRef + ")"
+				return maskCredential(svc, pc.APIKeyRef)
 			},
 			Set: func(c *config.Config, v string) error {
 				if v == "" {
