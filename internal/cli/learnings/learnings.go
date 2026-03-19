@@ -20,14 +20,14 @@ var openCmd = &cobra.Command{
 	Short: "Open the learnings directory in your file browser",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir := config.LearningsDir()
-		var openCmd string
+		var opener string
 		switch runtime.GOOS {
 		case "darwin":
-			openCmd = "open"
+			opener = "open"
 		default:
-			openCmd = "xdg-open"
+			opener = "xdg-open"
 		}
-		return exec.Command(openCmd, dir).Start()
+		return exec.Command(opener, dir).Start()
 	},
 }
 
