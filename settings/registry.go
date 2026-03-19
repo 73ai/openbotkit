@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func BuildTree(svc *Service) []Node {
@@ -479,29 +480,34 @@ func providerConfig(cfg *config.Config, name string) config.ModelProviderConfig 
 	return config.ModelProviderConfig{}
 }
 
-// modelOptionsForTier returns select options for a tier based on configured providers.
+// modelOptionsForTier returns select options for a tier based on cached models.
 func modelOptionsForTier(c *config.Config, tier string) []Option {
 	configured := configuredProviders(c)
 	if len(configured) == 0 {
 		return []Option{{"(configure a provider first)", ""}}
 	}
 
-	available := config.ModelsForProviders(configured)
-	recommended := config.ModelsForTier(available, tier)
-
-	seen := make(map[string]bool)
+	cache := provider.NewModelCache(config.ModelsDir())
 	opts := []Option{{"(none)", ""}}
+	seen := make(map[string]bool)
 
-	for _, m := range recommended {
-		spec := m.Provider + "/" + m.ID
-		seen[spec] = true
-		opts = append(opts, Option{m.Label + " *", spec})
-	}
-	for _, m := range available {
-		spec := m.Provider + "/" + m.ID
-		if !seen[spec] {
+	for _, provName := range configured {
+		list, err := cache.Load(provName)
+		if err != nil || len(list.Models) == 0 {
+			opts = append(opts, Option{"(verify " + provName + " to see models)", ""})
+			continue
+		}
+		for _, m := range list.Models {
+			spec := provName + "/" + m.ID
+			if seen[spec] {
+				continue
+			}
 			seen[spec] = true
-			opts = append(opts, Option{m.Label, spec})
+			label := m.DisplayName
+			if label == "" {
+				label = m.ID
+			}
+			opts = append(opts, Option{label + " (" + provName + ")", spec})
 		}
 	}
 	return opts

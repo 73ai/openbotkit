@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func testService(cfg *config.Config) *Service {
@@ -564,6 +566,19 @@ func TestModelTierFieldsAreSelects(t *testing.T) {
 }
 
 func TestModelOptionsShowOnlyConfiguredProviders(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", dir)
+
+	// Populate model cache for anthropic.
+	cache := provider.NewModelCache(config.ModelsDir())
+	cache.Save("anthropic", &provider.CachedModelList{
+		Provider:  "anthropic",
+		FetchedAt: time.Now(),
+		Models: []provider.AvailableModel{
+			{ID: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6", Provider: "anthropic"},
+		},
+	})
+
 	cfg := &config.Config{
 		Models: &config.ModelsConfig{
 			Providers: map[string]config.ModelProviderConfig{
@@ -611,6 +626,9 @@ func TestModelOptionsNoProvidersConfigured(t *testing.T) {
 }
 
 func TestProfileFilteredByConfiguredProviders(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", dir)
+
 	cfg := &config.Config{
 		Models: &config.ModelsConfig{
 			Providers: map[string]config.ModelProviderConfig{

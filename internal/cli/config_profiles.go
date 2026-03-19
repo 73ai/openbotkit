@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -245,8 +246,7 @@ var configProfilesCreateCmd = &cobra.Command{
 			return err
 		}
 
-		// Build model options for each tier.
-		available := config.ModelsForProviders(selectedProviders)
+		// Build model options from cache.
 		tiers := config.ProfileTiers{}
 
 		tierDefs := []struct {
@@ -261,7 +261,7 @@ var configProfilesCreateCmd = &cobra.Command{
 		}
 
 		for _, td := range tierDefs {
-			options := buildTierOptions(available, td.name)
+			options := buildTierOptions(selectedProviders)
 			if len(options) == 0 {
 				return fmt.Errorf("no models available for %s tier from selected providers", td.name)
 			}
@@ -308,22 +308,28 @@ var configProfilesCreateCmd = &cobra.Command{
 	},
 }
 
-// buildTierOptions creates huh.Options for a tier, with recommended models first.
-func buildTierOptions(available []config.ModelInfo, tier string) []huh.Option[string] {
-	recommended := config.ModelsForTier(available, tier)
+// buildTierOptions creates huh.Options from cached models for the given providers.
+func buildTierOptions(providers []string) []huh.Option[string] {
+	cache := provider.NewModelCache(config.ModelsDir())
 	seen := make(map[string]bool)
-
 	var options []huh.Option[string]
-	for _, m := range recommended {
-		spec := m.Provider + "/" + m.ID
-		seen[spec] = true
-		options = append(options, huh.NewOption(m.Label+" *", spec))
-	}
-	for _, m := range available {
-		spec := m.Provider + "/" + m.ID
-		if !seen[spec] {
+
+	for _, provName := range providers {
+		list, err := cache.Load(provName)
+		if err != nil || len(list.Models) == 0 {
+			continue
+		}
+		for _, m := range list.Models {
+			spec := provName + "/" + m.ID
+			if seen[spec] {
+				continue
+			}
 			seen[spec] = true
-			options = append(options, huh.NewOption(m.Label, spec))
+			label := m.DisplayName
+			if label == "" {
+				label = m.ID
+			}
+			options = append(options, huh.NewOption(label+" ("+provName+")", spec))
 		}
 	}
 	return options
