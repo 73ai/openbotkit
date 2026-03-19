@@ -133,8 +133,8 @@ var Profiles = map[string]ModelProfile{
 
 // ProfileNames returns profile names in display order.
 var ProfileNames = []string{
-	"gemini", "anthropic", "groq", "openrouter", "openai",
 	"starter", "standard", "premium",
+	"gemini", "anthropic", "openai", "groq", "openrouter",
 }
 
 var profileNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{1,29}$`)

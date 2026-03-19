@@ -121,7 +121,7 @@ func setupModels(cfg *config.Config) error {
 	var profileOptions []huh.Option[string]
 	for _, name := range config.ProfileNames {
 		p := config.Profiles[name]
-		profileOptions = append(profileOptions, huh.NewOption(p.Label+" — "+p.Description, name))
+		profileOptions = append(profileOptions, huh.NewOption(p.Label, name))
 	}
 	// Append custom profiles sorted alphabetically.
 	if len(cfg.Models.CustomProfiles) > 0 {

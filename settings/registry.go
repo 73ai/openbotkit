@@ -268,7 +268,7 @@ func buildProfileSelectOptions() []Option {
 	var opts []Option
 	for _, name := range config.ProfileNames {
 		p := config.Profiles[name]
-		opts = append(opts, Option{p.Label + " — " + p.Description, name})
+		opts = append(opts, Option{p.Label, name})
 	}
 	opts = append(opts, Option{"Custom (choose models manually)", "custom"})
 	return opts
@@ -276,17 +276,20 @@ func buildProfileSelectOptions() []Option {
 
 // ProfilePreview returns a human-readable preview for a profile name.
 func ProfilePreview(name string) string {
+	if name == "custom" {
+		return "Choose models manually for each tier."
+	}
 	p, ok := config.Profiles[name]
 	if !ok {
 		return ""
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "Profile: %s\n", p.Label)
+	fmt.Fprintf(&b, "%s\n\n", p.Description)
 	fmt.Fprintf(&b, "  Default: %s\n", p.Tiers.Default)
 	fmt.Fprintf(&b, "  Complex: %s\n", p.Tiers.Complex)
 	fmt.Fprintf(&b, "  Fast:    %s\n", p.Tiers.Fast)
-	fmt.Fprintf(&b, "  Nano:    %s\n", p.Tiers.Nano)
+	fmt.Fprintf(&b, "  Nano:    %s\n\n", p.Tiers.Nano)
 	fmt.Fprintf(&b, "  Providers: %s", strings.Join(p.Providers, ", "))
 	return b.String()
 }
