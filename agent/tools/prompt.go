@@ -141,11 +141,14 @@ For recurring tasks, use type "recurring" with a UTC cron expression.
 	if reg.Has("learnings_save") {
 		b.WriteString(`
 ## Learnings
+Learnings are knowledge, techniques, and facts the user picked up — things they learned, not who they are.
+NEVER save personal info (name, timezone, contacts, preferences, building codes) as learnings. That belongs in user memories, not here.
 Use learnings_save to save things the user learned as bullet points under a topic.
 Use learnings_read to check existing learnings or list all topics.
 Use learnings_search to search across all saved learnings.
-Use learnings_extract to automatically extract and save key learnings from conversation context or other sources. This runs in the background.
-Keep language casual and friendly. No emdashes. Keep bullet points concise and not too detailed.
+Use learnings_extract to extract learnings from conversation context or other sources. This runs in the background.
+When the user says "this session", that means the conversation history only — not user memories or profile data.
+Keep bullet points casual, concise, and knowledge-focused. No emdashes.
 `)
 	}
 
