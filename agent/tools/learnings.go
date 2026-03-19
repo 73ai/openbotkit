@@ -261,7 +261,8 @@ func (t *LearningExtractTool) run(ctx context.Context, material string) {
 	system := `You are a learning extraction assistant. Read the provided material and extract key learnings.
 For each distinct topic, call learnings_save with a topic name and concise bullet points.
 Use learnings_read first to check existing topics so you can append to them rather than creating duplicates.
-Keep bullet points casual, concise, and useful. No emdashes.`
+Keep bullet points casual, concise, and useful. No emdashes.
+After saving everything, reply with a short friendly 1-2 sentence summary of what you saved (e.g. "Saved some notes on Go concurrency and SQL indexing"). This will be sent as a notification.`
 
 	blocks := []provider.SystemBlock{
 		{Text: system, CacheControl: &provider.CacheControl{Type: "ephemeral"}},
@@ -272,21 +273,21 @@ Keep bullet points casual, concise, and useful. No emdashes.`
 		agent.WithMaxIterations(15),
 	)
 
-	_, err := a.Run(ctx, material)
+	result, err := a.Run(ctx, material)
 	if err != nil {
 		slog.Error("learnings: extraction failed", "error", err)
 		return
 	}
 
 	if t.deps.Notifier != nil {
-		msg := "Done! Extracted and saved your learnings."
+		msg := strings.TrimSpace(result)
+		if msg == "" {
+			msg = "Saved your learnings!"
+		}
 		if t.deps.BaseURL != "" {
 			topics, _ := t.deps.Store.List()
-			if len(topics) > 0 {
-				msg += " Check them out:"
-				for _, topic := range topics {
-					msg += fmt.Sprintf("\n%s/learnings/%s", t.deps.BaseURL, topic)
-				}
+			for _, topic := range topics {
+				msg += fmt.Sprintf("\n%s/learnings/%s", t.deps.BaseURL, topic)
 			}
 		}
 		if err := t.deps.Notifier.Push(ctx, msg); err != nil {
