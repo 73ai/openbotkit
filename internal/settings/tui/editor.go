@@ -5,15 +5,16 @@ import (
 	"github.com/73ai/openbotkit/settings"
 )
 
-func buildForm(f *settings.Field, current string) (*huh.Form, *string, *bool) {
+func buildForm(f *settings.Field, current string, svc *settings.Service) (*huh.Form, *string, *bool) {
 	var strVal string
 	var boolVal bool
 
 	switch f.Type {
 	case settings.TypeSelect:
 		strVal = current
+		options := svc.ResolvedOptions(f)
 		var opts []huh.Option[string]
-		for _, o := range f.Options {
+		for _, o := range options {
 			opts = append(opts, huh.NewOption(o.Label, o.Value))
 		}
 		return huh.NewForm(

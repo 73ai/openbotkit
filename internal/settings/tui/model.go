@@ -118,7 +118,7 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 	if r.node.Field != nil {
 		f := r.node.Field
 		current := m.svc.GetValue(f)
-		form, strVal, boolVal := buildForm(f, current)
+		form, strVal, boolVal := buildForm(f, current, m.svc)
 		m.state = stateEdit
 		m.form = form
 		m.editField = f
@@ -159,6 +159,11 @@ func (m model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flash = fmt.Sprintf("Error: %v", err)
 		} else {
 			m.flash = "Saved!"
+			if m.editField.AfterSet != nil {
+				if msg := m.editField.AfterSet(m.svc); msg != "" {
+					m.flash = "Saved! " + msg
+				}
+			}
 		}
 
 		m.state = stateBrowse
