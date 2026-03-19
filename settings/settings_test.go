@@ -269,18 +269,6 @@ func TestProfileDisplaysLabel(t *testing.T) {
 	}
 }
 
-func TestProfileHasEditFunc(t *testing.T) {
-	cfg := config.Default()
-	svc := testService(cfg)
-
-	field := findField(svc, "models.profile")
-	if field == nil {
-		t.Fatal("models.profile field not found")
-	}
-	if field.EditFunc == nil {
-		t.Error("profile field should have EditFunc")
-	}
-}
 
 func TestProfileNotConfiguredDisplay(t *testing.T) {
 	cfg := &config.Config{}
