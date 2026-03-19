@@ -185,8 +185,7 @@ func profileField(svc *Service) *Field {
 			}
 			return name
 		},
-		Set:      func(c *config.Config, v string) error { return nil },
-		EditFunc: profileWizard,
+		Set: func(c *config.Config, v string) error { return nil },
 	}
 }
 
@@ -241,39 +240,6 @@ func tierFromKey(key string) string {
 	return ""
 }
 
-// profileWizard runs the multi-step profile configuration flow.
-func profileWizard(svc *Service) (string, error) {
-	cfg := svc.cfg
-
-	// Step 1: Select profile.
-	var profileName string
-	profileOptions := buildProfileSelectOptions()
-
-	if cfg.Models != nil && cfg.Models.Profile != "" {
-		profileName = cfg.Models.Profile
-	}
-
-	err := runProfileSelect(&profileName, profileOptions)
-	if err != nil {
-		return "", err
-	}
-
-	if profileName == "custom" {
-		return setupCustomProfile(svc)
-	}
-
-	return setupFixedProfile(svc, profileName)
-}
-
-func buildProfileSelectOptions() []Option {
-	var opts []Option
-	for _, name := range config.ProfileNames {
-		p := config.Profiles[name]
-		opts = append(opts, Option{p.Label, name})
-	}
-	opts = append(opts, Option{"Custom (choose models manually)", "custom"})
-	return opts
-}
 
 // ProfilePreview returns a human-readable preview for a profile name.
 func ProfilePreview(name string) string {
@@ -295,163 +261,6 @@ func ProfilePreview(name string) string {
 	return b.String()
 }
 
-func setupFixedProfile(svc *Service, profileName string) (string, error) {
-	p, ok := config.Profiles[profileName]
-	if !ok {
-		return "", fmt.Errorf("unknown profile %q", profileName)
-	}
-
-	fmt.Printf("\n%s\n\n", ProfilePreview(profileName))
-
-	// Configure required providers.
-	for _, provName := range p.Providers {
-		if err := configureProviderAuth(svc, provName); err != nil {
-			return "", err
-		}
-	}
-
-	// Verify all providers.
-	fmt.Println("\n  Verifying providers...")
-	for _, provName := range p.Providers {
-		pcfg := providerConfig(svc.cfg, provName)
-		if err := svc.VerifyProvider(provName, pcfg); err != nil {
-			return "", fmt.Errorf("  %s: verification failed: %w\n\n  Profile not saved. Fix provider auth and try again", provName, err)
-		}
-		fmt.Printf("  %s: verified\n", provName)
-	}
-
-	// All verified — save.
-	ensureModels(svc.cfg)
-	svc.cfg.Models.Profile = profileName
-	svc.cfg.Models.Default = p.Tiers.Default
-	svc.cfg.Models.Complex = p.Tiers.Complex
-	svc.cfg.Models.Fast = p.Tiers.Fast
-	svc.cfg.Models.Nano = p.Tiers.Nano
-
-	if err := svc.saveFn(svc.cfg); err != nil {
-		return "", fmt.Errorf("save: %w", err)
-	}
-
-	svc.RebuildTree()
-	return "Profile saved!", nil
-}
-
-func setupCustomProfile(svc *Service) (string, error) {
-	cfg := svc.cfg
-	configured := configuredProviders(cfg)
-
-	if len(configured) == 0 {
-		// Need at least one provider.
-		fmt.Println("\n  No providers configured. Set up at least one provider first.")
-		provName, err := selectProvider()
-		if err != nil {
-			return "", err
-		}
-		if err := configureProviderAuth(svc, provName); err != nil {
-			return "", err
-		}
-		configured = []string{provName}
-	}
-
-	// Select models for each tier.
-	ensureModels(cfg)
-	tiers := []struct {
-		label string
-		tier  string
-		dest  *string
-	}{
-		{"Default model", "default", &cfg.Models.Default},
-		{"Complex model", "complex", &cfg.Models.Complex},
-		{"Fast model", "fast", &cfg.Models.Fast},
-		{"Nano model", "nano", &cfg.Models.Nano},
-	}
-
-	// Collect which providers are actually needed.
-	neededProviders := make(map[string]bool)
-
-	for _, td := range tiers {
-		opts := modelOptionsForTier(cfg, td.tier)
-		selected, err := selectModel(td.label, opts, *td.dest)
-		if err != nil {
-			return "", err
-		}
-		*td.dest = selected
-		if selected != "" {
-			parts := strings.SplitN(selected, "/", 2)
-			if len(parts) >= 1 {
-				neededProviders[parts[0]] = true
-			}
-		}
-	}
-
-	// Configure auth for any needed providers that aren't configured.
-	for provName := range neededProviders {
-		pcfg := providerConfig(cfg, provName)
-		if pcfg.APIKeyRef == "" && pcfg.AuthMethod != "vertex_ai" {
-			fmt.Printf("\n  Provider %q requires authentication.\n", provName)
-			if err := configureProviderAuth(svc, provName); err != nil {
-				return "", err
-			}
-		}
-	}
-
-	// Verify all needed providers.
-	fmt.Println("\n  Verifying providers...")
-	for provName := range neededProviders {
-		pcfg := providerConfig(cfg, provName)
-		if err := svc.VerifyProvider(provName, pcfg); err != nil {
-			return "", fmt.Errorf("  %s: verification failed: %w\n\n  Profile not saved. Fix provider auth and try again", provName, err)
-		}
-		fmt.Printf("  %s: verified\n", provName)
-	}
-
-	cfg.Models.Profile = ""
-	if err := svc.saveFn(cfg); err != nil {
-		return "", fmt.Errorf("save: %w", err)
-	}
-
-	svc.RebuildTree()
-	return "Custom profile saved!", nil
-}
-
-// configureProviderAuth prompts for API key if not already configured.
-func configureProviderAuth(svc *Service, provName string) error {
-	pcfg := providerConfig(svc.cfg, provName)
-
-	if pcfg.APIKeyRef != "" {
-		masked := maskCredential(svc, pcfg.APIKeyRef)
-		fmt.Printf("  %s: %s (leave blank to keep)\n", provName, masked)
-	} else {
-		fmt.Printf("  %s: not configured\n", provName)
-	}
-
-	var apiKey string
-	apiKey, err := promptAPIKey(provName, pcfg.APIKeyRef != "")
-	if err != nil {
-		return err
-	}
-
-	if apiKey == "" && pcfg.APIKeyRef != "" {
-		return nil
-	}
-	if apiKey == "" {
-		return fmt.Errorf("%s API key is required", provName)
-	}
-
-	ref := fmt.Sprintf("keychain:obk/%s", provName)
-	if err := svc.StoreCredential(ref, apiKey); err != nil {
-		return fmt.Errorf("store credential: %w", err)
-	}
-
-	ensureModels(svc.cfg)
-	if svc.cfg.Models.Providers == nil {
-		svc.cfg.Models.Providers = make(map[string]config.ModelProviderConfig)
-	}
-	pc := svc.cfg.Models.Providers[provName]
-	pc.APIKeyRef = ref
-	svc.cfg.Models.Providers[provName] = pc
-	return nil
-}
 
 // maskCredential loads a credential and returns a masked version like "sk-ant...4x2f".
 func maskCredential(svc *Service, ref string) string {
@@ -943,6 +752,11 @@ func ensureModels(c *config.Config) {
 	if c.Models == nil {
 		c.Models = &config.ModelsConfig{}
 	}
+}
+
+// EnsureModels initializes the Models config if nil.
+func EnsureModels(c *config.Config) {
+	ensureModels(c)
 }
 
 func ensureGWS(c *config.Config) {
