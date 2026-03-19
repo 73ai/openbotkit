@@ -3,51 +3,80 @@ package cli
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
-func TestBuildTierOptions_RecommendedFirst(t *testing.T) {
-	models := config.ModelsForProviders([]string{"anthropic"})
-	options := buildTierOptions(models, "complex")
+func setupTestCache(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", dir)
 
+	cache := provider.NewModelCache(config.ModelsDir())
+	cache.Save("anthropic", &provider.CachedModelList{
+		Provider:  "anthropic",
+		FetchedAt: time.Now(),
+		Models: []provider.AvailableModel{
+			{ID: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6", Provider: "anthropic"},
+			{ID: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5", Provider: "anthropic"},
+			{ID: "claude-opus-4-6", DisplayName: "Claude Opus 4.6", Provider: "anthropic"},
+		},
+	})
+	cache.Save("gemini", &provider.CachedModelList{
+		Provider:  "gemini",
+		FetchedAt: time.Now(),
+		Models: []provider.AvailableModel{
+			{ID: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Provider: "gemini"},
+			{ID: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Provider: "gemini"},
+			{ID: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Provider: "gemini"},
+		},
+	})
+	cache.Save("openai", &provider.CachedModelList{
+		Provider:  "openai",
+		FetchedAt: time.Now(),
+		Models: []provider.AvailableModel{
+			{ID: "gpt-4o", DisplayName: "GPT-4o", Provider: "openai"},
+			{ID: "gpt-4o-mini", DisplayName: "GPT-4o Mini", Provider: "openai"},
+		},
+	})
+}
+
+func TestBuildTierOptions_ReturnsModels(t *testing.T) {
+	setupTestCache(t)
+	options := buildTierOptions([]string{"anthropic"})
 	if len(options) == 0 {
-		t.Fatal("expected options for complex tier")
+		t.Fatal("expected options from cache")
 	}
-
-	// Recommended options have " *" suffix in label.
-	first := options[0]
-	if !strings.HasSuffix(first.Key, " *") {
-		t.Errorf("first option should be recommended (have * suffix), got label %q", first.Key)
+	for _, opt := range options {
+		if !strings.Contains(opt.Value, "anthropic/") {
+			t.Errorf("option %q should be from anthropic", opt.Value)
+		}
 	}
 }
 
-func TestBuildTierOptions_RecommendedHaveStarMarker(t *testing.T) {
-	models := config.ModelsForProviders([]string{"anthropic", "gemini"})
-	options := buildTierOptions(models, "fast")
-
-	recommended := config.ModelsForTier(models, "fast")
-	recommendedSpecs := make(map[string]bool)
-	for _, m := range recommended {
-		recommendedSpecs[m.Provider+"/"+m.ID] = true
+func TestBuildTierOptions_MultipleProviders(t *testing.T) {
+	setupTestCache(t)
+	options := buildTierOptions([]string{"anthropic", "gemini"})
+	if len(options) < 4 {
+		t.Fatalf("expected at least 4 options, got %d", len(options))
 	}
-
+	providers := make(map[string]bool)
 	for _, opt := range options {
-		isRecommended := recommendedSpecs[opt.Value]
-		hasStar := strings.HasSuffix(opt.Key, " *")
-		if isRecommended && !hasStar {
-			t.Errorf("recommended model %q should have * marker", opt.Value)
+		parts := strings.SplitN(opt.Value, "/", 2)
+		if len(parts) == 2 {
+			providers[parts[0]] = true
 		}
-		if !isRecommended && hasStar {
-			t.Errorf("non-recommended model %q should not have * marker", opt.Value)
-		}
+	}
+	if !providers["anthropic"] || !providers["gemini"] {
+		t.Errorf("expected both providers, got %v", providers)
 	}
 }
 
 func TestBuildTierOptions_NoDuplicates(t *testing.T) {
-	models := config.ModelsForProviders([]string{"anthropic", "gemini"})
-	options := buildTierOptions(models, "default")
-
+	setupTestCache(t)
+	options := buildTierOptions([]string{"anthropic", "gemini"})
 	seen := make(map[string]bool)
 	for _, opt := range options {
 		if seen[opt.Value] {
@@ -57,40 +86,24 @@ func TestBuildTierOptions_NoDuplicates(t *testing.T) {
 	}
 }
 
-func TestBuildTierOptions_AllModelsIncluded(t *testing.T) {
-	models := config.ModelsForProviders([]string{"anthropic"})
-	options := buildTierOptions(models, "default")
-
-	// Should include all anthropic models, not just recommended ones.
-	if len(options) < len(models) {
-		t.Errorf("expected at least %d options, got %d", len(models), len(options))
-	}
-}
-
-func TestBuildTierOptions_EmptyModels(t *testing.T) {
-	options := buildTierOptions(nil, "default")
+func TestBuildTierOptions_EmptyProviders(t *testing.T) {
+	setupTestCache(t)
+	options := buildTierOptions(nil)
 	if len(options) != 0 {
-		t.Errorf("expected no options for nil models, got %d", len(options))
+		t.Errorf("expected no options for nil providers, got %d", len(options))
 	}
 }
 
-func TestBuildTierOptions_AllTiers(t *testing.T) {
-	models := config.ModelsForProviders([]string{"anthropic", "gemini", "openai"})
-	for _, tier := range []string{"default", "complex", "fast", "nano"} {
-		options := buildTierOptions(models, tier)
-		if len(options) == 0 {
-			t.Errorf("no options for tier %q", tier)
-		}
-		// All models should appear (recommended first, rest after).
-		if len(options) != len(models) {
-			t.Errorf("tier %q: expected %d options (all models), got %d", tier, len(models), len(options))
-		}
+func TestBuildTierOptions_UncachedProvider(t *testing.T) {
+	setupTestCache(t)
+	options := buildTierOptions([]string{"nonexistent"})
+	if len(options) != 0 {
+		t.Errorf("expected no options for uncached provider, got %d", len(options))
 	}
 }
 
 func TestConfigProfilesDelete_BuiltInProfile(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", dir)
+	setupTestCache(t)
 
 	cmd := configProfilesDeleteCmd
 	cmd.SetArgs([]string{"gemini"})
@@ -104,8 +117,7 @@ func TestConfigProfilesDelete_BuiltInProfile(t *testing.T) {
 }
 
 func TestConfigProfilesDelete_NonExistent(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", dir)
+	setupTestCache(t)
 
 	configProfilesDeleteCmd.Flags().Set("force", "true")
 	defer configProfilesDeleteCmd.Flags().Set("force", "false")
@@ -119,10 +131,8 @@ func TestConfigProfilesDelete_NonExistent(t *testing.T) {
 }
 
 func TestConfigProfilesDelete_ClearsActiveProfile(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", dir)
+	setupTestCache(t)
 
-	// Create a config with a custom profile that is active.
 	cfg := config.Default()
 	cfg.Models = &config.ModelsConfig{
 		Default: "gemini/gemini-2.5-flash",
@@ -133,8 +143,8 @@ func TestConfigProfilesDelete_ClearsActiveProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash-lite",
-					Nano:    "gemini/gemini-2.0-flash-lite",
+					Fast:    "gemini/gemini-2.0-flash",
+					Nano:    "gemini/gemini-2.0-flash",
 				},
 				Providers: []string{"gemini"},
 			},
@@ -184,8 +194,7 @@ func TestConfigProfilesShow_NotFound(t *testing.T) {
 }
 
 func TestConfigProfilesShow_CustomProfile(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("OBK_CONFIG_DIR", dir)
+	setupTestCache(t)
 
 	cfg := config.Default()
 	cfg.Models = &config.ModelsConfig{
@@ -197,8 +206,8 @@ func TestConfigProfilesShow_CustomProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash-lite",
-					Nano:    "gemini/gemini-2.0-flash-lite",
+					Fast:    "gemini/gemini-2.0-flash",
+					Nano:    "gemini/gemini-2.0-flash",
 				},
 				Providers: []string{"gemini"},
 			},
@@ -218,7 +227,6 @@ func TestConfigProfilesList_NoConfig(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", dir)
 
-	// Should not error even with no config file.
 	err := configProfilesListCmd.RunE(configProfilesListCmd, nil)
 	if err != nil {
 		t.Fatalf("list with no config: %v", err)

@@ -31,7 +31,7 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 | Profile | Default | Complex | Fast | Nano | Provider |
 |---------|---------|---------|------|------|----------|
-| Gemini | gemini-2.5-flash | gemini-2.5-pro | gemini-2.0-flash-lite | gemini-2.0-flash-lite | gemini |
+| Gemini | gemini-2.5-flash | gemini-2.5-pro | gemini-2.0-flash | gemini-2.0-flash | gemini |
 | Anthropic | claude-haiku-4-5 | claude-sonnet-4-6 | claude-haiku-4-5 | claude-haiku-4-5 | anthropic |
 | Groq | llama-3.3-70b | llama-4-scout-17b | llama-3.1-8b | llama-3.1-8b | groq |
 | OpenRouter | claude-haiku-4-5 (OR) | claude-sonnet-4-6 (OR) | gemini-flash-lite (OR) | gemini-flash-lite (OR) | openrouter |
@@ -41,9 +41,9 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 | Profile | ~Cost/mo | Default | Complex | Fast | Nano |
 |---------|----------|---------|---------|------|------|
-| Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.0 Flash-Lite | Gemini 2.0 Flash-Lite |
-| Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.0 Flash-Lite | Gemini 2.0 Flash-Lite |
-| Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.0 Flash-Lite |
+| Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.0 Flash | Gemini 2.0 Flash |
+| Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.0 Flash | Gemini 2.0 Flash |
+| Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.0 Flash |
 
 *OR = via OpenRouter*
 
@@ -62,14 +62,14 @@ OpenRouter gives access to Claude, GPT, Gemini, Mistral, and open-source models 
 
 ### Why Gemini direct (not via OpenRouter) for nano/fast
 
-Nano and fast tiers are latency-sensitive — they run during active user conversations (tool acks, compaction). Routing through OpenRouter adds ~50-100ms of extra latency per request. Using Google AI Studio directly for Gemini 2.0 Flash-Lite avoids this double-hop. The free tier (1500 RPD) covers typical nano/fast usage.
+Nano and fast tiers are latency-sensitive — they run during active user conversations (tool acks, compaction). Routing through OpenRouter adds ~50-100ms of extra latency per request. Using Google AI Studio directly for Gemini 2.0 Flash avoids this double-hop. The free tier (1500 RPD) covers typical nano/fast usage.
 
 ### Why not Groq for nano
 
-We initially planned to use Groq (free Llama 3.1 8B) for nano tasks. We switched to Gemini 2.0 Flash-Lite because:
+We initially planned to use Groq (free Llama 3.1 8B) for nano tasks. We switched to Gemini 2.0 Flash because:
 
 1. **Fewer API keys** — profiles already need Gemini for fast tier, so nano reuses the same key
-2. **Better instruction following** — Gemini Flash-Lite handles JSON output (tool ack decisions) more reliably than Llama 8B
+2. **Better instruction following** — Gemini Flash handles JSON output (tool ack decisions) more reliably than Llama 8B
 3. **Simpler architecture** — two providers (OpenRouter + Gemini) instead of three
 
 Groq is still registered as a provider and available for custom configurations.
@@ -125,8 +125,8 @@ models:
   profile: standard
   default: openrouter/anthropic/claude-haiku-4-5
   complex: openrouter/anthropic/claude-sonnet-4-6
-  fast: gemini/gemini-2.0-flash-lite
-  nano: gemini/gemini-2.0-flash-lite
+  fast: gemini/gemini-2.0-flash
+  nano: gemini/gemini-2.0-flash
   providers:
     openrouter:
       api_key_ref: "keychain:obk/openrouter"
@@ -138,8 +138,8 @@ models:
       tiers:
         default: anthropic/claude-haiku-4-5
         complex: gemini/gemini-2.5-pro
-        fast: gemini/gemini-2.0-flash-lite
-        nano: gemini/gemini-2.0-flash-lite
+        fast: gemini/gemini-2.0-flash
+        nano: gemini/gemini-2.0-flash
       providers:
         - anthropic
         - gemini

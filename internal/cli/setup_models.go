@@ -53,7 +53,7 @@ var llmProviders = []providerInfo{
 		models: []huh.Option[string]{
 			huh.NewOption("gemini-2.5-pro (most capable)", "gemini-2.5-pro"),
 			huh.NewOption("gemini-2.5-flash (fast, good balance)", "gemini-2.5-flash"),
-			huh.NewOption("gemini-2.0-flash-lite (fastest, cheapest)", "gemini-2.0-flash-lite"),
+			huh.NewOption("gemini-2.0-flash (fast, cheap)", "gemini-2.0-flash"),
 		},
 	},
 	{
@@ -62,7 +62,7 @@ var llmProviders = []providerInfo{
 		models: []huh.Option[string]{
 			huh.NewOption("anthropic/claude-sonnet-4-6", "anthropic/claude-sonnet-4-6"),
 			huh.NewOption("anthropic/claude-haiku-4-5", "anthropic/claude-haiku-4-5"),
-			huh.NewOption("google/gemini-2.0-flash-lite", "google/gemini-2.0-flash-lite"),
+			huh.NewOption("google/gemini-2.0-flash", "google/gemini-2.0-flash"),
 			huh.NewOption("mistralai/mistral-medium-3.1", "mistralai/mistral-medium-3.1"),
 		},
 	},
@@ -121,7 +121,7 @@ func setupModels(cfg *config.Config) error {
 	var profileOptions []huh.Option[string]
 	for _, name := range config.ProfileNames {
 		p := config.Profiles[name]
-		profileOptions = append(profileOptions, huh.NewOption(p.Label+" — "+p.Description, name))
+		profileOptions = append(profileOptions, huh.NewOption(p.Label, name))
 	}
 	// Append custom profiles sorted alphabetically.
 	if len(cfg.Models.CustomProfiles) > 0 {
@@ -671,33 +671,35 @@ func warnDefaultContextWindow(defaultSpec string) {
 	}
 }
 
-func validateProvider(name string, cfg config.ModelProviderConfig, model string) error {
-	factory, ok := provider.GetFactory(name)
-	if !ok {
-		return fmt.Errorf("unknown provider %q", name)
-	}
-
+func validateProvider(name string, pcfg config.ModelProviderConfig, model string) error {
 	var apiKey string
-	if cfg.AuthMethod != "vertex_ai" {
+	if pcfg.AuthMethod != "vertex_ai" {
 		envVar := provider.ProviderEnvVars[name]
 		var err error
-		apiKey, err = provider.ResolveAPIKey(cfg.APIKeyRef, envVar)
+		apiKey, err = provider.ResolveAPIKey(pcfg.APIKeyRef, envVar)
 		if err != nil {
 			return err
 		}
 	}
 
-	p := factory(cfg, apiKey)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := p.Chat(ctx, provider.ChatRequest{
-		Model:     model,
-		System:    "Reply with OK",
-		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "hi")},
-		MaxTokens: 5,
-	})
-	return err
+	models, err := provider.ListModels(ctx, name, apiKey, pcfg)
+	if err != nil {
+		return err
+	}
+
+	// Cache the results.
+	cache := provider.NewModelCache(config.ModelsDir())
+	list := &provider.CachedModelList{
+		Provider:  name,
+		Models:    models,
+		FetchedAt: time.Now(),
+	}
+	_ = cache.Save(name, list)
+
+	return nil
 }
 
 func findProvider(name string) *providerInfo {

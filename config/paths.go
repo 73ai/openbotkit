@@ -39,6 +39,10 @@ func EnsureSourceDir(sourceName string) error {
 	return os.MkdirAll(SourceDir(sourceName), 0700)
 }
 
+func ModelsDir() string {
+	return filepath.Join(Dir(), "models")
+}
+
 func ProviderDir(providerName string) string {
 	return filepath.Join(Dir(), "providers", providerName)
 }

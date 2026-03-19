@@ -27,20 +27,20 @@ type ProfileTiers struct {
 var Profiles = map[string]ModelProfile{
 	"gemini": {
 		Name:        "gemini",
-		Label:       "Gemini (1 API key)",
+		Label:       "Gemini (single provider)",
 		Description: "Google Gemini models. Free tier available.",
 		Category:    "single",
 		Tiers: ProfileTiers{
 			Default: "gemini/gemini-2.5-flash",
 			Complex: "gemini/gemini-2.5-pro",
-			Fast:    "gemini/gemini-2.0-flash-lite",
-			Nano:    "gemini/gemini-2.0-flash-lite",
+			Fast:    "gemini/gemini-2.0-flash",
+			Nano:    "gemini/gemini-2.0-flash",
 		},
 		Providers: []string{"gemini"},
 	},
 	"anthropic": {
 		Name:        "anthropic",
-		Label:       "Anthropic (1 API key)",
+		Label:       "Anthropic (single provider)",
 		Description: "Claude models from Anthropic.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -53,7 +53,7 @@ var Profiles = map[string]ModelProfile{
 	},
 	"groq": {
 		Name:        "groq",
-		Label:       "Groq (1 API key, open-source)",
+		Label:       "Groq (single provider)",
 		Description: "Open-source Llama models with fast inference via Groq.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -66,20 +66,20 @@ var Profiles = map[string]ModelProfile{
 	},
 	"openrouter": {
 		Name:        "openrouter",
-		Label:       "OpenRouter (1 API key)",
+		Label:       "OpenRouter (single provider)",
 		Description: "Access 500+ models through OpenRouter.",
 		Category:    "single",
 		Tiers: ProfileTiers{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
-			Fast:    "openrouter/google/gemini-2.0-flash-lite",
-			Nano:    "openrouter/google/gemini-2.0-flash-lite",
+			Fast:    "openrouter/google/gemini-2.0-flash",
+			Nano:    "openrouter/google/gemini-2.0-flash",
 		},
 		Providers: []string{"openrouter"},
 	},
 	"openai": {
 		Name:        "openai",
-		Label:       "OpenAI (1 API key)",
+		Label:       "OpenAI (single provider)",
 		Description: "GPT models from OpenAI.",
 		Category:    "single",
 		Tiers: ProfileTiers{
@@ -98,8 +98,8 @@ var Profiles = map[string]ModelProfile{
 		Tiers: ProfileTiers{
 			Default: "openrouter/mistralai/mistral-medium-3.1",
 			Complex: "openrouter/mistralai/mistral-medium-3.1",
-			Fast:    "gemini/gemini-2.0-flash-lite",
-			Nano:    "gemini/gemini-2.0-flash-lite",
+			Fast:    "gemini/gemini-2.0-flash",
+			Nano:    "gemini/gemini-2.0-flash",
 		},
 		Providers: []string{"openrouter", "gemini"},
 	},
@@ -111,8 +111,8 @@ var Profiles = map[string]ModelProfile{
 		Tiers: ProfileTiers{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
-			Fast:    "gemini/gemini-2.0-flash-lite",
-			Nano:    "gemini/gemini-2.0-flash-lite",
+			Fast:    "gemini/gemini-2.0-flash",
+			Nano:    "gemini/gemini-2.0-flash",
 		},
 		Providers: []string{"openrouter", "gemini"},
 	},
@@ -125,7 +125,7 @@ var Profiles = map[string]ModelProfile{
 			Default: "openrouter/anthropic/claude-sonnet-4-6",
 			Complex: "openrouter/anthropic/claude-opus-4-6",
 			Fast:    "openrouter/anthropic/claude-haiku-4-5",
-			Nano:    "gemini/gemini-2.0-flash-lite",
+			Nano:    "gemini/gemini-2.0-flash",
 		},
 		Providers: []string{"openrouter", "gemini"},
 	},
@@ -133,8 +133,8 @@ var Profiles = map[string]ModelProfile{
 
 // ProfileNames returns profile names in display order.
 var ProfileNames = []string{
-	"gemini", "anthropic", "groq", "openrouter", "openai",
 	"starter", "standard", "premium",
+	"gemini", "anthropic", "openai", "groq", "openrouter",
 }
 
 var profileNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{1,29}$`)

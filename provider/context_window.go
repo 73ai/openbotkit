@@ -10,7 +10,7 @@ var contextWindows = map[string]int{
 	"gpt-4o-mini":               128000,
 	"gemini-2.5-pro":            1048576,
 	"gemini-2.5-flash":          1048576,
-	"gemini-2.0-flash-lite":     1048576,
+	"gemini-2.0-flash":     1048576,
 	"mistral-medium-3.1":        131072,
 	"llama-3.1-8b-instant":      131072,
 	"llama-3.3-70b-versatile":   131072,
