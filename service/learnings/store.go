@@ -38,7 +38,25 @@ func (s *Store) Init() error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git init: %s: %w", out, err)
 	}
+	s.ensureGitUser()
 	return nil
+}
+
+func (s *Store) ensureGitUser() {
+	for _, key := range []string{"user.name", "user.email"} {
+		check := exec.Command("git", "config", key)
+		check.Dir = s.dir
+		if out, err := check.Output(); err == nil && len(out) > 0 {
+			continue
+		}
+		val := "openbotkit"
+		if key == "user.email" {
+			val = "bot@local"
+		}
+		set := exec.Command("git", "config", key, val)
+		set.Dir = s.dir
+		set.Run()
+	}
 }
 
 func (s *Store) Save(topic string, bullets []string) error {
@@ -74,6 +92,9 @@ func (s *Store) Save(topic string, bullets []string) error {
 }
 
 func (s *Store) Read(topic string) (string, error) {
+	if strings.Contains(topic, "..") || strings.ContainsAny(topic, "/\\") {
+		return "", fmt.Errorf("invalid topic name %q", topic)
+	}
 	slug := s.Slug(topic)
 	path := filepath.Join(s.dir, slug+".md")
 	data, err := os.ReadFile(path)
@@ -90,10 +111,25 @@ func (s *Store) List() ([]string, error) {
 	}
 	var topics []string
 	for _, e := range entries {
-		name := strings.TrimSuffix(filepath.Base(e), ".md")
+		name := s.readTitle(e)
+		if name == "" {
+			name = strings.TrimSuffix(filepath.Base(e), ".md")
+		}
 		topics = append(topics, name)
 	}
 	return topics, nil
+}
+
+func (s *Store) readTitle(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	first, _, _ := strings.Cut(string(data), "\n")
+	if strings.HasPrefix(first, "# ") {
+		return strings.TrimPrefix(first, "# ")
+	}
+	return ""
 }
 
 func (s *Store) Search(query string) ([]SearchResult, error) {
@@ -110,6 +146,9 @@ func (s *Store) Search(query string) ([]SearchResult, error) {
 		}
 		topic := strings.TrimSuffix(filepath.Base(e), ".md")
 		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.HasPrefix(line, "- ") {
+				continue
+			}
 			if strings.Contains(strings.ToLower(line), lower) {
 				results = append(results, SearchResult{Topic: topic, Line: line})
 			}
