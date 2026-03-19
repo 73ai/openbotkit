@@ -32,13 +32,24 @@ a.btn{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#428
 <body>
 <div class="card">
 <p>Tap the button below to sign in with your Google account.</p>
-<a class="btn" id="auth-link" href="` + safeURL + `" target="_blank" rel="noopener">Continue with Google</a>
+<a class="btn" id="auth-link" href="` + safeURL + `" target="_blank" rel="noopener" onclick="return openInBrowser(event)">Continue with Google</a>
 </div>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
+function openInBrowser(e) {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg && tg.openLink) {
+    e.preventDefault();
+    tg.openLink(document.getElementById('auth-link').href);
+    tg.close();
+    return false;
+  }
+  return true;
+}
 (function(){
-  var link = document.getElementById('auth-link');
-  if (!window.TelegramWebviewProxy && !/Telegram/i.test(navigator.userAgent)) {
-    window.location.replace(link.href);
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg && !window.TelegramWebviewProxy && !/Telegram/i.test(navigator.userAgent)) {
+    window.location.replace(document.getElementById('auth-link').href);
   }
 })();
 </script>
