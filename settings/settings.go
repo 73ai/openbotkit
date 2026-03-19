@@ -27,9 +27,11 @@ type Field struct {
 	Description string
 	Type        FieldType
 	Options     []Option
+	OptionsFunc func(*config.Config) []Option   // dynamic options, overrides Options
 	Get         func(*config.Config) string
 	Set         func(*config.Config, string) error
 	Validate    func(string) error
+	AfterSet    func(*Service) string           // optional post-set message
 }
 
 type Category struct {
@@ -44,11 +46,12 @@ type Node struct {
 }
 
 type Service struct {
-	tree      []Node
-	cfg       *config.Config
-	saveFn    func(*config.Config) error
-	storeCred func(ref, value string) error
-	loadCred  func(ref string) (string, error)
+	tree           []Node
+	cfg            *config.Config
+	saveFn         func(*config.Config) error
+	storeCred      func(ref, value string) error
+	loadCred       func(ref string) (string, error)
+	verifyProvider func(name string, cfg config.ModelProviderConfig) error
 }
 
 type ServiceOption func(*Service)
@@ -63,6 +66,10 @@ func WithStoreCred(fn func(ref, value string) error) ServiceOption {
 
 func WithLoadCred(fn func(ref string) (string, error)) ServiceOption {
 	return func(s *Service) { s.loadCred = fn }
+}
+
+func WithVerifyProvider(fn func(name string, cfg config.ModelProviderConfig) error) ServiceOption {
+	return func(s *Service) { s.verifyProvider = fn }
 }
 
 func New(cfg *config.Config, opts ...ServiceOption) *Service {
@@ -111,4 +118,19 @@ func (s *Service) LoadCredential(ref string) (string, error) {
 		return "", fmt.Errorf("no credential loader configured")
 	}
 	return s.loadCred(ref)
+}
+
+func (s *Service) VerifyProvider(name string, cfg config.ModelProviderConfig) error {
+	if s.verifyProvider == nil {
+		return nil
+	}
+	return s.verifyProvider(name, cfg)
+}
+
+// ResolvedOptions returns the options for a field, using OptionsFunc if set.
+func (s *Service) ResolvedOptions(f *Field) []Option {
+	if f.OptionsFunc != nil {
+		return f.OptionsFunc(s.cfg)
+	}
+	return f.Options
 }

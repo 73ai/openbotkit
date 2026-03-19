@@ -70,91 +70,13 @@ func generalCategory() *Category {
 }
 
 func modelsCategory(svc *Service) *Category {
-	profileOptions := buildProfileOptions(svc)
-
 	children := []Node{
-		{Field: &Field{
-			Key:     "models.profile",
-			Label:   "Profile",
-			Type:    TypeSelect,
-			Options: profileOptions,
-			Get: func(c *config.Config) string {
-				if c.Models == nil {
-					return ""
-				}
-				return c.Models.Profile
-			},
-			Set: func(c *config.Config, v string) error {
-				ensureModels(c)
-				c.Models.Profile = v
-				return nil
-			},
-		}},
-		{Field: &Field{
-			Key:         "models.default",
-			Label:       "Default Model",
-			Description: "provider/model for main conversation",
-			Type:        TypeString,
-			Get: func(c *config.Config) string {
-				if c.Models == nil {
-					return ""
-				}
-				return c.Models.Default
-			},
-			Set: func(c *config.Config, v string) error {
-				ensureModels(c)
-				c.Models.Default = v
-				return nil
-			},
-		}},
-		{Field: &Field{
-			Key:   "models.complex",
-			Label: "Complex Model",
-			Type:  TypeString,
-			Get: func(c *config.Config) string {
-				if c.Models == nil {
-					return ""
-				}
-				return c.Models.Complex
-			},
-			Set: func(c *config.Config, v string) error {
-				ensureModels(c)
-				c.Models.Complex = v
-				return nil
-			},
-		}},
-		{Field: &Field{
-			Key:   "models.fast",
-			Label: "Fast Model",
-			Type:  TypeString,
-			Get: func(c *config.Config) string {
-				if c.Models == nil {
-					return ""
-				}
-				return c.Models.Fast
-			},
-			Set: func(c *config.Config, v string) error {
-				ensureModels(c)
-				c.Models.Fast = v
-				return nil
-			},
-		}},
-		{Field: &Field{
-			Key:   "models.nano",
-			Label: "Nano Model",
-			Type:  TypeString,
-			Get: func(c *config.Config) string {
-				if c.Models == nil {
-					return ""
-				}
-				return c.Models.Nano
-			},
-			Set: func(c *config.Config, v string) error {
-				ensureModels(c)
-				c.Models.Nano = v
-				return nil
-			},
-		}},
+		{Category: providersCategory(svc)},
+		{Field: profileField(svc)},
+		{Field: modelTierField(svc, "models.default", "Default Model", "default")},
+		{Field: modelTierField(svc, "models.complex", "Complex Model", "complex")},
+		{Field: modelTierField(svc, "models.fast", "Fast Model", "fast")},
+		{Field: modelTierField(svc, "models.nano", "Nano Model", "nano")},
 		{Field: &Field{
 			Key:   "models.context_window",
 			Label: "Context Window",
@@ -205,7 +127,6 @@ func modelsCategory(svc *Service) *Category {
 				return nil
 			},
 		}},
-		{Category: providersCategory(svc)},
 	}
 
 	return &Category{
@@ -213,6 +134,152 @@ func modelsCategory(svc *Service) *Category {
 		Label:    "Models",
 		Children: children,
 	}
+}
+
+func profileField(svc *Service) *Field {
+	return &Field{
+		Key:   "models.profile",
+		Label: "Profile",
+		Type:  TypeSelect,
+		OptionsFunc: func(c *config.Config) []Option {
+			configured := configuredProviders(c)
+			opts := []Option{{"(none)", ""}}
+			for _, name := range config.ProfileNames {
+				p := config.Profiles[name]
+				if !allProvidersConfigured(p.Providers, configured) {
+					continue
+				}
+				opts = append(opts, Option{p.Label, name})
+			}
+			if c.Models != nil && len(c.Models.CustomProfiles) > 0 {
+				var names []string
+				for n := range c.Models.CustomProfiles {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				for _, n := range names {
+					cp := c.Models.CustomProfiles[n]
+					if !allProvidersConfigured(cp.Providers, configured) {
+						continue
+					}
+					label := cp.Label
+					if label == "" {
+						label = n
+					}
+					opts = append(opts, Option{label + " (custom)", n})
+				}
+			}
+			return opts
+		},
+		Get: func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			return c.Models.Profile
+		},
+		Set: func(c *config.Config, v string) error {
+			ensureModels(c)
+			c.Models.Profile = v
+			return nil
+		},
+	}
+}
+
+func modelTierField(svc *Service, key, label, tier string) *Field {
+	return &Field{
+		Key:   key,
+		Label: label,
+		Type:  TypeSelect,
+		OptionsFunc: func(c *config.Config) []Option {
+			return modelOptionsForTier(c, tier)
+		},
+		Get: func(c *config.Config) string {
+			if c.Models == nil {
+				return ""
+			}
+			switch key {
+			case "models.default":
+				return c.Models.Default
+			case "models.complex":
+				return c.Models.Complex
+			case "models.fast":
+				return c.Models.Fast
+			case "models.nano":
+				return c.Models.Nano
+			}
+			return ""
+		},
+		Set: func(c *config.Config, v string) error {
+			ensureModels(c)
+			switch key {
+			case "models.default":
+				c.Models.Default = v
+			case "models.complex":
+				c.Models.Complex = v
+			case "models.fast":
+				c.Models.Fast = v
+			case "models.nano":
+				c.Models.Nano = v
+			}
+			return nil
+		},
+	}
+}
+
+// modelOptionsForTier returns select options for a tier based on configured providers.
+func modelOptionsForTier(c *config.Config, tier string) []Option {
+	configured := configuredProviders(c)
+	if len(configured) == 0 {
+		return []Option{{"(configure a provider first)", ""}}
+	}
+
+	available := config.ModelsForProviders(configured)
+	recommended := config.ModelsForTier(available, tier)
+
+	seen := make(map[string]bool)
+	opts := []Option{{"(none)", ""}}
+
+	for _, m := range recommended {
+		spec := m.Provider + "/" + m.ID
+		seen[spec] = true
+		opts = append(opts, Option{m.Label + " *", spec})
+	}
+	for _, m := range available {
+		spec := m.Provider + "/" + m.ID
+		if !seen[spec] {
+			seen[spec] = true
+			opts = append(opts, Option{m.Label, spec})
+		}
+	}
+	return opts
+}
+
+// configuredProviders returns names of providers that have API keys or vertex_ai auth.
+func configuredProviders(c *config.Config) []string {
+	if c.Models == nil || c.Models.Providers == nil {
+		return nil
+	}
+	var names []string
+	for name, pc := range c.Models.Providers {
+		if pc.APIKeyRef != "" || pc.AuthMethod == "vertex_ai" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func allProvidersConfigured(required []string, configured []string) bool {
+	set := make(map[string]bool, len(configured))
+	for _, c := range configured {
+		set[c] = true
+	}
+	for _, r := range required {
+		if !set[r] {
+			return false
+		}
+	}
+	return true
 }
 
 func providersCategory(svc *Service) *Category {
@@ -245,6 +312,7 @@ func providersCategory(svc *Service) *Category {
 		var fields []Node
 
 		ref := "keychain:" + p.keychainID
+		provKey := p.key
 		fields = append(fields, Node{Field: &Field{
 			Key:   "models.providers." + p.key + ".api_key",
 			Label: "API Key",
@@ -253,7 +321,7 @@ func providersCategory(svc *Service) *Category {
 				if c.Models == nil || c.Models.Providers == nil {
 					return "not configured"
 				}
-				pc, ok := c.Models.Providers[p.key]
+				pc, ok := c.Models.Providers[provKey]
 				if !ok || pc.APIKeyRef == "" {
 					return "not configured"
 				}
@@ -275,10 +343,24 @@ func providersCategory(svc *Service) *Category {
 				if err := svc.StoreCredential(ref, v); err != nil {
 					return fmt.Errorf("store credential: %w", err)
 				}
-				pc := c.Models.Providers[p.key]
+				pc := c.Models.Providers[provKey]
 				pc.APIKeyRef = ref
-				c.Models.Providers[p.key] = pc
+				c.Models.Providers[provKey] = pc
 				return nil
+			},
+			AfterSet: func(s *Service) string {
+				if s.cfg.Models == nil || s.cfg.Models.Providers == nil {
+					return ""
+				}
+				pc, ok := s.cfg.Models.Providers[provKey]
+				if !ok || pc.APIKeyRef == "" {
+					return ""
+				}
+				err := s.VerifyProvider(provKey, pc)
+				if err != nil {
+					return fmt.Sprintf("Warning: verification failed: %v", err)
+				}
+				return "API key verified"
 			},
 		}})
 
@@ -292,7 +374,7 @@ func providersCategory(svc *Service) *Category {
 					if c.Models == nil || c.Models.Providers == nil {
 						return "api_key"
 					}
-					pc, ok := c.Models.Providers[p.key]
+					pc, ok := c.Models.Providers[provKey]
 					if !ok || pc.AuthMethod == "" {
 						return "api_key"
 					}
@@ -303,9 +385,9 @@ func providersCategory(svc *Service) *Category {
 					if c.Models.Providers == nil {
 						c.Models.Providers = make(map[string]config.ModelProviderConfig)
 					}
-					pc := c.Models.Providers[p.key]
+					pc := c.Models.Providers[provKey]
 					pc.AuthMethod = v
-					c.Models.Providers[p.key] = pc
+					c.Models.Providers[provKey] = pc
 					return nil
 				},
 			}})
@@ -614,30 +696,6 @@ func advancedCategory() *Category {
 			}},
 		},
 	}
-}
-
-func buildProfileOptions(svc *Service) []Option {
-	opts := []Option{{"(none)", ""}}
-	for _, name := range config.ProfileNames {
-		p := config.Profiles[name]
-		opts = append(opts, Option{p.Label, name})
-	}
-	if svc.cfg.Models != nil && len(svc.cfg.Models.CustomProfiles) > 0 {
-		var names []string
-		for n := range svc.cfg.Models.CustomProfiles {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		for _, n := range names {
-			cp := svc.cfg.Models.CustomProfiles[n]
-			label := cp.Label
-			if label == "" {
-				label = n
-			}
-			opts = append(opts, Option{label + " (custom)", n})
-		}
-	}
-	return opts
 }
 
 func ensureModels(c *config.Config) {
