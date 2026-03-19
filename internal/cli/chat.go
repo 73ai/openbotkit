@@ -12,6 +12,7 @@ import (
 	"github.com/73ai/openbotkit/agent/tools"
 	clicli "github.com/73ai/openbotkit/channel/cli"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/service/learnings"
 	"github.com/73ai/openbotkit/provider"
 	historysrc "github.com/73ai/openbotkit/service/history"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
@@ -105,6 +106,9 @@ var chatCmd = &cobra.Command{
 
 		// Register Slack tools if configured.
 		registerSlackTools(cfg, toolReg, ch)
+
+		// Register learnings tools.
+		registerLearningsTools(toolReg)
 
 		// Register web search/fetch tools.
 		wsDB := registerWebTools(cfg, toolReg, registry, p, modelName)
@@ -253,6 +257,14 @@ func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
 		Tracker:    tracker,
 	}))
 	reg.Register(tools.NewCheckTaskTool(tracker))
+}
+
+func registerLearningsTools(reg *tools.Registry) {
+	st := learnings.New(config.LearningsDir())
+	deps := tools.LearningsDeps{Store: st}
+	reg.Register(tools.NewLearningSaveTool(deps))
+	reg.Register(tools.NewLearningReadTool(deps))
+	reg.Register(tools.NewLearningSearchTool(deps))
 }
 
 // registerWebTools adds web_search and web_fetch tools. Returns an optional
