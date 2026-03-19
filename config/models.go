@@ -25,13 +25,13 @@ var ModelCatalog = []ModelInfo{
 	// Gemini
 	{Provider: "gemini", ID: "gemini-2.5-pro", Label: "Gemini 2.5 Pro (most capable)", ContextWindow: 1048576, RecommendedFor: []string{"complex"}},
 	{Provider: "gemini", ID: "gemini-2.5-flash", Label: "Gemini 2.5 Flash (balanced)", ContextWindow: 1048576, RecommendedFor: []string{"default", "complex"}},
-	{Provider: "gemini", ID: "gemini-2.0-flash-lite", Label: "Gemini 2.0 Flash Lite (fastest)", ContextWindow: 1048576, RecommendedFor: []string{"fast", "nano"}},
+	{Provider: "gemini", ID: "gemini-2.0-flash", Label: "Gemini 2.0 Flash (fast, cheap)", ContextWindow: 1048576, RecommendedFor: []string{"fast", "nano"}},
 
 	// OpenRouter
 	{Provider: "openrouter", ID: "anthropic/claude-sonnet-4-6", Label: "Claude Sonnet 4.6 via OpenRouter", ContextWindow: 200000, RecommendedFor: []string{"default", "complex"}},
 	{Provider: "openrouter", ID: "anthropic/claude-haiku-4-5", Label: "Claude Haiku 4.5 via OpenRouter", ContextWindow: 200000, RecommendedFor: []string{"default", "fast"}},
 	{Provider: "openrouter", ID: "anthropic/claude-opus-4-6", Label: "Claude Opus 4.6 via OpenRouter", ContextWindow: 200000, RecommendedFor: []string{"complex"}},
-	{Provider: "openrouter", ID: "google/gemini-2.0-flash-lite", Label: "Gemini Flash Lite via OpenRouter", ContextWindow: 1048576, RecommendedFor: []string{"fast", "nano"}},
+	{Provider: "openrouter", ID: "google/gemini-2.0-flash", Label: "Gemini 2.0 Flash via OpenRouter", ContextWindow: 1048576, RecommendedFor: []string{"fast", "nano"}},
 	{Provider: "openrouter", ID: "mistralai/mistral-medium-3.1", Label: "Mistral Medium 3.1 via OpenRouter", ContextWindow: 131072, RecommendedFor: []string{"default"}},
 
 	// Groq

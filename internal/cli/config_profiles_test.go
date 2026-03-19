@@ -133,8 +133,8 @@ func TestConfigProfilesDelete_ClearsActiveProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash-lite",
-					Nano:    "gemini/gemini-2.0-flash-lite",
+					Fast:    "gemini/gemini-2.0-flash",
+					Nano:    "gemini/gemini-2.0-flash",
 				},
 				Providers: []string{"gemini"},
 			},
@@ -197,8 +197,8 @@ func TestConfigProfilesShow_CustomProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash-lite",
-					Nano:    "gemini/gemini-2.0-flash-lite",
+					Fast:    "gemini/gemini-2.0-flash",
+					Nano:    "gemini/gemini-2.0-flash",
 				},
 				Providers: []string{"gemini"},
 			},

@@ -43,8 +43,8 @@ func TestDefaultContextWindow_NestedModelID(t *testing.T) {
 	if got := DefaultContextWindow("anthropic/claude-sonnet-4-6"); got != 200000 {
 		t.Errorf("anthropic/claude-sonnet-4-6 = %d, want 200000", got)
 	}
-	if got := DefaultContextWindow("google/gemini-2.0-flash-lite"); got != 1048576 {
-		t.Errorf("google/gemini-2.0-flash-lite = %d, want 1048576", got)
+	if got := DefaultContextWindow("google/gemini-2.0-flash"); got != 1048576 {
+		t.Errorf("google/gemini-2.0-flash = %d, want 1048576", got)
 	}
 	if got := DefaultContextWindow("mistralai/mistral-medium-3.1"); got != 131072 {
 		t.Errorf("mistralai/mistral-medium-3.1 = %d, want 131072", got)

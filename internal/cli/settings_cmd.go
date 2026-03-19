@@ -21,9 +21,9 @@ import (
 var testModels = map[string]string{
 	"anthropic":  "claude-haiku-4-5",
 	"openai":     "gpt-4o-mini",
-	"gemini":     "gemini-2.0-flash-lite",
+	"gemini":     "gemini-2.0-flash",
 	"groq":       "llama-3.1-8b-instant",
-	"openrouter": "google/gemini-2.0-flash-lite",
+	"openrouter": "google/gemini-2.0-flash",
 }
 
 var settingsCmd = &cobra.Command{
