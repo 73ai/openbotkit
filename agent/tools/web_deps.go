@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
@@ -39,8 +40,11 @@ func NewWebSearchInstance(s WebSearchSetup) (*websearch.WebSearch, *store.DB) {
 		opts []websearch.Option
 		db   *store.DB
 	)
-	if s.DSN != "" {
-		if err := config.EnsureSourceDir("websearch"); err == nil {
+	if err := config.EnsureSourceDir("websearch"); err == nil {
+		historyPath := filepath.Join(config.SourceDir("websearch"), "search_history.jsonl")
+		opts = append(opts, websearch.WithHistoryPath(historyPath))
+
+		if s.DSN != "" {
 			opened, err := store.Open(store.Config{
 				Driver: s.WSConfig.Storage.Driver,
 				DSN:    s.DSN,
