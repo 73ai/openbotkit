@@ -57,7 +57,7 @@ func (w *WebSearch) Search(ctx context.Context, query string, opts SearchOptions
 		putSearchCache(w.db, key, query, "web", result.Results)
 	}
 
-	putSearchHistory(w.db, query, "web", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
+	putSearchHistory(w.historyPath, query, "web", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
 
 	return result, nil
 }
@@ -229,7 +229,7 @@ func (w *WebSearch) News(ctx context.Context, query string, opts SearchOptions) 
 		putSearchCache(w.db, key, query, "news", result.Results)
 	}
 
-	putSearchHistory(w.db, query, "news", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
+	putSearchHistory(w.historyPath, query, "news", result.Metadata.TotalResults, result.Metadata.Backends, result.Metadata.SearchTimeMs)
 
 	return result, nil
 }
