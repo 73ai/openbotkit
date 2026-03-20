@@ -31,21 +31,24 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 | Profile | Default | Complex | Fast | Nano | Provider |
 |---------|---------|---------|------|------|----------|
-| Gemini | gemini-2.5-flash | gemini-2.5-pro | gemini-2.0-flash | gemini-2.0-flash | gemini |
+| Gemini | gemini-2.5-flash | gemini-2.5-pro | gemini-2.5-flash-lite | gemini-2.5-flash-lite | gemini |
 | Anthropic | claude-haiku-4-5 | claude-sonnet-4-6 | claude-haiku-4-5 | claude-haiku-4-5 | anthropic |
 | Groq | llama-3.3-70b | llama-4-scout-17b | llama-3.1-8b | llama-3.1-8b | groq |
 | OpenRouter | claude-haiku-4-5 (OR) | claude-sonnet-4-6 (OR) | gemini-flash-lite (OR) | gemini-flash-lite (OR) | openrouter |
 | OpenAI | gpt-4o-mini | gpt-4o | gpt-4o-mini | gpt-4o-mini | openai |
 
-### Multi-provider profiles (2 API keys: OpenRouter + Gemini)
+### Multi-provider profiles (2 API keys)
 
-| Profile | ~Cost/mo | Default | Complex | Fast | Nano |
-|---------|----------|---------|---------|------|------|
-| Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.0 Flash | Gemini 2.0 Flash |
-| Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.0 Flash | Gemini 2.0 Flash |
-| Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.0 Flash |
+| Profile | ~Cost/mo | Default | Complex | Fast | Nano | Providers |
+|---------|----------|---------|---------|------|------|-----------|
+| Free | $0 | Gemini 2.5 Flash | Gemini 2.5 Pro | Cerebras gpt-oss-120b | Gemini 2.5 Flash Lite | Gemini + Cerebras |
+| Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
+| Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
+| Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
 
 *OR = via OpenRouter*
+
+> **Note:** gemini-2.5-flash-lite was deprecated on March 6, 2026 and is being shut down June 1, 2026. All profiles now use gemini-2.5-flash-lite as the replacement for fast/nano tiers.
 
 ### Custom profiles
 
@@ -62,7 +65,7 @@ OpenRouter gives access to Claude, GPT, Gemini, Mistral, and open-source models 
 
 ### Why Gemini direct (not via OpenRouter) for nano/fast
 
-Nano and fast tiers are latency-sensitive — they run during active user conversations (tool acks, compaction). Routing through OpenRouter adds ~50-100ms of extra latency per request. Using Google AI Studio directly for Gemini 2.0 Flash avoids this double-hop. The free tier (1500 RPD) covers typical nano/fast usage.
+Nano and fast tiers are latency-sensitive — they run during active user conversations (tool acks, compaction). Routing through OpenRouter adds ~50-100ms of extra latency per request. Using Google AI Studio directly for Gemini models avoids this double-hop. The free tier covers typical nano/fast usage.
 
 ### Why not Groq for nano
 
@@ -84,6 +87,10 @@ Groq's API is OpenAI-compatible. The provider is a thin wrapper (~15 lines) that
 
 Same pattern as Groq — reuses OpenAI provider with `https://openrouter.ai/api` as the base URL. Model specs use nested slashes: `openrouter/anthropic/claude-sonnet-4-6`. `ParseModelSpec` already handles this correctly via `strings.SplitN(spec, "/", 2)`. Env var: `OPENROUTER_API_KEY`.
 
+### Cerebras (`provider/cerebras`)
+
+Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` as the base URL. Offers free API access to large open-source models (gpt-oss-120b, qwen-3-235b) with fast inference. No credit card required. Env var: `CEREBRAS_API_KEY`.
+
 ## Task→Tier assignments
 
 | Task | Tier | Rationale |
@@ -101,13 +108,14 @@ Same pattern as Groq — reuses OpenAI provider with `https://openrouter.ai/api`
 
 ```
 How would you like to configure models?
+→ Free ($0/mo)
+→ Starter (~$20/mo)
+→ Standard (~$50/mo)
+→ Premium (~$100/mo)
 → Gemini (1 API key)
 → Anthropic (1 API key)
 → OpenRouter (1 API key)
 → OpenAI (1 API key)
-→ Starter (~$20/mo)
-→ Standard (~$50/mo)
-→ Premium (~$100/mo)
 → My Setup (custom)           # if custom profiles exist
 → Custom (manual configuration)
 ```
@@ -125,8 +133,8 @@ models:
   profile: standard
   default: openrouter/anthropic/claude-haiku-4-5
   complex: openrouter/anthropic/claude-sonnet-4-6
-  fast: gemini/gemini-2.0-flash
-  nano: gemini/gemini-2.0-flash
+  fast: gemini/gemini-2.5-flash-lite
+  nano: gemini/gemini-2.5-flash-lite
   providers:
     openrouter:
       api_key_ref: "keychain:obk/openrouter"
@@ -138,8 +146,8 @@ models:
       tiers:
         default: anthropic/claude-haiku-4-5
         complex: gemini/gemini-2.5-pro
-        fast: gemini/gemini-2.0-flash
-        nano: gemini/gemini-2.0-flash
+        fast: gemini/gemini-2.5-flash-lite
+        nano: gemini/gemini-2.5-flash-lite
       providers:
         - anthropic
         - gemini
