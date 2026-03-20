@@ -299,25 +299,20 @@ func TestZAIIntegration(t *testing.T) {
 		t.Skip("ZAI_API_KEY not set")
 	}
 
-	models := []string{"glm-4.5-flash"}
-	for _, model := range models {
-		t.Run(model, func(t *testing.T) {
-			p := New(apiKey)
-			resp, err := p.Chat(context.Background(), provider.ChatRequest{
-				Model:     model,
-				Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'hello' and nothing else.")},
-				MaxTokens: 256,
-			})
-			if err != nil {
-				t.Fatalf("Chat: %v", err)
-			}
-			t.Logf("StopReason: %q", resp.StopReason)
-			if text := resp.TextContent(); text == "" {
-				t.Error("empty response")
-			} else {
-				t.Logf("Response: %q", text)
-			}
-			t.Logf("Usage: input=%d output=%d", resp.Usage.InputTokens, resp.Usage.OutputTokens)
-		})
+	p := New(apiKey)
+	resp, err := p.Chat(context.Background(), provider.ChatRequest{
+		Model:     "glm-4.5-flash",
+		Messages:  []provider.Message{provider.NewTextMessage(provider.RoleUser, "Say 'hello' and nothing else.")},
+		MaxTokens: 256,
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
 	}
+	t.Logf("StopReason: %q", resp.StopReason)
+	if text := resp.TextContent(); text == "" {
+		t.Error("empty response")
+	} else {
+		t.Logf("Response: %q", text)
+	}
+	t.Logf("Usage: input=%d output=%d", resp.Usage.InputTokens, resp.Usage.OutputTokens)
 }
