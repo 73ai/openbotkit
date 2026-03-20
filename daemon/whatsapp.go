@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
@@ -45,6 +46,23 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNoti
 		}
 		defer db.Close()
 
+		// WhatsApp uses streaming sync (Follow: true), so notify periodically
+		// while messages arrive, matching the cadence of other sync sources.
+		if notifier != nil {
+			go func() {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						notifier.Notify("whatsapp")
+					}
+				}
+			}()
+		}
+
 		slog.Info("whatsapp: starting sync")
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{
 			Follow: true,
@@ -56,9 +74,6 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNoti
 		}
 
 		slog.Info("whatsapp: sync stopped", "received", result.Received, "history", result.HistoryMessages, "errors", result.Errors)
-		if notifier != nil {
-			notifier.Notify("whatsapp")
-		}
 	}()
 
 	return errCh
