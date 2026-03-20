@@ -4,45 +4,50 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/73ai/openbotkit/config"
 	historysrc "github.com/73ai/openbotkit/service/history"
 )
 
-func TestOpenHistoryDB(t *testing.T) {
+func TestOpenHistoryStore(t *testing.T) {
 	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 
-	cfg := config.Default()
-
-	db, convID, err := openHistoryDB(cfg, "test-session")
+	s, err := openHistoryStore("test-session")
 	if err != nil {
-		t.Fatalf("openHistoryDB: %v", err)
-	}
-	defer db.Close()
-
-	if convID == 0 {
-		t.Fatal("expected non-zero conversation ID")
+		t.Fatalf("openHistoryStore: %v", err)
 	}
 
 	// Save messages like the chat loop does.
-	if err := historysrc.SaveMessage(db, convID, "user", "Hello"); err != nil {
+	if err := s.SaveMessage("test-session", "user", "Hello"); err != nil {
 		t.Fatalf("save user message: %v", err)
 	}
-	if err := historysrc.SaveMessage(db, convID, "assistant", "Hi there!"); err != nil {
+	if err := s.SaveMessage("test-session", "assistant", "Hi there!"); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
 
 	// Verify messages were persisted.
-	var msgCount int
-	err = db.QueryRow(
-		db.Rebind("SELECT COUNT(*) FROM history_messages WHERE conversation_id = ?"),
-		convID,
-	).Scan(&msgCount)
+	msgs, err := s.LoadSessionMessages("test-session", 100)
 	if err != nil {
-		t.Fatalf("count messages: %v", err)
+		t.Fatalf("load messages: %v", err)
 	}
-	if msgCount != 2 {
-		t.Fatalf("expected 2 messages, got %d", msgCount)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
 	}
+	if msgs[0].Role != "user" || msgs[0].Content != "Hello" {
+		t.Errorf("msg[0] = %q/%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "Hi there!" {
+		t.Errorf("msg[1] = %q/%q", msgs[1].Role, msgs[1].Content)
+	}
+}
+
+func TestOpenHistoryStore_ReturnsStoreType(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
+	s, err := openHistoryStore("test-session")
+	if err != nil {
+		t.Fatalf("openHistoryStore: %v", err)
+	}
+	// Verify it returned the right type.
+	var _ *historysrc.Store = s
 }
 
 func TestGenerateSessionID(t *testing.T) {

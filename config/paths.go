@@ -67,6 +67,10 @@ func UsageJSONLPath() string {
 	return filepath.Join(Dir(), "usage", "usage.jsonl")
 }
 
+func HistoryDir() string {
+	return filepath.Join(Dir(), "history")
+}
+
 func UserMemoryDir() string {
 	return filepath.Join(Dir(), "user_memory")
 }

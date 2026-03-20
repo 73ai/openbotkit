@@ -185,14 +185,11 @@ var statusCmd = &cobra.Command{
 
 		// History is a derived store (captures from chat sessions),
 		// not a standalone source. Report its count separately.
-		if hdb, err := store.Open(store.Config{
-			Driver: cfg.History.Storage.Driver,
-			DSN:    cfg.HistoryDataDSN(),
-		}); err == nil {
-			historysrc.Migrate(hdb)
-			count, _ := historysrc.CountConversations(hdb)
-			lastCapture, _ := historysrc.LastCaptureTime(hdb)
-			hdb.Close()
+		histDir := config.HistoryDir()
+		historysrc.EnsureDir(histDir)
+		histStore := historysrc.NewStore(histDir)
+		if count, err := histStore.CountConversations(); err == nil {
+			lastCapture, _ := histStore.LastCaptureTime()
 			var lastSync *string
 			if lastCapture != nil {
 				ts := lastCapture.Format("2006-01-02 15:04")

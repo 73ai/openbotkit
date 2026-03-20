@@ -7,7 +7,6 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	historysrc "github.com/73ai/openbotkit/service/history"
-	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 
@@ -26,26 +25,13 @@ var captureCmd = &cobra.Command{
 			return fmt.Errorf("session_id and transcript_path are required")
 		}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("load config: %w", err)
-		}
-
-		if err := config.EnsureSourceDir("history"); err != nil {
+		dir := config.HistoryDir()
+		if err := historysrc.EnsureDir(dir); err != nil {
 			return fmt.Errorf("ensure history dir: %w", err)
 		}
 
-		dsn := cfg.HistoryDataDSN()
-		db, err := store.Open(store.Config{
-			Driver: cfg.History.Storage.Driver,
-			DSN:    dsn,
-		})
-		if err != nil {
-			return fmt.Errorf("open database: %w", err)
-		}
-		defer db.Close()
-
-		if err := historysrc.Capture(db, input); err != nil {
+		s := historysrc.NewStore(dir)
+		if err := historysrc.Capture(s, input); err != nil {
 			return fmt.Errorf("capture: %w", err)
 		}
 
