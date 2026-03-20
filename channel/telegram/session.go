@@ -575,7 +575,7 @@ func (sm *SessionManager) saveHistory(sessionID, userMsg, assistantMsg string) {
 
 func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
 	path := config.UsageJSONLPath()
-	if err := usagesrc.Migrate(path); err != nil {
+	if err := usagesrc.EnsureDir(path); err != nil {
 		return nil
 	}
 

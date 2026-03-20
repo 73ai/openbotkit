@@ -178,7 +178,7 @@ func openHistoryStore(sessionID string) (*historysrc.Store, error) {
 
 func openUsageRecorder(cfg *config.Config, providerName, channel, sessionID string) *usagesrc.Recorder {
 	path := config.UsageJSONLPath()
-	if err := usagesrc.Migrate(path); err != nil {
+	if err := usagesrc.EnsureDir(path); err != nil {
 		return nil
 	}
 	return usagesrc.NewRecorder(path, providerName, channel, sessionID)

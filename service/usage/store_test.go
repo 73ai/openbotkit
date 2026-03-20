@@ -13,19 +13,19 @@ func testPath(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "usage.jsonl")
 }
 
-func TestMigrate(t *testing.T) {
+func TestEnsureDir(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "usage.jsonl")
-	if err := Migrate(path); err != nil {
-		t.Fatalf("migrate: %v", err)
+	if err := EnsureDir(path); err != nil {
+		t.Fatalf("ensure dir: %v", err)
 	}
 }
 
-func TestMigrateIdempotent(t *testing.T) {
+func TestEnsureDirIdempotent(t *testing.T) {
 	path := testPath(t)
-	if err := Migrate(path); err != nil {
+	if err := EnsureDir(path); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	if err := Migrate(path); err != nil {
+	if err := EnsureDir(path); err != nil {
 		t.Fatalf("second: %v", err)
 	}
 }

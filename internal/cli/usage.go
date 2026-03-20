@@ -71,7 +71,7 @@ func runUsageQuery(groupBy string) error {
 	}
 
 	path := config.UsageJSONLPath()
-	if err := usagesrc.Migrate(path); err != nil {
+	if err := usagesrc.EnsureDir(path); err != nil {
 		return fmt.Errorf("ensure usage dir: %w", err)
 	}
 

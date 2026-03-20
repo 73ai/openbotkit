@@ -46,8 +46,8 @@ type QueryOpts struct {
 	GroupBy  string // "daily" (default) or "monthly"
 }
 
-// Migrate creates the parent directory for the JSONL file.
-func Migrate(path string) error {
+// EnsureDir creates the parent directory for the JSONL file.
+func EnsureDir(path string) error {
 	return os.MkdirAll(filepath.Dir(path), 0700)
 }
 
