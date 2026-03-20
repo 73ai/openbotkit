@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/73ai/openbotkit/agent/audit"
 )
 
 const defaultDelegateTimeout = 5 * time.Minute
@@ -23,6 +25,7 @@ type DelegateTaskConfig struct {
 	Tracker       *TaskTracker  // nil = sync-only (Phase 1 behavior)
 	ApprovalRules *ApprovalRuleSet
 	ScratchDir    string // directory for writing result files
+	AuditLogger   *audit.Logger
 }
 
 const progressThrottle = 30 * time.Second
@@ -37,6 +40,7 @@ type DelegateTaskTool struct {
 	tracker       *TaskTracker
 	approvalRules *ApprovalRuleSet
 	scratchDir    string
+	auditLogger   *audit.Logger
 }
 
 // NewDelegateTaskTool creates a new delegate_task tool.
@@ -60,6 +64,7 @@ func NewDelegateTaskTool(cfg DelegateTaskConfig) *DelegateTaskTool {
 		tracker:       cfg.Tracker,
 		approvalRules: cfg.ApprovalRules,
 		scratchDir:    cfg.ScratchDir,
+		auditLogger:   cfg.AuditLogger,
 	}
 }
 
@@ -237,11 +242,13 @@ func (d *DelegateTaskTool) runAsync(
 		output, err := sr.RunStream(ctx, task, d.timeout, onEvent, runOpts...)
 		if err != nil {
 			d.tracker.Fail(taskID, err.Error())
+			d.logAudit(taskID, preview, "", err.Error())
 			d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
 			return
 		}
 		summary := d.writeResultFile(output, task)
 		d.tracker.Complete(taskID, summary)
+		d.logAudit(taskID, preview, summary, "")
 		d.interactor.Notify(fmt.Sprintf("Task completed: %s. Use check_task to see results.", preview))
 		return
 	}
@@ -250,11 +257,13 @@ func (d *DelegateTaskTool) runAsync(
 	output, err := runner.Run(ctx, task, d.timeout, runOpts...)
 	if err != nil {
 		d.tracker.Fail(taskID, err.Error())
+		d.logAudit(taskID, preview, "", err.Error())
 		d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
 		return
 	}
 	summary := d.writeResultFile(output, task)
 	d.tracker.Complete(taskID, summary)
+	d.logAudit(taskID, preview, summary, "")
 	d.interactor.Notify(fmt.Sprintf("Task completed: %s. Use check_task to see results.", preview))
 }
 
@@ -303,6 +312,19 @@ func (d *DelegateTaskTool) selectRunner(agent string) (AgentRunnerInterface, Age
 		return nil, "", fmt.Errorf("agent %q not available", agent)
 	}
 	return runner, kind, nil
+}
+
+func (d *DelegateTaskTool) logAudit(taskID, input, output, errMsg string) {
+	if d.auditLogger == nil {
+		return
+	}
+	d.auditLogger.Log(audit.Entry{
+		Context:       "delegated",
+		ToolName:      "delegate_task",
+		InputSummary:  taskID + ": " + input,
+		OutputSummary: output,
+		Error:         errMsg,
+	})
 }
 
 func (d *DelegateTaskTool) agentEnumJSON() string {
