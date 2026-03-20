@@ -103,6 +103,7 @@ func TestValidateProfileName(t *testing.T) {
 
 		// Reserved names
 		{"custom", true},
+		{"free", true},       // built-in
 		{"gemini", true},     // built-in
 		{"anthropic", true},  // built-in
 		{"starter", true},    // built-in

@@ -15,7 +15,7 @@ func TestParseModelSpec(t *testing.T) {
 	}{
 		{"anthropic/claude-sonnet-4-6", "anthropic", "claude-sonnet-4-6", false},
 		{"openai/gpt-4o-mini", "openai", "gpt-4o-mini", false},
-		{"gemini/gemini-2.0-flash", "gemini", "gemini-2.0-flash", false},
+		{"gemini/gemini-2.5-flash-lite", "gemini", "gemini-2.5-flash-lite", false},
 		{"provider/model/extra", "provider", "model/extra", false}, // SplitN with 2
 		{"no-slash", "", "", true},
 		{"", "", "", true},

@@ -133,6 +133,32 @@ func TestListModels_Groq(t *testing.T) {
 	}
 }
 
+func TestListModels_Cerebras(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{"id": "qwen-3-235b-a22b-instruct-2507"},
+				{"id": "llama3.1-8b"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	models, err := ListModels(context.Background(), "cerebras", "test-key", config.ModelProviderConfig{BaseURL: server.URL})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(models))
+	}
+	if models[0].Provider != "cerebras" {
+		t.Errorf("expected provider cerebras, got %s", models[0].Provider)
+	}
+}
+
 func TestListModels_OpenRouter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{

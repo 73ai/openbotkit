@@ -16,6 +16,9 @@ var ModelPricing = map[string][3]float64{
 	"gpt-4.1-nano":             {0.10, 0.40, 0.025},
 	"gemini-2.5-pro":           {1.25, 10.0, 0.3125},
 	"gemini-2.5-flash":         {0.15, 0.60, 0.0375},
+	"gemini-2.5-flash-lite":    {0, 0, 0},
+	"qwen-3-235b-a22b-instruct-2507": {0, 0, 0},
+	"llama3.1-8b":                    {0, 0, 0},
 }
 
 // EstimateCost calculates the estimated cost for a model usage.

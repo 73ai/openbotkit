@@ -11,6 +11,7 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
 	_ "github.com/73ai/openbotkit/provider/anthropic"
+	_ "github.com/73ai/openbotkit/provider/cerebras"
 	_ "github.com/73ai/openbotkit/provider/gemini"
 	_ "github.com/73ai/openbotkit/provider/groq"
 	_ "github.com/73ai/openbotkit/provider/openai"
@@ -54,7 +55,7 @@ var llmProviders = []providerInfo{
 		models: []huh.Option[string]{
 			huh.NewOption("gemini-2.5-pro (most capable)", "gemini-2.5-pro"),
 			huh.NewOption("gemini-2.5-flash (fast, good balance)", "gemini-2.5-flash"),
-			huh.NewOption("gemini-2.0-flash (fast, cheap)", "gemini-2.0-flash"),
+			huh.NewOption("gemini-2.5-flash-lite (fast, cheap)", "gemini-2.5-flash-lite"),
 		},
 	},
 	{
@@ -63,7 +64,7 @@ var llmProviders = []providerInfo{
 		models: []huh.Option[string]{
 			huh.NewOption("anthropic/claude-sonnet-4-6", "anthropic/claude-sonnet-4-6"),
 			huh.NewOption("anthropic/claude-haiku-4-5", "anthropic/claude-haiku-4-5"),
-			huh.NewOption("google/gemini-2.0-flash", "google/gemini-2.0-flash"),
+			huh.NewOption("google/gemini-2.5-flash-lite", "google/gemini-2.5-flash-lite"),
 			huh.NewOption("mistralai/mistral-medium-3.1", "mistralai/mistral-medium-3.1"),
 		},
 	},
@@ -74,6 +75,14 @@ var llmProviders = []providerInfo{
 			huh.NewOption("llama-3.1-8b-instant (fastest)", "llama-3.1-8b-instant"),
 			huh.NewOption("llama-3.3-70b-versatile", "llama-3.3-70b-versatile"),
 			huh.NewOption("llama-4-scout-17b-16e", "llama-4-scout-17b-16e"),
+		},
+	},
+	{
+		name:  "cerebras",
+		label: "Cerebras (fast inference)",
+		models: []huh.Option[string]{
+			huh.NewOption("qwen-3-235b-a22b-instruct-2507 (most capable)", "qwen-3-235b-a22b-instruct-2507"),
+			huh.NewOption("llama3.1-8b (fastest)", "llama3.1-8b"),
 		},
 	},
 }
