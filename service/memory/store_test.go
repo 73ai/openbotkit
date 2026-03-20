@@ -1,6 +1,9 @@
 package memory
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func TestAdd(t *testing.T) {
 	s := testStore(t)
@@ -202,5 +205,38 @@ func TestIDGloballyUnique(t *testing.T) {
 
 	if id1 == id2 || id2 == id3 || id1 == id3 {
 		t.Fatalf("IDs should be unique across categories: %d, %d, %d", id1, id2, id3)
+	}
+}
+
+func TestAtomicWrite(t *testing.T) {
+	s := testStore(t)
+
+	var wg sync.WaitGroup
+	const n = 20
+	errs := make(chan error, n)
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.Add("concurrent fact", CategoryPreference, "test", "")
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Fatalf("concurrent add: %v", err)
+	}
+
+	count, err := s.Count()
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != n {
+		t.Fatalf("expected %d, got %d", n, count)
 	}
 }
