@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -205,6 +207,35 @@ func TestIDGloballyUnique(t *testing.T) {
 
 	if id1 == id2 || id2 == id3 || id1 == id3 {
 		t.Fatalf("IDs should be unique across categories: %d, %d, %d", id1, id2, id3)
+	}
+}
+
+func TestCorruptedCounter(t *testing.T) {
+	s := testStore(t)
+
+	// Add a memory to establish counter at 2.
+	id1, err := s.Add("first fact", CategoryIdentity, "test", "")
+	if err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+
+	// Corrupt the .counter file.
+	counterPath := filepath.Join(s.dir, ".counter")
+	os.WriteFile(counterPath, []byte("{garbage}"), 0600)
+
+	// Next add should recover (counter resets to 1), but this means
+	// a potential ID collision with id1. Verify the add still works.
+	id2, err := s.Add("second fact", CategoryPreference, "test", "")
+	if err != nil {
+		t.Fatalf("add after corruption: %v", err)
+	}
+
+	// Both memories should be retrievable.
+	if _, err := s.Get(id1); err != nil {
+		t.Errorf("get id1 (%d): %v", id1, err)
+	}
+	if _, err := s.Get(id2); err != nil {
+		t.Errorf("get id2 (%d): %v", id2, err)
 	}
 }
 
