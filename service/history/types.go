@@ -1,6 +1,14 @@
 package history
 
-import "time"
+import (
+	"sync"
+	"time"
+)
+
+type Store struct {
+	dir string
+	mu  sync.Mutex
+}
 
 type Config struct {
 	DataDBPath string
@@ -18,6 +26,11 @@ type Message struct {
 	Role           string // "user" or "assistant"
 	Content        string
 	Timestamp      time.Time
+}
+
+type RecentSession struct {
+	SessionID string
+	UpdatedAt time.Time
 }
 
 type CaptureInput struct {

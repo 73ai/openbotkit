@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/73ai/openbotkit/provider"
-	"github.com/73ai/openbotkit/store"
 )
 
 const reconcilePromptTemplate = `Given existing memories and a new candidate fact, decide the action:
@@ -29,14 +28,14 @@ type reconcileDecision struct {
 	Content string `json:"content"`
 }
 
-func Reconcile(ctx context.Context, db *store.DB, llm LLM, candidates []CandidateFact) (*ExtractResult, error) {
+func Reconcile(ctx context.Context, s *Store, llm LLM, candidates []CandidateFact) (*ExtractResult, error) {
 	result := &ExtractResult{}
 
 	for _, candidate := range candidates {
 		keywords := extractKeywords(candidate.Content)
 		var existing []Memory
 		for _, kw := range keywords {
-			matches, err := Search(db, kw)
+			matches, err := s.Search(kw)
 			if err != nil {
 				continue
 			}
@@ -44,7 +43,7 @@ func Reconcile(ctx context.Context, db *store.DB, llm LLM, candidates []Candidat
 		}
 
 		if len(existing) == 0 {
-			_, err := Add(db, candidate.Content, Category(candidate.Category), "history", "")
+			_, err := s.Add(candidate.Content, Category(candidate.Category), "history", "")
 			if err != nil {
 				return result, fmt.Errorf("add memory: %w", err)
 			}
@@ -60,7 +59,7 @@ func Reconcile(ctx context.Context, db *store.DB, llm LLM, candidates []Candidat
 
 		switch strings.ToUpper(decision.Action) {
 		case "ADD":
-			_, err := Add(db, candidate.Content, Category(candidate.Category), "history", "")
+			_, err := s.Add(candidate.Content, Category(candidate.Category), "history", "")
 			if err != nil {
 				return result, fmt.Errorf("add memory: %w", err)
 			}
@@ -70,12 +69,12 @@ func Reconcile(ctx context.Context, db *store.DB, llm LLM, candidates []Candidat
 			if content == "" {
 				content = candidate.Content
 			}
-			if err := Update(db, decision.ID, content); err != nil {
+			if err := s.Update(decision.ID, content); err != nil {
 				return result, fmt.Errorf("update memory: %w", err)
 			}
 			result.Updated++
 		case "DELETE":
-			if err := Delete(db, decision.ID); err != nil {
+			if err := s.Delete(decision.ID); err != nil {
 				return result, fmt.Errorf("delete memory: %w", err)
 			}
 			result.Deleted++

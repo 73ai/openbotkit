@@ -1,6 +1,7 @@
 package websearch
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -173,18 +174,63 @@ func TestFetchCacheNilDB(t *testing.T) {
 }
 
 func TestPutSearchHistory(t *testing.T) {
-	db := openTestDB(t)
-	putSearchHistory(db, "golang", "web", 5, []string{"duckduckgo", "brave"}, 342)
+	histPath := filepath.Join(t.TempDir(), "search_history.jsonl")
+	putSearchHistory(histPath, "golang", "web", 5, []string{"duckduckgo", "brave"}, 342)
 
-	var query, category, backends string
-	var count int
-	var ms int64
-	err := db.QueryRow("SELECT query, category, result_count, backends, search_ms FROM search_history").Scan(&query, &category, &count, &backends, &ms)
+	entries, err := LoadSearchHistory(histPath, 10)
 	if err != nil {
-		t.Fatalf("query history: %v", err)
+		t.Fatalf("load history: %v", err)
 	}
-	if query != "golang" || category != "web" || count != 5 || backends != "duckduckgo,brave" || ms != 342 {
-		t.Errorf("unexpected row: query=%q category=%q count=%d backends=%q ms=%d", query, category, count, backends, ms)
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	e := entries[0]
+	if e.Query != "golang" || e.Category != "web" || e.ResultCount != 5 || e.Backends != "duckduckgo,brave" || e.SearchMs != 342 {
+		t.Errorf("unexpected entry: %+v", e)
+	}
+}
+
+func TestLoadSearchHistoryLimit(t *testing.T) {
+	histPath := filepath.Join(t.TempDir(), "search_history.jsonl")
+	for i := 0; i < 5; i++ {
+		putSearchHistory(histPath, fmt.Sprintf("query-%d", i), "web", i, []string{"duckduckgo"}, 100)
+	}
+
+	entries, err := LoadSearchHistory(histPath, 3)
+	if err != nil {
+		t.Fatalf("load history: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+	// Most recent first.
+	if entries[0].Query != "query-4" {
+		t.Errorf("first entry = %q, want query-4", entries[0].Query)
+	}
+}
+
+func TestCountSearchHistory(t *testing.T) {
+	histPath := filepath.Join(t.TempDir(), "search_history.jsonl")
+	for i := 0; i < 3; i++ {
+		putSearchHistory(histPath, "q", "web", 1, []string{"d"}, 10)
+	}
+
+	count, err := countSearchHistory(histPath)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("count = %d, want 3", count)
+	}
+}
+
+func TestCountSearchHistoryNonExistent(t *testing.T) {
+	count, err := countSearchHistory(filepath.Join(t.TempDir(), "nope.jsonl"))
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("count = %d, want 0", count)
 	}
 }
 

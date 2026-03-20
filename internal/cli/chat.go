@@ -61,13 +61,10 @@ var chatCmd = &cobra.Command{
 
 		sessionID := generateSessionID()
 
-		// Open history DB for saving conversation.
-		histDB, convID, err := openHistoryDB(cfg, sessionID)
+		// Open history store for saving conversation.
+		histStore, err := openHistoryStore(sessionID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: history will not be saved: %v\n", err)
-		}
-		if histDB != nil {
-			defer histDB.Close()
 		}
 
 		ch := clicli.New(os.Stdin, os.Stdout)
@@ -158,9 +155,9 @@ var chatCmd = &cobra.Command{
 				continue
 			}
 
-			if histDB != nil {
-				historysrc.SaveMessage(histDB, convID, "user", input)
-				historysrc.SaveMessage(histDB, convID, "assistant", response)
+			if histStore != nil {
+				histStore.SaveMessage(sessionID, "user", input)
+				histStore.SaveMessage(sessionID, "assistant", response)
 			}
 
 			ch.Send(response)
@@ -169,50 +166,25 @@ var chatCmd = &cobra.Command{
 	},
 }
 
-func openHistoryDB(cfg *config.Config, sessionID string) (*store.DB, int64, error) {
-	if err := config.EnsureSourceDir("history"); err != nil {
-		return nil, 0, fmt.Errorf("ensure history dir: %w", err)
+func openHistoryStore(sessionID string) (*historysrc.Store, error) {
+	dir := config.HistoryDir()
+	if err := historysrc.EnsureDir(dir); err != nil {
+		return nil, fmt.Errorf("ensure history dir: %w", err)
 	}
-
-	db, err := store.Open(store.Config{
-		Driver: cfg.History.Storage.Driver,
-		DSN:    cfg.HistoryDataDSN(),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("open history db: %w", err)
-	}
-
-	if err := historysrc.Migrate(db); err != nil {
-		db.Close()
-		return nil, 0, fmt.Errorf("migrate history: %w", err)
-	}
-
+	s := historysrc.NewStore(dir)
 	cwd, _ := os.Getwd()
-	convID, err := historysrc.UpsertConversation(db, sessionID, cwd)
-	if err != nil {
-		db.Close()
-		return nil, 0, fmt.Errorf("create conversation: %w", err)
+	if err := s.UpsertConversation(sessionID, cwd); err != nil {
+		return nil, fmt.Errorf("create conversation: %w", err)
 	}
-
-	return db, convID, nil
+	return s, nil
 }
 
 func openUsageRecorder(cfg *config.Config, providerName, channel, sessionID string) *usagesrc.Recorder {
-	if err := config.EnsureSourceDir("usage"); err != nil {
+	path := config.UsageJSONLPath()
+	if err := usagesrc.EnsureDir(path); err != nil {
 		return nil
 	}
-	db, err := store.Open(store.Config{
-		Driver: cfg.Usage.Storage.Driver,
-		DSN:    cfg.UsageDataDSN(),
-	})
-	if err != nil {
-		return nil
-	}
-	if err := usagesrc.Migrate(db); err != nil {
-		db.Close()
-		return nil
-	}
-	return usagesrc.NewRecorder(db, providerName, channel, sessionID)
+	return usagesrc.NewRecorder(path, providerName, channel, sessionID)
 }
 
 func generateSessionID() string {
@@ -223,7 +195,7 @@ func generateSessionID() string {
 
 
 func openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Channel) {

@@ -218,14 +218,9 @@ func createWhatsAppDB(t *testing.T, dir string) {
 
 func createMemoryDB(t *testing.T, dir string) {
 	t.Helper()
-	dbPath := filepath.Join(dir, "user_memory", "data.db")
-	db, err := store.Open(store.SQLiteConfig(dbPath))
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
-	}
-	defer db.Close()
-	if err := memory.Migrate(db); err != nil {
-		t.Fatalf("migrate memory: %v", err)
+	memDir := filepath.Join(dir, "user_memory")
+	if err := memory.EnsureDir(memDir); err != nil {
+		t.Fatalf("ensure memory dir: %v", err)
 	}
 }
 
@@ -414,19 +409,16 @@ func (f *LocalFixture) GivenWhatsAppMessages(t *testing.T, messages []WhatsAppMe
 func (f *LocalFixture) GivenMemories(t *testing.T, memories []UserMemory) {
 	t.Helper()
 
-	dbPath := filepath.Join(f.dir, "user_memory", "data.db")
-	db, err := store.Open(store.SQLiteConfig(dbPath))
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
-	}
-	defer db.Close()
+	memDir := filepath.Join(f.dir, "user_memory")
+	memory.EnsureDir(memDir)
+	ms := memory.NewStore(memDir)
 
 	for i, m := range memories {
 		cat := m.Category
 		if cat == "" {
 			cat = "preference"
 		}
-		if _, err := memory.Add(db, m.Content, memory.Category(cat), "manual", ""); err != nil {
+		if _, err := ms.Add(m.Content, memory.Category(cat), "manual", ""); err != nil {
 			t.Fatalf("add memory %d: %v", i, err)
 		}
 	}

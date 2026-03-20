@@ -7,18 +7,14 @@ import (
 )
 
 func TestReconcileNoExisting(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
 	candidates := []CandidateFact{
 		{Content: "User prefers dark mode", Category: "preference"},
 		{Content: "User's name is Priyanshu", Category: "identity"},
 	}
 
-	// With no existing memories, LLM is not needed (all ADD).
-	result, err := Reconcile(context.Background(), db, nil, candidates)
+	result, err := Reconcile(context.Background(), s, nil, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -27,20 +23,15 @@ func TestReconcileNoExisting(t *testing.T) {
 		t.Errorf("added = %d, want 2", result.Added)
 	}
 
-	count, _ := Count(db)
+	count, _ := s.Count()
 	if count != 2 {
 		t.Errorf("count = %d, want 2", count)
 	}
 }
 
 func TestReconcileWithExistingNOOP(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	// Seed an existing memory.
-	Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+	s := testStore(t)
+	s.Add("User prefers dark mode", CategoryPreference, "manual", "")
 
 	llm := &mockLLM{
 		response: `{"action": "NOOP"}`,
@@ -50,7 +41,7 @@ func TestReconcileWithExistingNOOP(t *testing.T) {
 		{Content: "User prefers dark mode", Category: "preference"},
 	}
 
-	result, err := Reconcile(context.Background(), db, llm, candidates)
+	result, err := Reconcile(context.Background(), s, llm, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -62,20 +53,15 @@ func TestReconcileWithExistingNOOP(t *testing.T) {
 		t.Errorf("added = %d, want 0", result.Added)
 	}
 
-	// DB should still have just 1 memory.
-	count, _ := Count(db)
+	count, _ := s.Count()
 	if count != 1 {
 		t.Errorf("count = %d, want 1", count)
 	}
 }
 
 func TestReconcileWithExistingUPDATE(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	id, _ := Add(db, "User prefers light mode", CategoryPreference, "manual", "")
+	s := testStore(t)
+	id, _ := s.Add("User prefers light mode", CategoryPreference, "manual", "")
 
 	llm := &mockLLM{
 		response: fmt.Sprintf(`{"action": "UPDATE", "id": %d, "content": "User prefers dark mode"}`, id),
@@ -85,7 +71,7 @@ func TestReconcileWithExistingUPDATE(t *testing.T) {
 		{Content: "User now prefers dark mode", Category: "preference"},
 	}
 
-	result, err := Reconcile(context.Background(), db, llm, candidates)
+	result, err := Reconcile(context.Background(), s, llm, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -94,20 +80,15 @@ func TestReconcileWithExistingUPDATE(t *testing.T) {
 		t.Errorf("updated = %d, want 1", result.Updated)
 	}
 
-	// Verify the memory was updated.
-	m, _ := Get(db, id)
+	m, _ := s.Get(id)
 	if m.Content != "User prefers dark mode" {
 		t.Errorf("content = %q, want 'User prefers dark mode'", m.Content)
 	}
 }
 
 func TestReconcileWithExistingDELETE(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	id, _ := Add(db, "User works at Acme Corp", CategoryIdentity, "manual", "")
+	s := testStore(t)
+	id, _ := s.Add("User works at Acme Corp", CategoryIdentity, "manual", "")
 
 	llm := &mockLLM{
 		response: fmt.Sprintf(`{"action": "DELETE", "id": %d}`, id),
@@ -117,7 +98,7 @@ func TestReconcileWithExistingDELETE(t *testing.T) {
 		{Content: "User left Acme Corp", Category: "identity"},
 	}
 
-	result, err := Reconcile(context.Background(), db, llm, candidates)
+	result, err := Reconcile(context.Background(), s, llm, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -126,20 +107,15 @@ func TestReconcileWithExistingDELETE(t *testing.T) {
 		t.Errorf("deleted = %d, want 1", result.Deleted)
 	}
 
-	count, _ := Count(db)
+	count, _ := s.Count()
 	if count != 0 {
 		t.Errorf("count = %d, want 0", count)
 	}
 }
 
 func TestReconcileWithExistingADD(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	// Seed existing memory that shares keywords.
-	Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+	s := testStore(t)
+	s.Add("User prefers dark mode", CategoryPreference, "manual", "")
 
 	llm := &mockLLM{
 		response: `{"action": "ADD"}`,
@@ -149,7 +125,7 @@ func TestReconcileWithExistingADD(t *testing.T) {
 		{Content: "User prefers vim keybindings in dark mode editors", Category: "preference"},
 	}
 
-	result, err := Reconcile(context.Background(), db, llm, candidates)
+	result, err := Reconcile(context.Background(), s, llm, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -158,19 +134,15 @@ func TestReconcileWithExistingADD(t *testing.T) {
 		t.Errorf("added = %d, want 1", result.Added)
 	}
 
-	count, _ := Count(db)
+	count, _ := s.Count()
 	if count != 2 {
 		t.Errorf("count = %d, want 2", count)
 	}
 }
 
 func TestReconcileLLMError(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+	s := testStore(t)
+	s.Add("User prefers dark mode", CategoryPreference, "manual", "")
 
 	llm := &mockLLM{err: fmt.Errorf("API error")}
 
@@ -178,7 +150,7 @@ func TestReconcileLLMError(t *testing.T) {
 		{Content: "User prefers dark mode in editors", Category: "preference"},
 	}
 
-	result, err := Reconcile(context.Background(), db, llm, candidates)
+	result, err := Reconcile(context.Background(), s, llm, candidates)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}

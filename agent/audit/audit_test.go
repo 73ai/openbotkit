@@ -1,42 +1,22 @@
 package audit
 
 import (
+	"bufio"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/73ai/openbotkit/store"
 )
 
-func openTestDB(t *testing.T) *store.DB {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "audit_test.db")
-	db, err := store.Open(store.SQLiteConfig(path))
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
+func TestLog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l := OpenDefault(path)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
 	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
+	defer l.Close()
 
-func TestMigrate(t *testing.T) {
-	db := openTestDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
-	// Idempotent.
-	if err := Migrate(db); err != nil {
-		t.Fatalf("Migrate (2nd call): %v", err)
-	}
-}
-
-func TestLogger_Log(t *testing.T) {
-	db := openTestDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
-
-	l := NewLogger(db)
 	l.Log(Entry{
 		Timestamp:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		Context:        "cli",
@@ -46,34 +26,32 @@ func TestLogger_Log(t *testing.T) {
 		ApprovalStatus: "n/a",
 	})
 
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
-		t.Fatalf("query: %v", err)
+	entries := readJSONL(t, path)
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
 	}
-	if count != 1 {
-		t.Errorf("count = %d, want 1", count)
+	if entries[0].ToolName != "bash" {
+		t.Errorf("tool_name = %q, want %q", entries[0].ToolName, "bash")
 	}
-
-	var toolName, ctx string
-	err := db.QueryRow("SELECT tool_name, context FROM audit_log WHERE id=1").Scan(&toolName, &ctx)
-	if err != nil {
-		t.Fatalf("query row: %v", err)
+	if entries[0].Context != "cli" {
+		t.Errorf("context = %q, want %q", entries[0].Context, "cli")
 	}
-	if toolName != "bash" {
-		t.Errorf("tool_name = %q, want %q", toolName, "bash")
+	if entries[0].Timestamp != "2026-01-01T00:00:00Z" {
+		t.Errorf("timestamp = %q, want %q", entries[0].Timestamp, "2026-01-01T00:00:00Z")
 	}
-	if ctx != "cli" {
-		t.Errorf("context = %q, want %q", ctx, "cli")
+	if entries[0].Error != "" {
+		t.Errorf("error should be omitted, got %q", entries[0].Error)
 	}
 }
 
-func TestLogger_Truncation(t *testing.T) {
-	db := openTestDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("Migrate: %v", err)
+func TestTruncation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l := OpenDefault(path)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
 	}
+	defer l.Close()
 
-	l := NewLogger(db)
 	longInput := make([]byte, 500)
 	for i := range longInput {
 		longInput[i] = 'x'
@@ -84,62 +62,96 @@ func TestLogger_Truncation(t *testing.T) {
 		InputSummary: string(longInput),
 	})
 
-	var inputSum string
-	err := db.QueryRow("SELECT input_summary FROM audit_log WHERE id=1").Scan(&inputSum)
-	if err != nil {
-		t.Fatalf("query: %v", err)
+	entries := readJSONL(t, path)
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
 	}
-	if len(inputSum) > maxSummaryLen+10 {
-		t.Errorf("input_summary len = %d, expected truncated to ~%d", len(inputSum), maxSummaryLen)
+	if len(entries[0].InputSummary) > maxSummaryLen+10 {
+		t.Errorf("input_summary len = %d, expected truncated to ~%d", len(entries[0].InputSummary), maxSummaryLen)
 	}
 }
 
-func TestLogger_NilSafe(t *testing.T) {
+func TestNilSafe(t *testing.T) {
 	var l *Logger
-	// Should not panic.
 	l.Log(Entry{ToolName: "bash"})
 	if err := l.Close(); err != nil {
 		t.Errorf("nil Close: %v", err)
 	}
 }
 
-func TestOpenDefault(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "audit", "data.db")
-	l := OpenDefault(dbPath)
+func TestClose(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l := OpenDefault(path)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
+	}
+	if err := l.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Log after close should not panic.
+	l.Log(Entry{ToolName: "bash", Context: "test"})
+}
+
+func TestOpenDefault_CreatesDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "dir", "audit.jsonl")
+	l := OpenDefault(path)
 	if l == nil {
 		t.Fatal("OpenDefault returned nil")
 	}
 	defer l.Close()
-	l.Log(Entry{Context: "test", ToolName: "bash", InputSummary: "echo hi"})
 
-	var count int
-	if err := l.db.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
-		t.Fatalf("query: %v", err)
-	}
-	if count != 1 {
-		t.Errorf("count = %d, want 1", count)
+	l.Log(Entry{Context: "test", ToolName: "bash", InputSummary: "echo hi"})
+	entries := readJSONL(t, path)
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
 	}
 }
 
 func TestOpenDefault_BadPath(t *testing.T) {
-	// A null byte in the path is invalid on all platforms.
-	l := OpenDefault("/bad\x00path/data.db")
+	l := OpenDefault("/bad\x00path/audit.jsonl")
 	if l != nil {
 		l.Close()
 		t.Error("expected nil for bad path")
 	}
 }
 
-func TestLogger_Close(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "close_test.db")
-	db, err := store.Open(store.SQLiteConfig(path))
+func TestMultipleEntries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	l := OpenDefault(path)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
+	}
+	defer l.Close()
+
+	for i := 0; i < 5; i++ {
+		l.Log(Entry{Context: "cli", ToolName: "bash"})
+	}
+
+	entries := readJSONL(t, path)
+	if len(entries) != 5 {
+		t.Fatalf("got %d entries, want 5", len(entries))
+	}
+}
+
+func readJSONL(t *testing.T, path string) []jsonEntry {
+	t.Helper()
+	f, err := os.Open(path)
 	if err != nil {
-		t.Fatalf("open db: %v", err)
+		t.Fatalf("open %s: %v", path, err)
 	}
-	l := NewLogger(db)
-	if err := l.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	defer f.Close()
+
+	var entries []jsonEntry
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var e jsonEntry
+		if err := json.Unmarshal(scanner.Bytes(), &e); err != nil {
+			t.Fatalf("parse JSON line: %v", err)
+		}
+		entries = append(entries, e)
 	}
-	// Log after close should not panic (fire-and-forget).
-	l.Log(Entry{ToolName: "bash", Context: "test"})
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	return entries
 }

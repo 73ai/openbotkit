@@ -1,12 +1,12 @@
 package audit
 
 import (
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
-
-	"github.com/73ai/openbotkit/store"
 )
 
 // Entry represents a single audit log record.
@@ -20,44 +20,51 @@ type Entry struct {
 	Error          string
 }
 
-// Logger writes audit entries to a database.
+type jsonEntry struct {
+	Timestamp      string `json:"timestamp"`
+	Context        string `json:"context"`
+	ToolName       string `json:"tool_name"`
+	InputSummary   string `json:"input_summary"`
+	OutputSummary  string `json:"output_summary"`
+	ApprovalStatus string `json:"approval_status"`
+	Error          string `json:"error,omitempty"`
+}
+
+// Logger writes audit entries to a JSONL file.
 type Logger struct {
-	db *store.DB
+	mu   sync.Mutex
+	file *os.File
+	enc  *json.Encoder
 }
 
-// NewLogger creates an audit logger backed by the given database.
-func NewLogger(db *store.DB) *Logger {
-	return &Logger{db: db}
-}
-
-// OpenDefault opens (or creates) the audit database at dbPath,
-// runs migrations, and returns a ready Logger.
+// OpenDefault opens (or creates) the audit JSONL file at path,
+// creating parent directories as needed.
 // Returns nil if any step fails (errors are logged via slog).
-func OpenDefault(dbPath string) *Logger {
-	dir := filepath.Dir(dbPath)
+func OpenDefault(path string) *Logger {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		slog.Debug("audit: cannot create dir", "error", err)
 		return nil
 	}
-	db, err := store.Open(store.SQLiteConfig(dbPath))
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		slog.Debug("audit: open db failed", "error", err)
+		slog.Debug("audit: open file failed", "error", err)
 		return nil
 	}
-	if err := Migrate(db); err != nil {
-		db.Close()
-		slog.Debug("audit: migrate failed", "error", err)
-		return nil
-	}
-	return NewLogger(db)
+	return &Logger{file: f, enc: json.NewEncoder(f)}
 }
 
-// Close closes the underlying database connection.
+// Close closes the underlying file.
 func (l *Logger) Close() error {
-	if l == nil || l.db == nil {
+	if l == nil || l.file == nil {
 		return nil
 	}
-	return l.db.Close()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	err := l.file.Close()
+	l.file = nil
+	l.enc = nil
+	return err
 }
 
 const maxSummaryLen = 200
@@ -69,53 +76,36 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
-// Log writes an audit entry. It never returns an error to the caller;
-// failures are logged via slog.
+// Log writes an audit entry as a JSON line. It never returns an error
+// to the caller; failures are logged via slog.
 func (l *Logger) Log(e Entry) {
-	if l == nil || l.db == nil {
+	if l == nil || l.file == nil {
 		return
 	}
 	ts := e.Timestamp
 	if ts.IsZero() {
 		ts = time.Now().UTC()
 	}
-	inputSum := truncate(e.InputSummary, maxSummaryLen)
-	outputSum := truncate(e.OutputSummary, maxSummaryLen)
 	if e.ApprovalStatus == "" {
 		e.ApprovalStatus = "n/a"
 	}
 
-	query := l.db.Rebind(`INSERT INTO audit_log (timestamp, context, tool_name, input_summary, output_summary, approval_status, error)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`)
-	_, err := l.db.Exec(query,
-		ts.Format(time.RFC3339),
-		e.Context,
-		e.ToolName,
-		inputSum,
-		outputSum,
-		e.ApprovalStatus,
-		e.Error,
-	)
-	if err != nil {
+	je := jsonEntry{
+		Timestamp:      ts.Format(time.RFC3339),
+		Context:        e.Context,
+		ToolName:       e.ToolName,
+		InputSummary:   truncate(e.InputSummary, maxSummaryLen),
+		OutputSummary:  truncate(e.OutputSummary, maxSummaryLen),
+		ApprovalStatus: e.ApprovalStatus,
+		Error:          e.Error,
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.enc == nil {
+		return
+	}
+	if err := l.enc.Encode(je); err != nil {
 		slog.Error("audit log write failed", "tool", e.ToolName, "error", err)
 	}
-}
-
-// Migrate creates the audit_log table if it doesn't exist.
-func Migrate(db *store.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS audit_log (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-			context TEXT NOT NULL,
-			tool_name TEXT NOT NULL,
-			input_summary TEXT,
-			output_summary TEXT,
-			approval_status TEXT DEFAULT 'n/a',
-			error TEXT
-		);
-		CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
-		CREATE INDEX IF NOT EXISTS idx_audit_tool ON audit_log(tool_name);
-	`)
-	return err
 }

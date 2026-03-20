@@ -4,34 +4,31 @@ import (
 	"log/slog"
 
 	"github.com/73ai/openbotkit/provider"
-	"github.com/73ai/openbotkit/store"
 )
 
-// Recorder implements agent.UsageRecorder by writing to the usage store.
+// Recorder implements agent.UsageRecorder by appending to a JSONL file.
 type Recorder struct {
-	db        *store.DB
+	path      string
 	provider  string
 	channel   string
 	sessionID string
 }
 
-// NewRecorder creates a Recorder that writes usage to the given database.
-func NewRecorder(db *store.DB, providerName, channel, sessionID string) *Recorder {
+// NewRecorder creates a Recorder that appends usage to the given JSONL file.
+func NewRecorder(path, providerName, channel, sessionID string) *Recorder {
 	return &Recorder{
-		db:        db,
+		path:      path,
 		provider:  providerName,
 		channel:   channel,
 		sessionID: sessionID,
 	}
 }
 
-// Close releases the underlying database connection.
-func (r *Recorder) Close() {
-	r.db.Close()
-}
+// Close is a no-op since each Record call opens/closes the file.
+func (r *Recorder) Close() {}
 
 func (r *Recorder) RecordUsage(model string, usage provider.Usage) {
-	err := Record(r.db, UsageRecord{
+	err := Record(r.path, UsageRecord{
 		Provider:         r.provider,
 		Model:            model,
 		Channel:          r.channel,

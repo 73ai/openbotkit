@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/service/memory"
-	"github.com/73ai/openbotkit/store"
 )
 
 func testServerWithMemoryDB(t *testing.T) *Server {
@@ -21,22 +19,9 @@ func testServerWithMemoryDB(t *testing.T) *Server {
 
 	cfg := config.Default()
 
-	// Ensure the user_memory source directory exists
+	// Ensure the user_memory directory exists
 	memDir := filepath.Join(dir, "user_memory")
-	if err := os.MkdirAll(memDir, 0700); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-
-	// Pre-create the memory DB so the handler can open it
-	dsn := cfg.UserMemoryDataDSN()
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: dsn})
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := memory.Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	db.Close()
+	memory.EnsureDir(memDir)
 
 	return &Server{cfg: cfg}
 }
