@@ -3,6 +3,9 @@ package tools
 import (
 	"sync"
 	"testing"
+
+	"github.com/73ai/openbotkit/service/tasks"
+	"github.com/73ai/openbotkit/store"
 )
 
 func TestTaskTracker_StartAndGet(t *testing.T) {
@@ -177,4 +180,88 @@ func TestTaskTracker_CompleteNonexistent(t *testing.T) {
 func TestTaskTracker_FailNonexistent(t *testing.T) {
 	tr := NewTaskTracker()
 	tr.Fail("ghost", "error") // should not panic
+}
+
+func openTestTrackerDB(t *testing.T) *store.DB {
+	t.Helper()
+	db, err := store.Open(store.SQLiteConfig(":memory:"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestPersistentTaskTracker_CrossSessionGet(t *testing.T) {
+	db := openTestTrackerDB(t)
+
+	// Tracker 1: create and complete a task.
+	tr1 := NewPersistentTaskTracker(db)
+	tr1.Start("t1", "research", AgentClaude)
+	tr1.Complete("t1", "result from session 1")
+
+	// Tracker 2: simulates a new session — same DB, empty memory.
+	tr2 := &TaskTracker{
+		tasks:         make(map[string]*TaskRecord),
+		maxConcurrent: defaultMaxConcurrent,
+		db:            db,
+	}
+
+	rec, ok := tr2.Get("t1")
+	if !ok {
+		t.Fatal("cross-session Get should find task in DB")
+	}
+	if rec.Status != TaskCompleted {
+		t.Errorf("Status = %q, want completed", rec.Status)
+	}
+	if rec.Output != "result from session 1" {
+		t.Errorf("Output = %q", rec.Output)
+	}
+}
+
+func TestPersistentTaskTracker_CrossSessionList(t *testing.T) {
+	db := openTestTrackerDB(t)
+
+	tr1 := NewPersistentTaskTracker(db)
+	tr1.Start("t1", "task 1", AgentClaude)
+	tr1.Complete("t1", "done")
+	tr1.Start("t2", "task 2", AgentGemini)
+	tr1.Fail("t2", "timeout")
+
+	// New tracker with empty memory.
+	tr2 := &TaskTracker{
+		tasks:         make(map[string]*TaskRecord),
+		maxConcurrent: defaultMaxConcurrent,
+		db:            db,
+	}
+
+	list := tr2.List()
+	if len(list) != 2 {
+		t.Fatalf("got %d tasks, want 2", len(list))
+	}
+}
+
+func TestPersistentTaskTracker_DBWriteThrough(t *testing.T) {
+	db := openTestTrackerDB(t)
+	tr := NewPersistentTaskTracker(db)
+
+	tr.Start("t1", "test", AgentClaude)
+
+	// Verify directly in DB.
+	dbRec, err := tasks.Get(db, "t1")
+	if err != nil {
+		t.Fatalf("tasks.Get: %v", err)
+	}
+	if dbRec == nil {
+		t.Fatal("task not found in DB after Start")
+	}
+	if dbRec.Status != "running" {
+		t.Errorf("DB status = %q, want running", dbRec.Status)
+	}
+
+	tr.Complete("t1", "output")
+	dbRec, _ = tasks.Get(db, "t1")
+	if dbRec.Status != "completed" || dbRec.Output != "output" {
+		t.Errorf("DB after Complete: %+v", dbRec)
+	}
 }
