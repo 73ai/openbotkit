@@ -187,6 +187,82 @@ func TestFilterEnv(t *testing.T) {
 	}
 }
 
+func TestIsSensitiveKey(t *testing.T) {
+	tests := []struct {
+		key       string
+		sensitive bool
+	}{
+		{"PATH", false},
+		{"HOME", false},
+		{"USER", false},
+		{"TERM", false},
+		{"GOPATH", false},
+		{"LC_ALL", false},
+		{"XDG_CONFIG_HOME", false},
+		{"ANTHROPIC_API_KEY", true},
+		{"OPENAI_API_KEY", true},
+		{"GOOGLE_API_KEY", true},
+		{"GEMINI_API_KEY", true},
+		{"GROQ_API_KEY", true},
+		{"OPENROUTER_API_KEY", true},
+		{"AWS_SECRET_ACCESS_KEY", true},
+		{"GITHUB_TOKEN", true},
+		{"GH_TOKEN", true},
+		{"MY_SECRET", true},
+		{"DB_PASSWORD", true},
+		{"AUTH_TOKEN", true},
+		{"SERVICE_CREDENTIAL", true},
+		{"SOME_AUTH", true},
+		{"CLAUDECODE", true},
+		{"RANDOM_VAR", false},
+		{"EDITOR", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			if got := isSensitiveKey(tt.key); got != tt.sensitive {
+				t.Errorf("isSensitiveKey(%q) = %v, want %v", tt.key, got, tt.sensitive)
+			}
+		})
+	}
+}
+
+func TestScrubEnv_RemovesSensitiveKeys(t *testing.T) {
+	env := []string{
+		"PATH=/usr/bin",
+		"HOME=/home/user",
+		"ANTHROPIC_API_KEY=sk-ant-123",
+		"OPENAI_API_KEY=sk-123",
+		"GITHUB_TOKEN=ghp_abc",
+		"MY_SECRET=s3cret",
+		"TERM=xterm",
+	}
+	got := scrubEnv(env)
+	allowed := map[string]bool{"PATH=/usr/bin": true, "HOME=/home/user": true, "TERM=xterm": true}
+	if len(got) != len(allowed) {
+		t.Fatalf("got %d entries, want %d: %v", len(got), len(allowed), got)
+	}
+	for _, e := range got {
+		if !allowed[e] {
+			t.Errorf("unexpected env var: %s", e)
+		}
+	}
+}
+
+func TestScrubEnv_KeepsSafeVars(t *testing.T) {
+	env := []string{
+		"PATH=/usr/bin",
+		"HOME=/home/user",
+		"GOPATH=/go",
+		"LC_ALL=en_US.UTF-8",
+		"XDG_CONFIG_HOME=/home/user/.config",
+		"EDITOR=vim",
+	}
+	got := scrubEnv(env)
+	if len(got) != len(env) {
+		t.Errorf("scrubEnv removed safe vars: got %d, want %d", len(got), len(env))
+	}
+}
+
 func TestAgentRunner_RealClaude(t *testing.T) {
 	if _, err := exec.LookPath("claude"); err != nil {
 		t.Skip("claude not on PATH")
