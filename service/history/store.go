@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"regexp"
 	"time"
 )
@@ -246,14 +247,10 @@ func (s *Store) LoadRecentUserMessages(lastN int) ([]string, error) {
 		entries = append(entries, indexedEntry{entry: e, updatedAt: ts})
 	}
 
-	// Sort by updated_at desc (bubble sort is fine for small N).
-	for i := 0; i < len(entries); i++ {
-		for j := i + 1; j < len(entries); j++ {
-			if entries[j].updatedAt.After(entries[i].updatedAt) {
-				entries[i], entries[j] = entries[j], entries[i]
-			}
-		}
-	}
+	// Sort by updated_at desc.
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].updatedAt.After(entries[j].updatedAt)
+	})
 
 	if lastN > 0 && len(entries) > lastN {
 		entries = entries[:lastN]
