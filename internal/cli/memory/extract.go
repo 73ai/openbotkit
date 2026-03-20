@@ -8,7 +8,6 @@ import (
 	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	historysrc "github.com/73ai/openbotkit/service/history"
-	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 
 	_ "github.com/73ai/openbotkit/provider/anthropic"
@@ -47,18 +46,13 @@ var extractCmd = &cobra.Command{
 			return err
 		}
 
-		// Open history DB.
-		histDB, err := store.Open(store.Config{
-			Driver: cfg.History.Storage.Driver,
-			DSN:    cfg.HistoryDataDSN(),
-		})
-		if err != nil {
-			return fmt.Errorf("open history database: %w", err)
-		}
-		defer histDB.Close()
-
 		// Load recent messages from history.
-		messages, err := loadRecentMessages(histDB, extractLast)
+		histDir := config.HistoryDir()
+		if err := historysrc.EnsureDir(histDir); err != nil {
+			return fmt.Errorf("ensure history dir: %w", err)
+		}
+		histStore := historysrc.NewStore(histDir)
+		messages, err := histStore.LoadRecentUserMessages(extractLast)
 		if err != nil {
 			return fmt.Errorf("load messages: %w", err)
 		}
@@ -68,23 +62,12 @@ var extractCmd = &cobra.Command{
 			return nil
 		}
 
-		// Open user_memory DB.
-		if err := config.EnsureSourceDir("user_memory"); err != nil {
+		// Open user_memory store.
+		dir := config.UserMemoryDir()
+		if err := memory.EnsureDir(dir); err != nil {
 			return fmt.Errorf("ensure user_memory dir: %w", err)
 		}
-
-		memDB, err := store.Open(store.Config{
-			Driver: cfg.UserMemory.Storage.Driver,
-			DSN:    cfg.UserMemoryDataDSN(),
-		})
-		if err != nil {
-			return fmt.Errorf("open memory database: %w", err)
-		}
-		defer memDB.Close()
-
-		if err := memory.Migrate(memDB); err != nil {
-			return fmt.Errorf("migrate memory: %w", err)
-		}
+		memStore := memory.NewStore(dir)
 
 		// Create LLM client.
 		llm, err := buildLLM(cfg)
@@ -106,7 +89,7 @@ var extractCmd = &cobra.Command{
 		}
 
 		// Reconcile with existing memories.
-		result, err := memory.Reconcile(ctx, memDB, llm, candidates)
+		result, err := memory.Reconcile(ctx, memStore, llm, candidates)
 		if err != nil {
 			return fmt.Errorf("reconcile: %w", err)
 		}
@@ -115,35 +98,6 @@ var extractCmd = &cobra.Command{
 			result.Added, result.Updated, result.Deleted, result.Skipped)
 		return nil
 	},
-}
-
-func loadRecentMessages(db *store.DB, lastN int) ([]string, error) {
-	if err := historysrc.Migrate(db); err != nil {
-		return nil, fmt.Errorf("migrate history: %w", err)
-	}
-
-	query := db.Rebind(`
-		SELECT m.content FROM history_messages m
-		JOIN history_conversations c ON c.id = m.conversation_id
-		WHERE m.role = 'user'
-		ORDER BY c.updated_at DESC, m.timestamp DESC
-		LIMIT ?`)
-
-	rows, err := db.Query(query, lastN*50)
-	if err != nil {
-		return nil, fmt.Errorf("query messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []string
-	for rows.Next() {
-		var content string
-		if err := rows.Scan(&content); err != nil {
-			return nil, fmt.Errorf("scan message: %w", err)
-		}
-		messages = append(messages, content)
-	}
-	return messages, rows.Err()
 }
 
 func buildLLM(cfg *config.Config) (memory.LLM, error) {

@@ -1,10 +1,12 @@
 package websearch
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -116,16 +118,97 @@ func putFetchCache(db *store.DB, result *FetchResult, format string) {
 	}
 }
 
-func putSearchHistory(db *store.DB, query, category string, resultCount int, backends []string, searchMs int64) {
-	if db == nil {
+// SearchHistoryEntry is one line in the search history JSONL file.
+type SearchHistoryEntry struct {
+	Query       string `json:"query"`
+	Category    string `json:"category"`
+	ResultCount int    `json:"result_count"`
+	Backends    string `json:"backends"`
+	SearchMs    int64  `json:"search_ms"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func putSearchHistory(path string, query, category string, resultCount int, backends []string, searchMs int64) {
+	if path == "" {
 		return
 	}
 
-	backendsStr := strings.Join(backends, ",")
-	q := db.Rebind(`INSERT INTO search_history (query, category, result_count, backends, search_ms) VALUES (?, ?, ?, ?, ?)`)
-	if _, err := db.Exec(q, query, category, resultCount, backendsStr, searchMs); err != nil {
+	entry := SearchHistoryEntry{
+		Query:       query,
+		Category:    category,
+		ResultCount: resultCount,
+		Backends:    strings.Join(backends, ","),
+		SearchMs:    searchMs,
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		slog.Warn("failed to open search history file", "error", err)
+		return
+	}
+	defer f.Close()
+	if err := json.NewEncoder(f).Encode(entry); err != nil {
 		slog.Warn("failed to write search history", "error", err)
 	}
+}
+
+func LoadSearchHistory(path string, limit int) ([]SearchHistoryEntry, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open search history: %w", err)
+	}
+	defer f.Close()
+
+	var all []SearchHistoryEntry
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e SearchHistoryEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			slog.Warn("websearch: skipping malformed history line", "error", err)
+			continue
+		}
+		all = append(all, e)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan search history: %w", err)
+	}
+
+	// Return last N entries in reverse chronological order.
+	if limit > 0 && len(all) > limit {
+		all = all[len(all)-limit:]
+	}
+	for i, j := 0, len(all)-1; i < j; i, j = i+1, j-1 {
+		all[i], all[j] = all[j], all[i]
+	}
+	return all, nil
+}
+
+func countSearchHistory(path string) (int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("open search history: %w", err)
+	}
+	defer f.Close()
+
+	var count int64
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if len(scanner.Bytes()) > 0 {
+			count++
+		}
+	}
+	return count, scanner.Err()
 }
 
 func (w *WebSearch) ClearCaches() error {

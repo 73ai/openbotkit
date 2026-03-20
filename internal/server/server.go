@@ -19,16 +19,13 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
 	learningssvc "github.com/73ai/openbotkit/service/learnings"
-	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
 	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	gmailsrc "github.com/73ai/openbotkit/source/gmail"
-	historysrc "github.com/73ai/openbotkit/service/history"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
 	schedsrc "github.com/73ai/openbotkit/service/scheduler"
-	usagesrc "github.com/73ai/openbotkit/service/usage"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"
 
@@ -187,13 +184,10 @@ func (s *Server) migrateDBs() {
 		dsn    string
 		fn     func(*store.DB) error
 	}{
-		{"memory", s.cfg.UserMemory.Storage.Driver, s.cfg.UserMemoryDataDSN(), memory.Migrate},
-		{"history", s.cfg.History.Storage.Driver, s.cfg.HistoryDataDSN(), historysrc.Migrate},
 		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
 		{"imessage", s.cfg.IMessage.Storage.Driver, s.cfg.IMessageDataDSN(), imsrc.Migrate},
 		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
 		{"gmail", s.cfg.Gmail.Storage.Driver, s.cfg.GmailDataDSN(), gmailsrc.Migrate},
-		{"usage", s.cfg.Usage.Storage.Driver, s.cfg.UsageDataDSN(), usagesrc.Migrate},
 		{"contacts", s.cfg.Contacts.Storage.Driver, s.cfg.ContactsDataDSN(), contactsrc.Migrate},
 		{"scheduler", s.cfg.Scheduler.Storage.Driver, s.cfg.SchedulerDataDSN(), schedsrc.Migrate},
 	}

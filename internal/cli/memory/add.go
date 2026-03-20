@@ -7,7 +7,6 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/service/memory"
-	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 
@@ -49,24 +48,13 @@ var addCmd = &cobra.Command{
 			return nil
 		}
 
-		if err := config.EnsureSourceDir("user_memory"); err != nil {
+		dir := config.UserMemoryDir()
+		if err := memory.EnsureDir(dir); err != nil {
 			return fmt.Errorf("ensure user_memory dir: %w", err)
 		}
 
-		db, err := store.Open(store.Config{
-			Driver: cfg.UserMemory.Storage.Driver,
-			DSN:    cfg.UserMemoryDataDSN(),
-		})
-		if err != nil {
-			return fmt.Errorf("open database: %w", err)
-		}
-		defer db.Close()
-
-		if err := memory.Migrate(db); err != nil {
-			return fmt.Errorf("migrate: %w", err)
-		}
-
-		id, err := memory.Add(db, content, memory.Category(addCategory), addSource, "")
+		s := memory.NewStore(dir)
+		id, err := s.Add(content, memory.Category(addCategory), addSource, "")
 		if err != nil {
 			return fmt.Errorf("add: %w", err)
 		}

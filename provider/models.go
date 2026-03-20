@@ -33,6 +33,8 @@ func ListModels(ctx context.Context, providerName, apiKey string, cfg config.Mod
 		return listModelsCerebras(ctx, apiKey, cfg)
 	case "openrouter":
 		return listModelsOpenRouter(ctx, apiKey, cfg)
+	case "zai":
+		return listModelsZAI(ctx, apiKey, cfg)
 	default:
 		return nil, fmt.Errorf("unknown provider %q", providerName)
 	}
@@ -215,6 +217,43 @@ func listModelsCerebras(ctx context.Context, apiKey string, cfg config.ModelProv
 
 func listModelsOpenRouter(ctx context.Context, apiKey string, cfg config.ModelProviderConfig) ([]AvailableModel, error) {
 	return listModelsOpenAICompat(ctx, apiKey, cfg, "https://openrouter.ai/api", "openrouter")
+}
+
+// --- Z.AI ---
+
+func listModelsZAI(ctx context.Context, apiKey string, cfg config.ModelProviderConfig) ([]AvailableModel, error) {
+	url := baseURL(cfg, "https://api.z.ai/api/paas/v4") + "/models"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("zai list models: HTTP %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+
+	var models []AvailableModel
+	for _, m := range body.Data {
+		if strings.Contains(m.ID, "glm") {
+			models = append(models, AvailableModel{ID: m.ID, DisplayName: m.ID, Provider: "zai"})
+		}
+	}
+	return models, nil
 }
 
 func listModelsOpenAICompat(ctx context.Context, apiKey string, cfg config.ModelProviderConfig, defaultBase, providerName string) ([]AvailableModel, error) {

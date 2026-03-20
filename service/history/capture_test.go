@@ -27,7 +27,7 @@ func writeTranscript(t *testing.T, content string) string {
 }
 
 func TestCapture(t *testing.T) {
-	db := testDB(t)
+	s := testStore(t)
 	path := writeTranscript(t, testTranscript)
 
 	input := CaptureInput{
@@ -36,11 +36,11 @@ func TestCapture(t *testing.T) {
 		CWD:            "/tmp/project",
 	}
 
-	if err := Capture(db, input); err != nil {
+	if err := Capture(s, input); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
 
-	count, err := CountConversations(db)
+	count, err := s.CountConversations()
 	if err != nil {
 		t.Fatalf("count conversations: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestCapture(t *testing.T) {
 		t.Fatalf("expected 1 conversation, got %d", count)
 	}
 
-	msgCount, err := MessageCountForSession(db, "test-session")
+	msgCount, err := s.MessageCountForSession("test-session")
 	if err != nil {
 		t.Fatalf("count messages: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestCapture(t *testing.T) {
 }
 
 func TestCaptureIdempotent(t *testing.T) {
-	db := testDB(t)
+	s := testStore(t)
 	path := writeTranscript(t, testTranscript)
 
 	input := CaptureInput{
@@ -69,16 +69,16 @@ func TestCaptureIdempotent(t *testing.T) {
 		CWD:            "/tmp/project",
 	}
 
-	if err := Capture(db, input); err != nil {
+	if err := Capture(s, input); err != nil {
 		t.Fatalf("first capture: %v", err)
 	}
 
 	// Capture again — should be idempotent.
-	if err := Capture(db, input); err != nil {
+	if err := Capture(s, input); err != nil {
 		t.Fatalf("second capture: %v", err)
 	}
 
-	msgCount, err := MessageCountForSession(db, "test-session")
+	msgCount, err := s.MessageCountForSession("test-session")
 	if err != nil {
 		t.Fatalf("count messages: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestCaptureIdempotent(t *testing.T) {
 }
 
 func TestCaptureEmptyTranscript(t *testing.T) {
-	db := testDB(t)
+	s := testStore(t)
 	path := writeTranscript(t, "")
 
 	input := CaptureInput{
@@ -97,11 +97,11 @@ func TestCaptureEmptyTranscript(t *testing.T) {
 		CWD:            "/tmp",
 	}
 
-	if err := Capture(db, input); err != nil {
+	if err := Capture(s, input); err != nil {
 		t.Fatalf("capture empty: %v", err)
 	}
 
-	count, err := CountConversations(db)
+	count, err := s.CountConversations()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestCaptureEmptyTranscript(t *testing.T) {
 		t.Fatalf("expected 1 conversation (even empty), got %d", count)
 	}
 
-	msgCount, err := MessageCountForSession(db, "empty-session")
+	msgCount, err := s.MessageCountForSession("empty-session")
 	if err != nil {
 		t.Fatalf("count messages: %v", err)
 	}

@@ -30,14 +30,10 @@ func newLocalBackend(t *testing.T) servertest.Backend {
 		}
 	}
 
-	memDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
+	memDir := filepath.Join(dir, "user_memory")
+	if err := memory.EnsureDir(memDir); err != nil {
+		t.Fatalf("ensure memory dir: %v", err)
 	}
-	if err := memory.Migrate(memDB); err != nil {
-		t.Fatalf("migrate memory: %v", err)
-	}
-	memDB.Close()
 
 	anDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.AppleNotesDataDSN()})
 	if err != nil {

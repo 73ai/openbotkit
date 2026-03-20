@@ -90,6 +90,19 @@ var Profiles = map[string]ModelProfile{
 		},
 		Providers: []string{"openrouter"},
 	},
+	"zai": {
+		Name:        "zai",
+		Label:       "Z.AI (single provider)",
+		Description: "GLM models from Z.AI. Free tier available.",
+		Category:    "single",
+		Tiers: ProfileTiers{
+			Default: "zai/glm-4.5-flash",
+			Complex: "zai/glm-4.7",
+			Fast:    "zai/glm-4.5-flash",
+			Nano:    "zai/glm-4.5-flash",
+		},
+		Providers: []string{"zai"},
+	},
 	"openai": {
 		Name:        "openai",
 		Label:       "OpenAI (single provider)",
@@ -147,7 +160,7 @@ var Profiles = map[string]ModelProfile{
 // ProfileNames returns profile names in display order.
 var ProfileNames = []string{
 	"free", "starter", "standard", "premium",
-	"gemini", "anthropic", "openai", "groq", "openrouter",
+	"gemini", "anthropic", "openai", "groq", "openrouter", "zai",
 }
 
 var profileNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{1,29}$`)

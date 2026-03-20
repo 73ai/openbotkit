@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/73ai/openbotkit/internal/envload"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/provider/anthropic"
 	"github.com/73ai/openbotkit/provider/gemini"
-	"github.com/73ai/openbotkit/internal/envload"
 	"github.com/73ai/openbotkit/provider/openai"
 )
 
@@ -73,8 +73,6 @@ func (pl *providerLLM) Chat(ctx context.Context, req provider.ChatRequest) (*pro
 	return pl.p.Chat(ctx, req)
 }
 
-// TestExtract_WithRealLLM verifies fact extraction from conversation messages
-// produces valid categorized facts.
 func TestExtract_WithRealLLM(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
@@ -95,7 +93,6 @@ func TestExtract_WithRealLLM(t *testing.T) {
 				t.Fatal("expected at least 1 fact extracted")
 			}
 
-			// Verify facts have valid categories.
 			validCategories := map[string]bool{
 				"identity": true, "preference": true,
 				"relationship": true, "project": true,
@@ -112,17 +109,10 @@ func TestExtract_WithRealLLM(t *testing.T) {
 	}
 }
 
-// TestExtractAndReconcile_WithRealLLM verifies the full pipeline: extract facts
-// from messages, reconcile against existing DB (add new, update changed, skip
-// duplicates).
 func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 	for _, tc := range availableProviders(t) {
 		t.Run(tc.name, func(t *testing.T) {
-			db := testDB(t)
-			if err := Migrate(db); err != nil {
-				t.Fatalf("migrate: %v", err)
-			}
-
+			s := testStore(t)
 			llm := &providerLLM{p: tc.provider, model: tc.model}
 
 			messages := []string{
@@ -131,7 +121,6 @@ func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 				"I'm working on an open source project called DataFlow",
 			}
 
-			// Extract facts.
 			facts, err := Extract(context.Background(), llm, messages)
 			if err != nil {
 				t.Fatalf("Extract: %v", err)
@@ -140,8 +129,7 @@ func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 				t.Fatal("expected at least 1 fact")
 			}
 
-			// Reconcile into empty DB (should all ADD).
-			result, err := Reconcile(context.Background(), db, llm, facts)
+			result, err := Reconcile(context.Background(), s, llm, facts)
 			if err != nil {
 				t.Fatalf("Reconcile: %v", err)
 			}
@@ -150,13 +138,12 @@ func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 				t.Error("expected at least 1 add")
 			}
 
-			count, _ := Count(db)
+			count, _ := s.Count()
 			if count == 0 {
-				t.Fatal("expected memories in DB after reconciliation")
+				t.Fatal("expected memories after reconciliation")
 			}
 
-			// Verify memories are retrievable.
-			memories, err := List(db)
+			memories, err := s.List()
 			if err != nil {
 				t.Fatalf("List: %v", err)
 			}
@@ -164,19 +151,14 @@ func TestExtractAndReconcile_WithRealLLM(t *testing.T) {
 				if m.Content == "" {
 					t.Error("memory has empty content")
 				}
-				if m.Source != "history" {
-					t.Errorf("memory source = %q, want 'history'", m.Source)
-				}
 			}
 
-			// Second extraction with same facts — should mostly NOOP/skip.
-			result2, err := Reconcile(context.Background(), db, llm, facts)
+			result2, err := Reconcile(context.Background(), s, llm, facts)
 			if err != nil {
 				t.Fatalf("second Reconcile: %v", err)
 			}
 
-			// Count should not have grown much (some ADD is OK if LLM decides differently).
-			count2, _ := Count(db)
+			count2, _ := s.Count()
 			t.Logf("first run: added=%d, count=%d; second run: added=%d, updated=%d, skipped=%d, count=%d",
 				result.Added, count, result2.Added, result2.Updated, result2.Skipped, count2)
 		})

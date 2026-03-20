@@ -56,32 +56,15 @@ func TestNewWithoutOptions(t *testing.T) {
 	}
 }
 
-func TestWebSearchStatusWithDB(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
+func TestWebSearchStatusWithHistory(t *testing.T) {
+	histPath := filepath.Join(t.TempDir(), "search_history.jsonl")
 
-	db, err := store.Open(store.SQLiteConfig(dbPath))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	defer db.Close()
-	defer os.Remove(dbPath)
-
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	// Insert some search history rows.
 	for _, q := range []string{"golang", "rust", "python"} {
-		_, err := db.Exec("INSERT INTO search_history (query, result_count, backends, search_ms) VALUES (?, ?, ?, ?)",
-			q, 5, "duckduckgo", 100)
-		if err != nil {
-			t.Fatalf("insert: %v", err)
-		}
+		putSearchHistory(histPath, q, "web", 5, []string{"duckduckgo"}, 100)
 	}
 
-	ws := New(Config{})
-	st, err := ws.Status(context.Background(), db)
+	ws := New(Config{}, WithHistoryPath(histPath))
+	st, err := ws.Status(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -24,7 +24,6 @@ import (
 	"github.com/73ai/openbotkit/service/scheduler"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
 	usagesrc "github.com/73ai/openbotkit/service/usage"
-	"github.com/73ai/openbotkit/store"
 )
 
 const sessionTimeout = 15 * time.Minute
@@ -172,22 +171,9 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 }
 
 func (sm *SessionManager) restoreSession() bool {
-	histDB, err := store.Open(store.Config{
-		Driver: sm.cfg.History.Storage.Driver,
-		DSN:    sm.cfg.HistoryDataDSN(),
-	})
-	if err != nil {
-		slog.Warn("telegram session: open history db for restore", "error", err)
-		return false
-	}
-	defer histDB.Close()
+	histStore := sm.openHistoryStore()
 
-	if err := historysrc.Migrate(histDB); err != nil {
-		slog.Warn("telegram session: migrate history for restore", "error", err)
-		return false
-	}
-
-	recent, err := historysrc.LoadRecentSession(histDB, "telegram", sessionTimeout)
+	recent, err := histStore.LoadRecentSession("telegram", sessionTimeout)
 	if err != nil {
 		slog.Warn("telegram session: load recent session", "error", err)
 		return false
@@ -196,7 +182,7 @@ func (sm *SessionManager) restoreSession() bool {
 		return false
 	}
 
-	msgs, err := historysrc.LoadSessionMessages(histDB, recent.SessionID, 100)
+	msgs, err := histStore.LoadSessionMessages(recent.SessionID, 100)
 	if err != nil {
 		slog.Warn("telegram session: load session messages", "error", err)
 		return false
@@ -264,14 +250,9 @@ func (sm *SessionManager) endSession() {
 
 	config.CleanScratch(sid)
 
-	// Mark session ended in DB so restoreSession won't revive it.
-	if histDB, err := store.Open(store.Config{
-		Driver: sm.cfg.History.Storage.Driver,
-		DSN:    sm.cfg.HistoryDataDSN(),
-	}); err == nil {
-		historysrc.EndSession(histDB, sid)
-		histDB.Close()
-	}
+	// Mark session ended so restoreSession won't revive it.
+	histStore := sm.openHistoryStore()
+	histStore.EndSession(sid)
 
 	if len(messages) > 0 {
 		go sm.extractMemories(context.Background(), messages)
@@ -283,20 +264,12 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	memDB, err := store.Open(store.Config{
-		Driver: sm.cfg.UserMemory.Storage.Driver,
-		DSN:    sm.cfg.UserMemoryDataDSN(),
-	})
-	if err != nil {
-		slog.Error("telegram session: open memory db for extraction", "error", err)
+	dir := config.UserMemoryDir()
+	if err := memory.EnsureDir(dir); err != nil {
+		slog.Error("telegram session: ensure memory dir", "error", err)
 		return
 	}
-	defer memDB.Close()
-
-	if err := memory.Migrate(memDB); err != nil {
-		slog.Error("telegram session: migrate memory db", "error", err)
-		return
-	}
+	ms := memory.NewStore(dir)
 
 	extractLLM, reconcileLLM, err := sm.buildMemoryLLMs()
 	if err != nil {
@@ -314,7 +287,7 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	result, err := memory.Reconcile(ctx, memDB, reconcileLLM, candidates)
+	result, err := memory.Reconcile(ctx, ms, reconcileLLM, candidates)
 	if err != nil {
 		slog.Error("telegram session: reconcile memories", "error", err)
 		return
@@ -574,18 +547,10 @@ func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
 }
 
 func (sm *SessionManager) userMemoriesPrompt() string {
-	memDB, err := store.Open(store.Config{
-		Driver: sm.cfg.UserMemory.Storage.Driver,
-		DSN:    sm.cfg.UserMemoryDataDSN(),
-	})
-	if err != nil {
-		return ""
-	}
-	defer memDB.Close()
-	if err := memory.Migrate(memDB); err != nil {
-		return ""
-	}
-	memories, err := memory.List(memDB)
+	dir := config.UserMemoryDir()
+	memory.EnsureDir(dir)
+	ms := memory.NewStore(dir)
+	memories, err := ms.List()
 	if err != nil || len(memories) == 0 {
 		return ""
 	}
@@ -593,48 +558,24 @@ func (sm *SessionManager) userMemoriesPrompt() string {
 }
 
 func (sm *SessionManager) saveHistory(sessionID, userMsg, assistantMsg string) {
-	histDB, err := store.Open(store.Config{
-		Driver: sm.cfg.History.Storage.Driver,
-		DSN:    sm.cfg.HistoryDataDSN(),
-	})
-	if err != nil {
-		slog.Error("telegram session: open history db", "error", err)
-		return
-	}
-	defer histDB.Close()
+	histStore := sm.openHistoryStore()
 
-	if err := historysrc.Migrate(histDB); err != nil {
-		slog.Error("telegram session: migrate history", "error", err)
-		return
-	}
-
-	convID, err := historysrc.UpsertConversation(histDB, sessionID, "telegram")
-	if err != nil {
+	if err := histStore.UpsertConversation(sessionID, "telegram"); err != nil {
 		slog.Error("telegram session: create conversation", "error", err)
 		return
 	}
 
-	if err := historysrc.SaveMessage(histDB, convID, "user", userMsg); err != nil {
+	if err := histStore.SaveMessage(sessionID, "user", userMsg); err != nil {
 		slog.Error("telegram session: save user message", "error", err)
 	}
-	if err := historysrc.SaveMessage(histDB, convID, "assistant", assistantMsg); err != nil {
+	if err := histStore.SaveMessage(sessionID, "assistant", assistantMsg); err != nil {
 		slog.Error("telegram session: save assistant message", "error", err)
 	}
 }
 
 func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
-	if err := config.EnsureSourceDir("usage"); err != nil {
-		return nil
-	}
-	db, err := store.Open(store.Config{
-		Driver: sm.cfg.Usage.Storage.Driver,
-		DSN:    sm.cfg.UsageDataDSN(),
-	})
-	if err != nil {
-		return nil
-	}
-	if err := usagesrc.Migrate(db); err != nil {
-		db.Close()
+	path := config.UsageJSONLPath()
+	if err := usagesrc.EnsureDir(path); err != nil {
 		return nil
 	}
 
@@ -642,11 +583,17 @@ func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
 	sid := sm.sessionID
 	sm.mu.Unlock()
 
-	return usagesrc.NewRecorder(db, sm.providerName, "telegram", sid)
+	return usagesrc.NewRecorder(path, sm.providerName, "telegram", sid)
+}
+
+func (sm *SessionManager) openHistoryStore() *historysrc.Store {
+	dir := config.HistoryDir()
+	historysrc.EnsureDir(dir)
+	return historysrc.NewStore(dir)
 }
 
 func (sm *SessionManager) openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 func openTaskTracker(cfg *config.Config) *tools.TaskTracker {

@@ -255,7 +255,7 @@ func (w *ScheduledTaskWorker) recordTaskFailed(taskID, errMsg string) {
 }
 
 func openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 var _ river.Worker[ScheduledTaskArgs] = (*ScheduledTaskWorker)(nil)

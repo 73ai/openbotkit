@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"os"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/provider"
-	"github.com/73ai/openbotkit/store"
 )
 
 func TestNewStandardRegistry_Tools(t *testing.T) {
@@ -108,38 +108,46 @@ func TestNewScheduledTaskRegistry_BashAllowsObk(t *testing.T) {
 }
 
 func TestRegistry_AuditLogging(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "audit_test.db")
-	db, err := store.Open(store.SQLiteConfig(dbPath))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
+	auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	l := audit.OpenDefault(auditPath)
+	if l == nil {
+		t.Fatal("OpenDefault returned nil")
 	}
-	defer db.Close()
-	if err := audit.Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	defer l.Close()
 
 	r := NewRegistry()
 	r.Register(NewBashTool(0))
-	r.SetAudit(audit.NewLogger(db), "test")
+	r.SetAudit(l, "test")
 
 	input, _ := json.Marshal(bashInput{Command: "echo hi"})
 	_, _ = r.Execute(context.Background(), provider.ToolCall{Name: "bash", Input: input})
 
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM audit_log").Scan(&count); err != nil {
-		t.Fatalf("query: %v", err)
-	}
-	if count != 1 {
-		t.Errorf("audit log count = %d, want 1", count)
-	}
+	l.Close()
 
-	var toolName string
-	err = db.QueryRow("SELECT tool_name FROM audit_log WHERE id=1").Scan(&toolName)
+	f, err := os.Open(auditPath)
 	if err != nil {
-		t.Fatalf("query row: %v", err)
+		t.Fatalf("open audit file: %v", err)
 	}
-	if toolName != "bash" {
-		t.Errorf("tool_name = %q, want %q", toolName, "bash")
+	defer f.Close()
+
+	var lines int
+	var lastTool string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines++
+		var entry struct {
+			ToolName string `json:"tool_name"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			t.Fatalf("parse line: %v", err)
+		}
+		lastTool = entry.ToolName
+	}
+	if lines != 1 {
+		t.Errorf("audit log count = %d, want 1", lines)
+	}
+	if lastTool != "bash" {
+		t.Errorf("tool_name = %q, want %q", lastTool, "bash")
 	}
 }
 

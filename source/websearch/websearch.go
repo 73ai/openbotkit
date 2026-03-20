@@ -11,11 +11,12 @@ import (
 )
 
 type WebSearch struct {
-	cfg      Config
-	db       *store.DB
-	health   *healthTracker
-	client   *httpclient.Client
-	skipSSRF bool // for testing only
+	cfg         Config
+	db          *store.DB
+	historyPath string
+	health      *healthTracker
+	client      *httpclient.Client
+	skipSSRF    bool // for testing only
 }
 
 type Option func(*WebSearch)
@@ -23,6 +24,12 @@ type Option func(*WebSearch)
 func WithDB(db *store.DB) Option {
 	return func(w *WebSearch) {
 		w.db = db
+	}
+}
+
+func WithHistoryPath(path string) Option {
+	return func(w *WebSearch) {
+		w.historyPath = path
 	}
 }
 
@@ -41,9 +48,8 @@ func (w *WebSearch) Name() string {
 
 func (w *WebSearch) Status(_ context.Context, db *store.DB) (*source.Status, error) {
 	st := &source.Status{Connected: true}
-	if db != nil {
-		var count int64
-		err := db.QueryRow("SELECT COUNT(*) FROM search_history").Scan(&count)
+	if w.historyPath != "" {
+		count, err := countSearchHistory(w.historyPath)
 		if err == nil {
 			st.ItemCount = count
 		}
