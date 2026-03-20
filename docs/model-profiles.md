@@ -41,7 +41,7 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 | Profile | ~Cost/mo | Default | Complex | Fast | Nano | Providers |
 |---------|----------|---------|---------|------|------|-----------|
-| Free | $0 | Gemini 2.5 Flash | Gemini 2.5 Pro | Cerebras qwen-3-235b-a22b-instruct-2507 | Gemini 2.5 Flash Lite | Gemini + Cerebras |
+| Free | $0 | Gemini 2.5 Flash | Cerebras Qwen 3 235B | Cerebras Llama 3.1 8B | Gemini 2.5 Flash Lite | Gemini + Cerebras |
 | Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
 | Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
 | Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
