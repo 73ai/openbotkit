@@ -337,6 +337,21 @@ func (s *Scheduler) checkReactiveTriggersWithDB(ctx context.Context, schedDB *st
 	return nil
 }
 
+// CheckReactiveTriggersForTest exposes reactive trigger checking for tests.
+func (s *Scheduler) CheckReactiveTriggersForTest(ctx context.Context, source string, sourceDB *store.DB) error {
+	schedDB, err := s.openDB()
+	if err != nil {
+		return fmt.Errorf("open scheduler db: %w", err)
+	}
+	defer schedDB.Close()
+
+	schedules, err := scheduler.ListEnabledReactive(schedDB, source)
+	if err != nil {
+		return fmt.Errorf("list reactive: %w", err)
+	}
+	return s.checkReactiveTriggersWithDB(ctx, schedDB, sourceDB, schedules)
+}
+
 func (s *Scheduler) isValidFrequency(cronExpr string) bool {
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	sched, err := parser.Parse(cronExpr)
