@@ -74,7 +74,7 @@ func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, pro
 		provider:     p,
 		providerName: providerName,
 		model:        model,
-		taskTracker:  tools.NewTaskTracker(),
+		taskTracker:  openTaskTracker(cfg),
 	}
 	if len(deps) > 0 {
 		d := deps[0]
@@ -594,6 +594,14 @@ func (sm *SessionManager) openHistoryStore() *historysrc.Store {
 
 func (sm *SessionManager) openAuditLogger() *audit.Logger {
 	return audit.OpenDefault(config.AuditJSONLPath())
+}
+
+func openTaskTracker(cfg *config.Config) *tools.TaskTracker {
+	if err := config.EnsureSourceDir("tasks"); err != nil {
+		slog.Warn("tasks: ensure dir failed", "error", err)
+		return tools.NewTaskTracker()
+	}
+	return tools.OpenPersistentTaskTracker(cfg.Tasks.Storage.Driver, cfg.TasksDataDSN())
 }
 
 func generateSessionID() string {

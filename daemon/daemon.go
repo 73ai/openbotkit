@@ -66,7 +66,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	slog.Info("starting daemon")
 
-	client, db, err := newRiverClient(ctx, d.cfg)
+	notifier := NewSyncNotifier()
+
+	client, db, err := newRiverClient(ctx, d.cfg, notifier)
 	if err != nil {
 		return fmt.Errorf("init river: %w", err)
 	}
@@ -80,7 +82,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	slog.Info("river job queue started")
 
 	if !d.skipScheduler {
-		d.scheduler = NewScheduler(d.cfg, d.river, d.jobsDB)
+		d.scheduler = NewScheduler(d.cfg, d.river, d.jobsDB, notifier)
 		if err := d.scheduler.Start(ctx); err != nil {
 			slog.Error("scheduler start error", "error", err)
 		}
@@ -88,13 +90,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	var waErrCh, anErrCh, imErrCh, ctErrCh <-chan error
 	if !d.skipWhatsApp {
-		waErrCh = runWhatsAppSync(ctx, d.cfg)
+		waErrCh = runWhatsAppSync(ctx, d.cfg, notifier)
 	}
 	if !d.skipAppleNotes {
-		anErrCh = runAppleNotesSync(ctx, d.cfg)
+		anErrCh = runAppleNotesSync(ctx, d.cfg, notifier)
 	}
 	if !d.skipIMessage {
-		imErrCh = runIMessageSync(ctx, d.cfg)
+		imErrCh = runIMessageSync(ctx, d.cfg, notifier)
 	}
 	if !d.skipContacts {
 		ctErrCh = runContactsSync(ctx, d.cfg)

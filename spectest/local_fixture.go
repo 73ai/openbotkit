@@ -183,7 +183,7 @@ func availableProviders(t *testing.T) []providerCase {
 
 func createSourceDirs(t *testing.T, dir string) {
 	t.Helper()
-	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes", "contacts", "scheduler"} {
+	for _, src := range []string{"gmail", "whatsapp", "history", "user_memory", "applenotes", "contacts", "scheduler", "tasks"} {
 		if err := os.MkdirAll(filepath.Join(dir, src), 0700); err != nil {
 			t.Fatalf("mkdir %s: %v", src, err)
 		}

@@ -582,6 +582,55 @@ func TestLoop_TokenBasedCompaction(t *testing.T) {
 	}
 }
 
+func TestLoop_BudgetExceeded(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Partial result"}},
+				StopReason: provider.StopEndTurn,
+				Usage:      provider.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000},
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+	bt := NewBudgetTracker(0.001, nil) // $0.001 budget — 1M tokens of sonnet costs $18
+	a := New(mp, "claude-sonnet-4-6", exec, WithUsageRecorder(bt), WithBudgetChecker(bt))
+
+	result, err := a.Run(context.Background(), "test")
+	if err == nil {
+		t.Fatal("expected budget exceeded error")
+	}
+	if !strings.Contains(err.Error(), "budget exceeded") {
+		t.Errorf("error = %q, want budget exceeded", err.Error())
+	}
+	if result != "Partial result" {
+		t.Errorf("result = %q, want partial text returned", result)
+	}
+}
+
+func TestLoop_BudgetNotExceeded(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Full result"}},
+				StopReason: provider.StopEndTurn,
+				Usage:      provider.Usage{InputTokens: 100, OutputTokens: 100},
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+	bt := NewBudgetTracker(10.0, nil) // $10 budget — more than enough
+	a := New(mp, "claude-sonnet-4-6", exec, WithUsageRecorder(bt), WithBudgetChecker(bt))
+
+	result, err := a.Run(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Full result" {
+		t.Errorf("result = %q, want Full result", result)
+	}
+}
+
 func TestLoop_TracksLastInputTokens(t *testing.T) {
 	mp := &mockProvider{
 		responses: []*provider.ChatResponse{

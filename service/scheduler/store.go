@@ -23,9 +23,9 @@ func Create(db *store.DB, s *Schedule) (int64, error) {
 	}
 
 	res, err := db.Exec(
-		db.Rebind(`INSERT INTO schedules (type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
-		string(s.Type), s.CronExpr, scheduledAt, s.Task, s.Channel, string(metaJSON), s.Timezone, s.Description, 1,
+		db.Rebind(`INSERT INTO schedules (type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+		string(s.Type), s.CronExpr, scheduledAt, s.Task, s.Channel, string(metaJSON), s.Timezone, s.Description, 1, s.ModelTier, s.MaxBudgetUSD, s.TriggerSource, s.TriggerQuery, s.LastTriggerID,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert schedule: %w", err)
@@ -35,7 +35,7 @@ func Create(db *store.DB, s *Schedule) (int64, error) {
 
 func Get(db *store.DB, id int64) (*Schedule, error) {
 	row := db.QueryRow(
-		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
+		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id
 			FROM schedules WHERE id = ?`),
 		id,
 	)
@@ -44,7 +44,7 @@ func Get(db *store.DB, id int64) (*Schedule, error) {
 
 func List(db *store.DB) ([]Schedule, error) {
 	rows, err := db.Query(
-		`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
+		`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id
 		FROM schedules ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("list schedules: %w", err)
@@ -55,7 +55,7 @@ func List(db *store.DB) ([]Schedule, error) {
 
 func ListEnabled(db *store.DB) ([]Schedule, error) {
 	rows, err := db.Query(
-		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
+		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id
 		FROM schedules WHERE enabled = ? ORDER BY created_at`), 1)
 	if err != nil {
 		return nil, fmt.Errorf("list enabled schedules: %w", err)
@@ -66,7 +66,7 @@ func ListEnabled(db *store.DB) ([]Schedule, error) {
 
 func ListDueOneShot(db *store.DB, now time.Time) ([]Schedule, error) {
 	rows, err := db.Query(
-		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at
+		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id
 		FROM schedules WHERE type = 'one_shot' AND scheduled_at <= ? AND completed_at IS NULL AND enabled = ? ORDER BY scheduled_at`),
 		now.UTC().Format(timeFormat), 1,
 	)
@@ -134,11 +134,15 @@ func scanSchedule(row scannable) (*Schedule, error) {
 	var s Schedule
 	var typ, cronExpr, scheduledAt, channel, metaJSON, tz sql.NullString
 	var desc, lastRunAt, lastError, createdAt, completedAt sql.NullString
+	var modelTier, triggerSource, triggerQuery sql.NullString
+	var maxBudget sql.NullFloat64
+	var lastTriggerID sql.NullInt64
 	var enabled any
 
 	err := row.Scan(
 		&s.ID, &typ, &cronExpr, &scheduledAt, &s.Task, &channel, &metaJSON,
 		&tz, &desc, &enabled, &lastRunAt, &lastError, &createdAt, &completedAt,
+		&modelTier, &maxBudget, &triggerSource, &triggerQuery, &lastTriggerID,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -160,6 +164,15 @@ func scanSchedule(row scannable) (*Schedule, error) {
 		s.Enabled = v
 	}
 	s.LastError = lastError.String
+	s.ModelTier = modelTier.String
+	if maxBudget.Valid {
+		s.MaxBudgetUSD = maxBudget.Float64
+	}
+	s.TriggerSource = triggerSource.String
+	s.TriggerQuery = triggerQuery.String
+	if lastTriggerID.Valid {
+		s.LastTriggerID = lastTriggerID.Int64
+	}
 
 	if scheduledAt.Valid {
 		t, err := parseTime(scheduledAt.String)
@@ -209,6 +222,30 @@ func scanSchedules(rows *sql.Rows) ([]Schedule, error) {
 		result = append(result, *s)
 	}
 	return result, rows.Err()
+}
+
+func ListEnabledReactive(db *store.DB, source string) ([]Schedule, error) {
+	rows, err := db.Query(
+		db.Rebind(`SELECT id, type, cron_expr, scheduled_at, task, channel, channel_meta, timezone, description, enabled, last_run_at, last_error, created_at, completed_at, model_tier, max_budget_usd, trigger_source, trigger_query, last_trigger_id
+		FROM schedules WHERE type = 'reactive' AND trigger_source = ? AND enabled = ? ORDER BY created_at`),
+		source, 1,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list reactive schedules: %w", err)
+	}
+	defer rows.Close()
+	return scanSchedules(rows)
+}
+
+func UpdateLastTriggerID(db *store.DB, id int64, lastTriggerID int64) error {
+	_, err := db.Exec(
+		db.Rebind("UPDATE schedules SET last_trigger_id = ? WHERE id = ?"),
+		lastTriggerID, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update last_trigger_id: %w", err)
+	}
+	return nil
 }
 
 func parseTime(s string) (*time.Time, error) {

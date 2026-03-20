@@ -51,6 +51,25 @@ func TestDefaultContextWindow_NestedModelID(t *testing.T) {
 	}
 }
 
+func TestDefaultContextWindow_GLMModels(t *testing.T) {
+	models := map[string]int{
+		"glm-4.5-flash":  128000,
+		"glm-4.5-air":    128000,
+		"glm-4.5":        128000,
+		"glm-4.6":        128000,
+		"glm-4.7":        200000,
+		"glm-4.7-flash":  200000,
+		"glm-4.7-flashx": 200000,
+		"glm-5":          200000,
+		"glm-5-turbo":    200000,
+	}
+	for model, want := range models {
+		if got := DefaultContextWindow(model); got != want {
+			t.Errorf("%s = %d, want %d", model, got, want)
+		}
+	}
+}
+
 func TestDefaultContextWindow_GroqModels(t *testing.T) {
 	models := map[string]int{
 		"llama-3.1-8b-instant":      131072,

@@ -30,7 +30,7 @@ func NewRouter(registry *Registry, models *config.ModelsConfig) *Router {
 
 // Chat routes a request to the appropriate provider and model based on tier.
 func (r *Router) Chat(ctx context.Context, tier ModelTier, req ChatRequest) (*ChatResponse, error) {
-	p, model, err := r.resolve(tier)
+	p, model, err := r.Resolve(tier)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (r *Router) Chat(ctx context.Context, tier ModelTier, req ChatRequest) (*Ch
 
 // StreamChat routes a streaming request to the appropriate provider.
 func (r *Router) StreamChat(ctx context.Context, tier ModelTier, req ChatRequest) (<-chan StreamEvent, error) {
-	p, model, err := r.resolve(tier)
+	p, model, err := r.Resolve(tier)
 	if err != nil {
 		return nil, err
 	}
@@ -48,9 +48,9 @@ func (r *Router) StreamChat(ctx context.Context, tier ModelTier, req ChatRequest
 	return p.StreamChat(ctx, req)
 }
 
-// resolve returns the provider and model for the given tier.
+// Resolve returns the provider and model for the given tier.
 // Cascade order: nano → fast → default, complex → default.
-func (r *Router) resolve(tier ModelTier) (Provider, string, error) {
+func (r *Router) Resolve(tier ModelTier) (Provider, string, error) {
 	spec := r.specForTier(tier)
 	if spec == "" && tier == TierNano {
 		spec = r.specForTier(TierFast)

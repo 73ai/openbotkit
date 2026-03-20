@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,21 +21,23 @@ import (
 )
 
 type Scheduler struct {
-	cfg     *config.Config
-	river   *river.Client[*sql.Tx]
-	jobsDB  *sql.DB
-	cron    *cron.Cron
-	mu      sync.Mutex
-	entries map[int64]cron.EntryID
-	ctx     context.Context
+	cfg      *config.Config
+	river    *river.Client[*sql.Tx]
+	jobsDB   *sql.DB
+	cron     *cron.Cron
+	mu       sync.Mutex
+	entries  map[int64]cron.EntryID
+	ctx      context.Context
+	notifier *SyncNotifier
 }
 
-func NewScheduler(cfg *config.Config, riverClient *river.Client[*sql.Tx], jobsDB *sql.DB) *Scheduler {
+func NewScheduler(cfg *config.Config, riverClient *river.Client[*sql.Tx], jobsDB *sql.DB, notifier *SyncNotifier) *Scheduler {
 	return &Scheduler{
-		cfg:     cfg,
-		river:   riverClient,
-		jobsDB:  jobsDB,
-		entries: make(map[int64]cron.EntryID),
+		cfg:      cfg,
+		river:    riverClient,
+		jobsDB:   jobsDB,
+		entries:  make(map[int64]cron.EntryID),
+		notifier: notifier,
 	}
 }
 
@@ -58,6 +62,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	go s.reloadLoop(ctx)
 	go s.oneShotLoop(ctx)
+	if s.notifier != nil {
+		go s.reactiveCheckLoop(ctx)
+	}
 
 	slog.Info("scheduler started")
 	return nil
@@ -151,10 +158,12 @@ func (s *Scheduler) loadSchedules() error {
 func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error) {
 	metaJSON, _ := json.Marshal(sched.ChannelMeta)
 	args := jobs.ScheduledTaskArgs{
-		ScheduleID:  sched.ID,
-		Task:        sched.Task,
-		Channel:     sched.Channel,
-		ChannelMeta: string(metaJSON),
+		ScheduleID:   sched.ID,
+		Task:         sched.Task,
+		Channel:      sched.Channel,
+		ChannelMeta:  string(metaJSON),
+		ModelTier:    sched.ModelTier,
+		MaxBudgetUSD: sched.MaxBudgetUSD,
 	}
 
 	return s.cron.AddFunc(sched.CronExpr, func() {
@@ -164,7 +173,7 @@ func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error)
 			return
 		}
 		_, err = s.river.InsertTx(s.ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 2,
+			MaxAttempts: 3,
 		})
 		if err != nil {
 			tx.Rollback()
@@ -192,10 +201,12 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 	for _, sched := range due {
 		metaJSON, _ := json.Marshal(sched.ChannelMeta)
 		args := jobs.ScheduledTaskArgs{
-			ScheduleID:  sched.ID,
-			Task:        sched.Task,
-			Channel:     sched.Channel,
-			ChannelMeta: string(metaJSON),
+			ScheduleID:   sched.ID,
+			Task:         sched.Task,
+			Channel:      sched.Channel,
+			ChannelMeta:  string(metaJSON),
+			ModelTier:    sched.ModelTier,
+			MaxBudgetUSD: sched.MaxBudgetUSD,
 		}
 
 		tx, err := s.jobsDB.Begin()
@@ -204,7 +215,7 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 			continue
 		}
 		_, err = s.river.InsertTx(ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 2,
+			MaxAttempts: 3,
 		})
 		if err != nil {
 			tx.Rollback()
@@ -224,6 +235,136 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Scheduler) reactiveCheckLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case sig := <-s.notifier.C():
+			if err := s.checkReactiveTriggers(ctx, sig.Source); err != nil {
+				slog.Error("scheduler: reactive check failed", "source", sig.Source, "error", err)
+			}
+		}
+	}
+}
+
+func (s *Scheduler) checkReactiveTriggers(ctx context.Context, source string) error {
+	schedDB, err := s.openDB()
+	if err != nil {
+		return fmt.Errorf("open scheduler db: %w", err)
+	}
+	defer schedDB.Close()
+
+	schedules, err := scheduler.ListEnabledReactive(schedDB, source)
+	if err != nil {
+		return fmt.Errorf("list reactive: %w", err)
+	}
+	if len(schedules) == 0 {
+		return nil
+	}
+
+	dsn, err := s.cfg.SourceDataDSN(source)
+	if err != nil {
+		return fmt.Errorf("source dsn: %w", err)
+	}
+	sourceDB, err := store.Open(store.SQLiteConfig(dsn))
+	if err != nil {
+		return fmt.Errorf("open source db %q: %w", source, err)
+	}
+	defer sourceDB.Close()
+
+	return s.checkReactiveTriggersWithDB(ctx, schedDB, sourceDB, schedules)
+}
+
+func (s *Scheduler) checkReactiveTriggersWithDB(ctx context.Context, schedDB *store.DB, sourceDB *store.DB, schedules []scheduler.Schedule) error {
+	for _, sched := range schedules {
+		match, err := scheduler.CheckTrigger(sourceDB, sched.TriggerSource, sched.TriggerQuery, sched.LastTriggerID)
+		if err != nil {
+			slog.Error("scheduler: trigger check failed", "id", sched.ID, "error", err)
+			continue
+		}
+		if match == nil {
+			continue
+		}
+
+		// Build augmented task with matched data summary.
+		task := sched.Task + "\n\nTriggered by " + fmt.Sprintf("%d", len(match.Rows)) + " new matching row(s) from " + sched.TriggerSource + ":\n"
+		for i, row := range match.Rows {
+			if i >= 5 {
+				task += fmt.Sprintf("... and %d more\n", len(match.Rows)-5)
+				break
+			}
+			task += formatRow(row)
+		}
+
+		metaJSON, _ := json.Marshal(sched.ChannelMeta)
+		args := jobs.ScheduledTaskArgs{
+			ScheduleID:   sched.ID,
+			Task:         task,
+			Channel:      sched.Channel,
+			ChannelMeta:  string(metaJSON),
+			ModelTier:    sched.ModelTier,
+			MaxBudgetUSD: sched.MaxBudgetUSD,
+		}
+
+		tx, err := s.jobsDB.Begin()
+		if err != nil {
+			slog.Error("scheduler: begin tx for reactive", "error", err)
+			continue
+		}
+		_, err = s.river.InsertTx(ctx, tx, args, &river.InsertOpts{
+			MaxAttempts: 3,
+		})
+		if err != nil {
+			tx.Rollback()
+			slog.Error("scheduler: insert reactive job", "schedule_id", sched.ID, "error", err)
+			continue
+		}
+		if err := tx.Commit(); err != nil {
+			slog.Error("scheduler: commit reactive tx", "error", err)
+			continue
+		}
+
+		if err := scheduler.UpdateLastTriggerID(schedDB, sched.ID, match.MaxID); err != nil {
+			slog.Error("scheduler: update watermark", "id", sched.ID, "error", err)
+		}
+		if err := scheduler.UpdateLastRun(schedDB, sched.ID, time.Now().UTC(), ""); err != nil {
+			slog.Error("scheduler: update last run", "id", sched.ID, "error", err)
+		}
+
+		slog.Info("scheduler: enqueued reactive task", "schedule_id", sched.ID, "matched_rows", len(match.Rows), "watermark", match.MaxID)
+	}
+	return nil
+}
+
+// CheckReactiveTriggersForTest exposes reactive trigger checking for tests.
+func (s *Scheduler) CheckReactiveTriggersForTest(ctx context.Context, source string, sourceDB *store.DB) error {
+	schedDB, err := s.openDB()
+	if err != nil {
+		return fmt.Errorf("open scheduler db: %w", err)
+	}
+	defer schedDB.Close()
+
+	schedules, err := scheduler.ListEnabledReactive(schedDB, source)
+	if err != nil {
+		return fmt.Errorf("list reactive: %w", err)
+	}
+	return s.checkReactiveTriggersWithDB(ctx, schedDB, sourceDB, schedules)
+}
+
+func formatRow(row map[string]string) string {
+	keys := make([]string, 0, len(row))
+	for k := range row {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+": "+row[k])
+	}
+	return "  " + strings.Join(parts, " | ") + "\n"
 }
 
 func (s *Scheduler) isValidFrequency(cronExpr string) bool {

@@ -49,6 +49,19 @@ func Migrate(db *store.DB) error {
 	if db.IsPostgres() {
 		schema = schemaPostgres
 	}
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+	// Best-effort ALTER TABLE for existing databases.
+	// SQLite: duplicate column errors are safe to ignore.
+	for _, stmt := range []string{
+		"ALTER TABLE schedules ADD COLUMN model_tier TEXT DEFAULT 'fast'",
+		"ALTER TABLE schedules ADD COLUMN max_budget_usd REAL DEFAULT 0",
+		"ALTER TABLE schedules ADD COLUMN trigger_source TEXT",
+		"ALTER TABLE schedules ADD COLUMN trigger_query TEXT",
+		"ALTER TABLE schedules ADD COLUMN last_trigger_id INTEGER DEFAULT 0",
+	} {
+		db.Exec(stmt) // ignore "duplicate column" errors
+	}
+	return nil
 }

@@ -18,7 +18,7 @@ func TestNewRiverClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, db, err := newRiverClient(ctx, cfg)
+	client, db, err := newRiverClient(ctx, cfg, NewSyncNotifier())
 	if err != nil {
 		t.Fatalf("newRiverClient failed: %v", err)
 	}

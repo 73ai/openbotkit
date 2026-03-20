@@ -37,6 +37,7 @@ type Config struct {
 	Contacts     *ContactsConfig     `yaml:"contacts,omitempty"`
 	Slack        *SlackConfig        `yaml:"slack,omitempty"`
 	Scheduler    *SchedulerConfig    `yaml:"scheduler,omitempty"`
+	Tasks        *TasksConfig        `yaml:"tasks,omitempty"`
 }
 
 func (c *Config) ResolvedMode() Mode {
@@ -202,6 +203,10 @@ type SchedulerConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
 }
 
+type TasksConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
 type StorageConfig struct {
 	Driver string `yaml:"driver,omitempty"` // "sqlite" or "postgres"
 	DSN    string `yaml:"dsn,omitempty"`
@@ -229,8 +234,10 @@ func (c *Config) SourceDataDSN(source string) (string, error) {
 		return c.ContactsDataDSN(), nil
 	case "scheduler":
 		return c.SchedulerDataDSN(), nil
+	case "tasks":
+		return c.TasksDataDSN(), nil
 	default:
-		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage, websearch, contacts, scheduler)", source)
+		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage, websearch, contacts, scheduler, tasks)", source)
 	}
 }
 
@@ -329,6 +336,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		Tasks: &TasksConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -404,6 +416,12 @@ func (c *Config) applyDefaults() {
 	if c.Scheduler.Storage.Driver == "" {
 		c.Scheduler.Storage.Driver = "sqlite"
 	}
+	if c.Tasks == nil {
+		c.Tasks = &TasksConfig{}
+	}
+	if c.Tasks.Storage.Driver == "" {
+		c.Tasks.Storage.Driver = "sqlite"
+	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
 	}
@@ -477,6 +495,13 @@ func (c *Config) ContactsDataDSN() string {
 		return c.Contacts.Storage.DSN
 	}
 	return filepath.Join(SourceDir("contacts"), "data.db")
+}
+
+func (c *Config) TasksDataDSN() string {
+	if c.Tasks != nil && c.Tasks.Storage.DSN != "" {
+		return c.Tasks.Storage.DSN
+	}
+	return filepath.Join(SourceDir("tasks"), "data.db")
 }
 
 func (c *Config) SchedulerDataDSN() string {
