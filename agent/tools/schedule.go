@@ -50,7 +50,7 @@ func NewCreateScheduleTool(deps ScheduleToolDeps) *CreateScheduleTool {
 
 func (t *CreateScheduleTool) Name() string { return "create_schedule" }
 func (t *CreateScheduleTool) Description() string {
-	return "Create a recurring or one-shot scheduled task"
+	return "Create a recurring, one-shot, or reactive scheduled task"
 }
 func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{
@@ -58,7 +58,7 @@ func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 		"properties": {
 			"type": {
 				"type": "string",
-				"enum": ["recurring", "one_shot"],
+				"enum": ["recurring", "one_shot", "reactive"],
 				"description": "Schedule type"
 			},
 			"cron_expr": {
@@ -89,6 +89,15 @@ func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 			"max_budget_usd": {
 				"type": "number",
 				"description": "Maximum cost budget in USD (0 = unlimited)"
+			},
+			"trigger_source": {
+				"type": "string",
+				"enum": ["gmail", "whatsapp", "imessage", "applenotes"],
+				"description": "Data source to watch (for reactive type)"
+			},
+			"trigger_query": {
+				"type": "string",
+				"description": "SQL WHERE clause to match new rows (for reactive type)"
 			}
 		},
 		"required": ["type", "task", "timezone"]
@@ -96,14 +105,16 @@ func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 }
 
 type createScheduleInput struct {
-	Type         string  `json:"type"`
-	CronExpr     string  `json:"cron_expr"`
-	ScheduledAt  string  `json:"scheduled_at"`
-	Task         string  `json:"task"`
-	Timezone     string  `json:"timezone"`
-	Description  string  `json:"description"`
-	ModelTier    string  `json:"model_tier"`
-	MaxBudgetUSD float64 `json:"max_budget_usd"`
+	Type          string  `json:"type"`
+	CronExpr      string  `json:"cron_expr"`
+	ScheduledAt   string  `json:"scheduled_at"`
+	Task          string  `json:"task"`
+	Timezone      string  `json:"timezone"`
+	Description   string  `json:"description"`
+	ModelTier     string  `json:"model_tier"`
+	MaxBudgetUSD  float64 `json:"max_budget_usd"`
+	TriggerSource string  `json:"trigger_source"`
+	TriggerQuery  string  `json:"trigger_query"`
 }
 
 func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (string, error) {
@@ -168,8 +179,21 @@ func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (
 		}
 		s.ScheduledAt = &scheduledAt
 
+	case scheduler.Reactive:
+		if in.TriggerSource == "" {
+			return "", fmt.Errorf("trigger_source is required for reactive schedules")
+		}
+		if err := scheduler.ValidateTriggerSource(in.TriggerSource); err != nil {
+			return "", err
+		}
+		if err := scheduler.ValidateTriggerQuery(in.TriggerQuery); err != nil {
+			return "", err
+		}
+		s.TriggerSource = in.TriggerSource
+		s.TriggerQuery = in.TriggerQuery
+
 	default:
-		return "", fmt.Errorf("type must be 'recurring' or 'one_shot'")
+		return "", fmt.Errorf("type must be 'recurring', 'one_shot', or 'reactive'")
 	}
 
 	db, err := t.deps.openDB()
@@ -183,6 +207,9 @@ func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (
 		return "", fmt.Errorf("create schedule: %w", err)
 	}
 
+	if s.Type == scheduler.Reactive {
+		return fmt.Sprintf("Reactive schedule created (ID: %d). Watching %s for: %s. Description: %s.", id, in.TriggerSource, in.TriggerQuery, in.Description), nil
+	}
 	nextRun := t.formatNextRun(s, loc)
 	return fmt.Sprintf("Schedule created (ID: %d). Description: %s. Next run: %s (in your timezone).", id, in.Description, nextRun), nil
 }
@@ -260,6 +287,9 @@ func (t *ListSchedulesTool) Execute(_ context.Context, _ json.RawMessage) (strin
 		}
 		if s.Type == scheduler.OneShot && s.ScheduledAt != nil {
 			fmt.Fprintf(&b, "  Scheduled at: %s\n", s.ScheduledAt.In(loc).Format("2006-01-02 15:04 MST"))
+		}
+		if s.Type == scheduler.Reactive {
+			fmt.Fprintf(&b, "  Source: %s | Query: %s\n", s.TriggerSource, s.TriggerQuery)
 		}
 		if s.LastRunAt != nil {
 			fmt.Fprintf(&b, "  Last run: %s\n", s.LastRunAt.In(loc).Format("2006-01-02 15:04 MST"))
