@@ -86,7 +86,7 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 	return nil
 }
 
-func (w *ScheduledTaskWorker) NextRetryAt(_ *river.Job[ScheduledTaskArgs]) time.Time {
+func (w *ScheduledTaskWorker) NextRetry(job *river.Job[ScheduledTaskArgs]) time.Time {
 	return time.Now().Add(15 * time.Minute)
 }
 

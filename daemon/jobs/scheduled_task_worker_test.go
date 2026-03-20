@@ -9,14 +9,14 @@ import (
 	"github.com/73ai/openbotkit/config"
 )
 
-func TestScheduledTaskWorkerNextRetryAt(t *testing.T) {
+func TestScheduledTaskWorkerNextRetry(t *testing.T) {
 	w := &ScheduledTaskWorker{}
 	before := time.Now().Add(14 * time.Minute)
-	retryAt := w.NextRetryAt(&river.Job[ScheduledTaskArgs]{})
+	retryAt := w.NextRetry(&river.Job[ScheduledTaskArgs]{})
 	after := time.Now().Add(16 * time.Minute)
 
 	if retryAt.Before(before) || retryAt.After(after) {
-		t.Errorf("NextRetryAt should be ~15 min from now, got %v", retryAt)
+		t.Errorf("NextRetry should be ~15 min from now, got %v", retryAt)
 	}
 }
 
