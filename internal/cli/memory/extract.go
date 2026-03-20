@@ -68,23 +68,12 @@ var extractCmd = &cobra.Command{
 			return nil
 		}
 
-		// Open user_memory DB.
-		if err := config.EnsureSourceDir("user_memory"); err != nil {
+		// Open user_memory store.
+		dir := config.UserMemoryDir()
+		if err := memory.EnsureDir(dir); err != nil {
 			return fmt.Errorf("ensure user_memory dir: %w", err)
 		}
-
-		memDB, err := store.Open(store.Config{
-			Driver: cfg.UserMemory.Storage.Driver,
-			DSN:    cfg.UserMemoryDataDSN(),
-		})
-		if err != nil {
-			return fmt.Errorf("open memory database: %w", err)
-		}
-		defer memDB.Close()
-
-		if err := memory.Migrate(memDB); err != nil {
-			return fmt.Errorf("migrate memory: %w", err)
-		}
+		memStore := memory.NewStore(dir)
 
 		// Create LLM client.
 		llm, err := buildLLM(cfg)
@@ -106,7 +95,7 @@ var extractCmd = &cobra.Command{
 		}
 
 		// Reconcile with existing memories.
-		result, err := memory.Reconcile(ctx, memDB, llm, candidates)
+		result, err := memory.Reconcile(ctx, memStore, llm, candidates)
 		if err != nil {
 			return fmt.Errorf("reconcile: %w", err)
 		}
