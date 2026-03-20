@@ -360,6 +360,7 @@ func providersCategory(svc *Service) *Category {
 		},
 		{key: "groq", label: "Groq", keychainID: "obk/groq"},
 		{key: "openrouter", label: "OpenRouter", keychainID: "obk/openrouter"},
+		{key: "zai", label: "Z.AI", keychainID: "obk/zai"},
 	}
 
 	var children []Node
