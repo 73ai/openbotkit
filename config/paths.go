@@ -59,6 +59,10 @@ func AuditDBPath() string {
 	return filepath.Join(Dir(), "audit", "data.db")
 }
 
+func AuditJSONLPath() string {
+	return filepath.Join(Dir(), "audit", "audit.jsonl")
+}
+
 func ScratchDir(sessionID string) string {
 	return filepath.Join(Dir(), "scratch", sessionID)
 }

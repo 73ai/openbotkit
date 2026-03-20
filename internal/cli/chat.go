@@ -220,7 +220,7 @@ func generateSessionID() string {
 
 
 func openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Channel) {

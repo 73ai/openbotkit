@@ -186,7 +186,7 @@ func (w *ScheduledTaskWorker) notifyFailure(ctx context.Context, ch string, meta
 }
 
 func openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 var _ river.Worker[ScheduledTaskArgs] = (*ScheduledTaskWorker)(nil)

@@ -646,7 +646,7 @@ func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
 }
 
 func (sm *SessionManager) openAuditLogger() *audit.Logger {
-	return audit.OpenDefault(config.AuditDBPath())
+	return audit.OpenDefault(config.AuditJSONLPath())
 }
 
 func generateSessionID() string {
