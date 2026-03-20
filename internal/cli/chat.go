@@ -25,6 +25,7 @@ import (
 	_ "github.com/73ai/openbotkit/provider/groq"
 	_ "github.com/73ai/openbotkit/provider/openai"
 	_ "github.com/73ai/openbotkit/provider/openrouter"
+	_ "github.com/73ai/openbotkit/provider/zai"
 	"github.com/spf13/cobra"
 )
 
