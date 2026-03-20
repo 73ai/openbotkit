@@ -623,18 +623,8 @@ func (sm *SessionManager) saveHistory(sessionID, userMsg, assistantMsg string) {
 }
 
 func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
-	if err := config.EnsureSourceDir("usage"); err != nil {
-		return nil
-	}
-	db, err := store.Open(store.Config{
-		Driver: sm.cfg.Usage.Storage.Driver,
-		DSN:    sm.cfg.UsageDataDSN(),
-	})
-	if err != nil {
-		return nil
-	}
-	if err := usagesrc.Migrate(db); err != nil {
-		db.Close()
+	path := config.UsageJSONLPath()
+	if err := usagesrc.Migrate(path); err != nil {
 		return nil
 	}
 
@@ -642,7 +632,7 @@ func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
 	sid := sm.sessionID
 	sm.mu.Unlock()
 
-	return usagesrc.NewRecorder(db, sm.providerName, "telegram", sid)
+	return usagesrc.NewRecorder(path, sm.providerName, "telegram", sid)
 }
 
 func (sm *SessionManager) openAuditLogger() *audit.Logger {

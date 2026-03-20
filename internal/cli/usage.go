@@ -10,7 +10,6 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	usagesrc "github.com/73ai/openbotkit/service/usage"
-	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
 )
 
@@ -66,22 +65,14 @@ func runUsageMonthly(cmd *cobra.Command, args []string) error {
 }
 
 func runUsageQuery(groupBy string) error {
-	cfg, err := config.Load()
+	_, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	db, err := store.Open(store.Config{
-		Driver: cfg.Usage.Storage.Driver,
-		DSN:    cfg.UsageDataDSN(),
-	})
-	if err != nil {
-		return fmt.Errorf("open usage db: %w", err)
-	}
-	defer db.Close()
-
-	if err := usagesrc.Migrate(db); err != nil {
-		return fmt.Errorf("migrate usage: %w", err)
+	path := config.UsageJSONLPath()
+	if err := usagesrc.Migrate(path); err != nil {
+		return fmt.Errorf("ensure usage dir: %w", err)
 	}
 
 	opts := usagesrc.QueryOpts{
@@ -108,7 +99,7 @@ func runUsageQuery(groupBy string) error {
 		opts.Until = &t
 	}
 
-	results, err := usagesrc.Query(db, opts)
+	results, err := usagesrc.Query(path, opts)
 	if err != nil {
 		return fmt.Errorf("query usage: %w", err)
 	}

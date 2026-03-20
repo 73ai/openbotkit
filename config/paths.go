@@ -63,6 +63,10 @@ func AuditJSONLPath() string {
 	return filepath.Join(Dir(), "audit", "audit.jsonl")
 }
 
+func UsageJSONLPath() string {
+	return filepath.Join(Dir(), "usage", "usage.jsonl")
+}
+
 func ScratchDir(sessionID string) string {
 	return filepath.Join(Dir(), "scratch", sessionID)
 }

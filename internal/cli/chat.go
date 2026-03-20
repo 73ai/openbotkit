@@ -195,21 +195,11 @@ func openHistoryDB(cfg *config.Config, sessionID string) (*store.DB, int64, erro
 }
 
 func openUsageRecorder(cfg *config.Config, providerName, channel, sessionID string) *usagesrc.Recorder {
-	if err := config.EnsureSourceDir("usage"); err != nil {
+	path := config.UsageJSONLPath()
+	if err := usagesrc.Migrate(path); err != nil {
 		return nil
 	}
-	db, err := store.Open(store.Config{
-		Driver: cfg.Usage.Storage.Driver,
-		DSN:    cfg.UsageDataDSN(),
-	})
-	if err != nil {
-		return nil
-	}
-	if err := usagesrc.Migrate(db); err != nil {
-		db.Close()
-		return nil
-	}
-	return usagesrc.NewRecorder(db, providerName, channel, sessionID)
+	return usagesrc.NewRecorder(path, providerName, channel, sessionID)
 }
 
 func generateSessionID() string {
