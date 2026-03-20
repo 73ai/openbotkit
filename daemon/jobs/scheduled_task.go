@@ -21,10 +21,12 @@ import (
 )
 
 type ScheduledTaskArgs struct {
-	ScheduleID  int64  `json:"schedule_id"`
-	Task        string `json:"task"`
-	Channel     string `json:"channel"`
-	ChannelMeta string `json:"channel_meta"`
+	ScheduleID   int64   `json:"schedule_id"`
+	Task         string  `json:"task"`
+	Channel      string  `json:"channel"`
+	ChannelMeta  string  `json:"channel_meta"`
+	ModelTier    string  `json:"model_tier,omitempty"`
+	MaxBudgetUSD float64 `json:"max_budget_usd,omitempty"`
 }
 
 func (ScheduledTaskArgs) Kind() string { return "scheduled_task" }
@@ -55,11 +57,13 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 		return fmt.Errorf("parse channel meta: %w", err)
 	}
 
-	runAgent := w.runAgent
+	var result string
+	var err error
 	if w.RunAgentFunc != nil {
-		runAgent = w.RunAgentFunc
+		result, err = w.RunAgentFunc(ctx, job.Args.Task)
+	} else {
+		result, err = w.runAgentWithBudget(ctx, job.Args.Task, job.Args.ModelTier, job.Args.MaxBudgetUSD)
 	}
-	result, err := runAgent(ctx, job.Args.Task)
 	if err != nil {
 		slog.Error("scheduled task agent failed", "schedule_id", job.Args.ScheduleID, "error", err)
 		w.updateLastRun(job.Args.ScheduleID, err.Error())
@@ -118,6 +122,10 @@ func (w *ScheduledTaskWorker) NextRetry(job *river.Job[ScheduledTaskArgs]) time.
 }
 
 func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string, error) {
+	return w.runAgentWithBudget(ctx, task, "", 0)
+}
+
+func (w *ScheduledTaskWorker) runAgentWithBudget(ctx context.Context, task string, modelTier string, maxBudget float64) (string, error) {
 	if w.Cfg == nil || w.Cfg.Models == nil || w.Cfg.Models.Default == "" {
 		return "", fmt.Errorf("no LLM model configured")
 	}
@@ -127,14 +135,14 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 		return "", fmt.Errorf("create provider registry: %w", err)
 	}
 
-	providerName, modelName, err := provider.ParseModelSpec(w.Cfg.Models.Default)
-	if err != nil {
-		return "", fmt.Errorf("parse model spec: %w", err)
+	router := provider.NewRouter(registry, w.Cfg.Models)
+	tier := provider.TierFast
+	if modelTier != "" {
+		tier = provider.ModelTier(modelTier)
 	}
-
-	p, ok := registry.Get(providerName)
-	if !ok {
-		return "", fmt.Errorf("provider %q not found", providerName)
+	p, modelName, err := router.Resolve(tier)
+	if err != nil {
+		return "", fmt.Errorf("resolve model tier %q: %w", tier, err)
 	}
 
 	toolReg := tools.NewScheduledTaskRegistry()
@@ -154,7 +162,13 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 	identity := "You are a scheduled task agent. Execute the task and return a concise result.\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg)
 
-	a := agent.New(p, modelName, toolReg, agent.WithSystemBlocks(blocks))
+	opts := []agent.Option{agent.WithSystemBlocks(blocks)}
+	if maxBudget > 0 {
+		bt := agent.NewBudgetTracker(maxBudget, nil)
+		opts = append(opts, agent.WithUsageRecorder(bt), agent.WithBudgetChecker(bt))
+	}
+
+	a := agent.New(p, modelName, toolReg, opts...)
 	return a.Run(ctx, task)
 }
 
