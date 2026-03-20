@@ -16,6 +16,15 @@ var contextWindows = map[string]int{
 	"llama-3.3-70b-versatile":   131072,
 	"llama-4-scout-17b-16e":     131072,
 	"llama-4-maverick-17b-128e": 131072,
+	"glm-4.5-flash":            128000,
+	"glm-4.5-air":              128000,
+	"glm-4.5":                  128000,
+	"glm-4.6":                  128000,
+	"glm-4.7":                  200000,
+	"glm-4.7-flash":            200000,
+	"glm-4.7-flashx":           200000,
+	"glm-5":                    200000,
+	"glm-5-turbo":              200000,
 }
 
 // DefaultContextWindow returns the context window size for a model.
