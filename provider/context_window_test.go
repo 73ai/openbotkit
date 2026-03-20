@@ -59,8 +59,8 @@ func TestDefaultContextWindow_GeminiFlashLite(t *testing.T) {
 
 func TestDefaultContextWindow_CerebrasModels(t *testing.T) {
 	models := map[string]int{
-		"gpt-oss-120b": 65536,
-		"qwen-3-235b":  65536,
+		"qwen-3-235b-a22b-instruct-2507": 65536,
+		"llama3.1-8b":                    131072,
 	}
 	for model, want := range models {
 		if got := DefaultContextWindow(model); got != want {

@@ -80,8 +80,8 @@ var llmProviders = []providerInfo{
 		name:  "cerebras",
 		label: "Cerebras (fast inference)",
 		models: []huh.Option[string]{
-			huh.NewOption("gpt-oss-120b (most capable)", "gpt-oss-120b"),
-			huh.NewOption("qwen-3-235b", "qwen-3-235b"),
+			huh.NewOption("qwen-3-235b-a22b-instruct-2507 (most capable)", "qwen-3-235b-a22b-instruct-2507"),
+			huh.NewOption("llama3.1-8b (fastest)", "llama3.1-8b"),
 		},
 	},
 }

@@ -140,8 +140,8 @@ func TestListModels_Cerebras(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]any{
-				{"id": "gpt-oss-120b"},
-				{"id": "qwen-3-235b"},
+				{"id": "qwen-3-235b-a22b-instruct-2507"},
+				{"id": "llama3.1-8b"},
 			},
 		})
 	}))

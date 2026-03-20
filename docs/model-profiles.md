@@ -41,7 +41,7 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 | Profile | ~Cost/mo | Default | Complex | Fast | Nano | Providers |
 |---------|----------|---------|---------|------|------|-----------|
-| Free | $0 | Gemini 2.5 Flash | Gemini 2.5 Pro | Cerebras gpt-oss-120b | Gemini 2.5 Flash Lite | Gemini + Cerebras |
+| Free | $0 | Gemini 2.5 Flash | Gemini 2.5 Pro | Cerebras qwen-3-235b-a22b-instruct-2507 | Gemini 2.5 Flash Lite | Gemini + Cerebras |
 | Starter | $20 | Mistral Medium 3.1 (OR) | Mistral Medium 3.1 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
 | Standard | $50 | Claude Haiku 4.5 (OR) | Claude Sonnet 4.6 (OR) | Gemini 2.5 Flash Lite | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
 | Premium | $100 | Claude Sonnet 4.6 (OR) | Claude Opus 4.6 (OR) | Claude Haiku 4.5 (OR) | Gemini 2.5 Flash Lite | OpenRouter + Gemini |
@@ -89,7 +89,7 @@ Same pattern as Groq — reuses OpenAI provider with `https://openrouter.ai/api`
 
 ### Cerebras (`provider/cerebras`)
 
-Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` as the base URL. Offers free API access to large open-source models (gpt-oss-120b, qwen-3-235b) with fast inference. No credit card required. Env var: `CEREBRAS_API_KEY`.
+Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` as the base URL. Offers free API access to large open-source models (qwen-3-235b-a22b-instruct-2507, qwen-3-235b) with fast inference. No credit card required. Env var: `CEREBRAS_API_KEY`.
 
 ## Task→Tier assignments
 

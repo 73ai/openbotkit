@@ -33,7 +33,7 @@ var Profiles = map[string]ModelProfile{
 		Tiers: ProfileTiers{
 			Default: "gemini/gemini-2.5-flash",
 			Complex: "gemini/gemini-2.5-pro",
-			Fast:    "cerebras/gpt-oss-120b",
+			Fast:    "cerebras/qwen-3-235b-a22b-instruct-2507",
 			Nano:    "gemini/gemini-2.5-flash-lite",
 		},
 		Providers: []string{"gemini", "cerebras"},
