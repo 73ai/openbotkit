@@ -9,8 +9,8 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
+	historysrc "github.com/73ai/openbotkit/service/history"
 	"github.com/73ai/openbotkit/service/memory"
-	"github.com/73ai/openbotkit/store"
 )
 
 type memoryAddRequest struct {
@@ -139,18 +139,11 @@ func (s *Server) handleMemoryExtract(w http.ResponseWriter, r *http.Request) {
 		req.Last = 1
 	}
 
-	histDB, err := store.Open(store.Config{
-		Driver: s.cfg.History.Storage.Driver,
-		DSN:    s.cfg.HistoryDataDSN(),
-	})
-	if err != nil {
-		slog.Error("memory extract handler: open history db", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to open history database")
-		return
-	}
-	defer histDB.Close()
+	histDir := config.HistoryDir()
+	historysrc.EnsureDir(histDir)
+	histStore := historysrc.NewStore(histDir)
 
-	messages, err := loadRecentMessages(histDB, req.Last)
+	messages, err := histStore.LoadRecentUserMessages(req.Last)
 	if err != nil {
 		slog.Error("memory extract handler: load messages", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load messages")
@@ -200,31 +193,6 @@ func (s *Server) handleMemoryExtract(w http.ResponseWriter, r *http.Request) {
 		Deleted: result.Deleted,
 		Skipped: result.Skipped,
 	})
-}
-
-func loadRecentMessages(db *store.DB, lastN int) ([]string, error) {
-	query := db.Rebind(`
-		SELECT m.content FROM history_messages m
-		JOIN history_conversations c ON c.id = m.conversation_id
-		WHERE m.role = 'user'
-		ORDER BY c.updated_at DESC, m.timestamp DESC
-		LIMIT ?`)
-
-	rows, err := db.Query(query, lastN*50)
-	if err != nil {
-		return nil, fmt.Errorf("query messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []string
-	for rows.Next() {
-		var content string
-		if err := rows.Scan(&content); err != nil {
-			return nil, fmt.Errorf("scan message: %w", err)
-		}
-		messages = append(messages, content)
-	}
-	return messages, rows.Err()
 }
 
 func (s *Server) buildLLM() (memory.LLM, error) {

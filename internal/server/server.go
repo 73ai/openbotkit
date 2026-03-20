@@ -24,7 +24,6 @@ import (
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
 	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	gmailsrc "github.com/73ai/openbotkit/source/gmail"
-	historysrc "github.com/73ai/openbotkit/service/history"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
 	schedsrc "github.com/73ai/openbotkit/service/scheduler"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
@@ -185,7 +184,6 @@ func (s *Server) migrateDBs() {
 		dsn    string
 		fn     func(*store.DB) error
 	}{
-		{"history", s.cfg.History.Storage.Driver, s.cfg.HistoryDataDSN(), historysrc.Migrate},
 		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
 		{"imessage", s.cfg.IMessage.Storage.Driver, s.cfg.IMessageDataDSN(), imsrc.Migrate},
 		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
