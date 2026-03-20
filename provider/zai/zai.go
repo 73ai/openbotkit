@@ -348,6 +348,13 @@ func (z *ZAI) parseSSE(body io.ReadCloser, ch chan<- provider.StreamEvent) {
 			return
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		ch <- provider.StreamEvent{
+			Type:  provider.EventError,
+			Error: fmt.Errorf("stream read error: %w", err),
+		}
+	}
 }
 
 type apiResponse struct {
