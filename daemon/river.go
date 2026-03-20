@@ -14,7 +14,7 @@ import (
 	"github.com/73ai/openbotkit/daemon/jobs"
 )
 
-func newRiverClient(ctx context.Context, cfg *config.Config) (*river.Client[*sql.Tx], *sql.DB, error) {
+func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) (*river.Client[*sql.Tx], *sql.DB, error) {
 	dsn := cfg.JobsDBDSN()
 
 	db, err := sql.Open("sqlite", dsn)
@@ -36,7 +36,10 @@ func newRiverClient(ctx context.Context, cfg *config.Config) (*river.Client[*sql
 	}
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &jobs.GmailSyncWorker{Cfg: cfg})
+	river.AddWorker(workers, &jobs.GmailSyncWorker{
+		Cfg:        cfg,
+		OnComplete: func() { notifier.Notify("gmail") },
+	})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
 	river.AddWorker(workers, &jobs.ScheduledTaskWorker{Cfg: cfg})
 

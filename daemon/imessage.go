@@ -13,7 +13,7 @@ import (
 
 const iMessageSyncInterval = 30 * time.Second
 
-func runIMessageSync(ctx context.Context, cfg *config.Config) <-chan error {
+func runIMessageSync(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -46,7 +46,7 @@ func runIMessageSync(ctx context.Context, cfg *config.Config) <-chan error {
 		}
 		defer db.Close()
 
-		syncIMessage(db)
+		syncIMessage(db, notifier)
 
 		ticker := time.NewTicker(iMessageSyncInterval)
 		defer ticker.Stop()
@@ -57,7 +57,7 @@ func runIMessageSync(ctx context.Context, cfg *config.Config) <-chan error {
 				slog.Info("imessage: stopping sync")
 				return
 			case <-ticker.C:
-				syncIMessage(db)
+				syncIMessage(db, notifier)
 			}
 		}
 	}()
@@ -65,11 +65,14 @@ func runIMessageSync(ctx context.Context, cfg *config.Config) <-chan error {
 	return errCh
 }
 
-func syncIMessage(db *store.DB) {
+func syncIMessage(db *store.DB, notifier *SyncNotifier) {
 	result, err := imsrc.Sync(db, imsrc.SyncOptions{})
 	if err != nil {
 		slog.Error("imessage: sync error", "error", err)
 		return
 	}
 	slog.Info("imessage: sync complete", "synced", result.Synced, "skipped", result.Skipped, "errors", result.Errors)
+	if notifier != nil {
+		notifier.Notify("imessage")
+	}
 }

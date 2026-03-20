@@ -3,12 +3,12 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"text/tabwriter"
 	"time"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 	usagesrc "github.com/73ai/openbotkit/service/usage"
 	"github.com/73ai/openbotkit/store"
 	"github.com/spf13/cobra"
@@ -152,54 +152,11 @@ func formatTokens(n int64) string {
 	return fmt.Sprintf("%d", n)
 }
 
-// Pricing per million tokens (input, output, cache_read).
-// Cache writes are charged at input rate.
-var modelPricing = map[string][3]float64{
-	"claude-sonnet-4-6":        {3.0, 15.0, 0.30},
-	"claude-sonnet-4-20250514": {3.0, 15.0, 0.30},
-	"claude-haiku-4-5":         {0.80, 4.0, 0.08},
-	"claude-opus-4-6":          {15.0, 75.0, 1.50},
-	"gpt-4o":                   {2.50, 10.0, 1.25},
-	"gpt-4o-mini":              {0.15, 0.60, 0.075},
-	"gpt-4.1":                  {2.00, 8.00, 0.50},
-	"gpt-4.1-mini":             {0.40, 1.60, 0.10},
-	"gpt-4.1-nano":             {0.10, 0.40, 0.025},
-	"gemini-2.5-pro":           {1.25, 10.0, 0.3125},
-	"gemini-2.5-flash":         {0.15, 0.60, 0.0375},
-}
-
 func estimateCost(r usagesrc.AggregatedUsage) float64 {
-	pricing, ok := modelPricing[r.Model]
-	if !ok {
-		// Try prefix matching for versioned model names.
-		// Use longest match to avoid "gpt-4o" matching "gpt-4o-mini-*".
-		bestLen := 0
-		for prefix, p := range modelPricing {
-			if len(prefix) > bestLen && len(r.Model) >= len(prefix) && r.Model[:len(prefix)] == prefix {
-				pricing = p
-				bestLen = len(prefix)
-				ok = true
-			}
-		}
-	}
-	if !ok {
-		return 0
-	}
-
-	inputRate := pricing[0] / 1_000_000
-	outputRate := pricing[1] / 1_000_000
-	cacheReadRate := pricing[2] / 1_000_000
-
-	// Non-cached input tokens = total input - cache_read.
-	nonCachedInput := r.InputTokens - r.CacheReadTokens
-	if nonCachedInput < 0 {
-		nonCachedInput = 0
-	}
-
-	cost := float64(nonCachedInput)*inputRate +
-		float64(r.OutputTokens)*outputRate +
-		float64(r.CacheReadTokens)*cacheReadRate +
-		float64(r.CacheWriteTokens)*inputRate // cache writes charged at input rate
-
-	return math.Round(cost*100) / 100
+	return provider.EstimateCost(r.Model, provider.Usage{
+		InputTokens:      int(r.InputTokens),
+		OutputTokens:     int(r.OutputTokens),
+		CacheReadTokens:  int(r.CacheReadTokens),
+		CacheWriteTokens: int(r.CacheWriteTokens),
+	})
 }

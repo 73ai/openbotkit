@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
@@ -11,7 +12,7 @@ import (
 
 // runWhatsAppSync starts a WhatsApp sync goroutine that runs until ctx is cancelled.
 // Errors are sent on the returned channel (non-blocking).
-func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
+func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -44,6 +45,23 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
 			return
 		}
 		defer db.Close()
+
+		// WhatsApp uses streaming sync (Follow: true), so notify periodically
+		// while messages arrive, matching the cadence of other sync sources.
+		if notifier != nil {
+			go func() {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						notifier.Notify("whatsapp")
+					}
+				}
+			}()
+		}
 
 		slog.Info("whatsapp: starting sync")
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{

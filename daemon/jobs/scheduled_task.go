@@ -16,14 +16,17 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/service/scheduler"
+	"github.com/73ai/openbotkit/service/tasks"
 	"github.com/73ai/openbotkit/store"
 )
 
 type ScheduledTaskArgs struct {
-	ScheduleID  int64  `json:"schedule_id"`
-	Task        string `json:"task"`
-	Channel     string `json:"channel"`
-	ChannelMeta string `json:"channel_meta"`
+	ScheduleID   int64   `json:"schedule_id"`
+	Task         string  `json:"task"`
+	Channel      string  `json:"channel"`
+	ChannelMeta  string  `json:"channel_meta"`
+	ModelTier    string  `json:"model_tier,omitempty"`
+	MaxBudgetUSD float64 `json:"max_budget_usd,omitempty"`
 }
 
 func (ScheduledTaskArgs) Kind() string { return "scheduled_task" }
@@ -41,26 +44,38 @@ type ScheduledTaskWorker struct {
 	Cfg           *config.Config
 	MakePusher    PusherFactory
 	RunAgentFunc  AgentRunner
+	TasksDB       *store.DB // optional: for recording task results
 }
 
 func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[ScheduledTaskArgs]) error {
 	slog.Info("running scheduled task", "schedule_id", job.Args.ScheduleID, "attempt", job.Attempt)
+	taskID := fmt.Sprintf("sched-%d-%d", job.Args.ScheduleID, time.Now().UnixMilli())
+	w.recordTaskStart(taskID, job.Args.Task)
 
 	var meta scheduler.ChannelMeta
 	if err := json.Unmarshal([]byte(job.Args.ChannelMeta), &meta); err != nil {
 		return fmt.Errorf("parse channel meta: %w", err)
 	}
 
-	runAgent := w.runAgent
+	var result string
+	var err error
 	if w.RunAgentFunc != nil {
-		runAgent = w.RunAgentFunc
+		result, err = w.RunAgentFunc(ctx, job.Args.Task)
+	} else {
+		result, err = w.runAgentWithBudget(ctx, job.Args.Task, job.Args.ModelTier, job.Args.MaxBudgetUSD)
 	}
-	result, err := runAgent(ctx, job.Args.Task)
 	if err != nil {
 		slog.Error("scheduled task agent failed", "schedule_id", job.Args.ScheduleID, "error", err)
 		w.updateLastRun(job.Args.ScheduleID, err.Error())
+		w.recordTaskFailed(taskID, err.Error())
 
-		if job.Attempt >= 2 {
+		apiErr := provider.ClassifyError(err)
+		if apiErr.Kind == provider.ErrorAuth || apiErr.Kind == provider.ErrorContextWindow {
+			w.notifyFailure(ctx, job.Args.Channel, meta, job.Args.ScheduleID, err)
+			return river.JobCancel(err)
+		}
+
+		if job.Attempt >= job.MaxAttempts {
 			w.notifyFailure(ctx, job.Args.Channel, meta, job.Args.ScheduleID, err)
 			return nil
 		}
@@ -80,17 +95,35 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 	}
 
 	w.updateLastRun(job.Args.ScheduleID, "")
+	w.recordTaskCompleted(taskID, result)
 	w.maybeMarkCompleted(job.Args.ScheduleID)
 
 	slog.Info("scheduled task complete", "schedule_id", job.Args.ScheduleID)
 	return nil
 }
 
-func (w *ScheduledTaskWorker) NextRetryAt(_ *river.Job[ScheduledTaskArgs]) time.Time {
+func (w *ScheduledTaskWorker) NextRetry(job *river.Job[ScheduledTaskArgs]) time.Time {
+	if len(job.Errors) == 0 {
+		return time.Now().Add(15 * time.Minute)
+	}
+	// Auth and context-window errors are cancelled in Work() via
+	// river.JobCancel, so NextRetry is only called for retryable errors.
+	lastErr := job.Errors[len(job.Errors)-1]
+	apiErr := provider.ClassifyError(fmt.Errorf("%s", lastErr.Error))
+	if apiErr.Kind == provider.ErrorRetryable && apiErr.StatusCode == 429 {
+		return time.Now().Add(30 * time.Minute)
+	}
+	if apiErr.Kind == provider.ErrorRetryable {
+		return time.Now().Add(10 * time.Minute) // 5xx
+	}
 	return time.Now().Add(15 * time.Minute)
 }
 
 func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string, error) {
+	return w.runAgentWithBudget(ctx, task, "", 0)
+}
+
+func (w *ScheduledTaskWorker) runAgentWithBudget(ctx context.Context, task string, modelTier string, maxBudget float64) (string, error) {
 	if w.Cfg == nil || w.Cfg.Models == nil || w.Cfg.Models.Default == "" {
 		return "", fmt.Errorf("no LLM model configured")
 	}
@@ -100,14 +133,14 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 		return "", fmt.Errorf("create provider registry: %w", err)
 	}
 
-	providerName, modelName, err := provider.ParseModelSpec(w.Cfg.Models.Default)
-	if err != nil {
-		return "", fmt.Errorf("parse model spec: %w", err)
+	router := provider.NewRouter(registry, w.Cfg.Models)
+	tier := provider.TierFast
+	if modelTier != "" {
+		tier = provider.ModelTier(modelTier)
 	}
-
-	p, ok := registry.Get(providerName)
-	if !ok {
-		return "", fmt.Errorf("provider %q not found", providerName)
+	p, modelName, err := router.Resolve(tier)
+	if err != nil {
+		return "", fmt.Errorf("resolve model tier %q: %w", tier, err)
 	}
 
 	toolReg := tools.NewScheduledTaskRegistry()
@@ -127,7 +160,13 @@ func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string
 	identity := "You are a scheduled task agent. Execute the task and return a concise result.\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg)
 
-	a := agent.New(p, modelName, toolReg, agent.WithSystemBlocks(blocks))
+	opts := []agent.Option{agent.WithSystemBlocks(blocks)}
+	if maxBudget > 0 {
+		bt := agent.NewBudgetTracker(maxBudget, nil)
+		opts = append(opts, agent.WithUsageRecorder(bt), agent.WithBudgetChecker(bt))
+	}
+
+	a := agent.New(p, modelName, toolReg, opts...)
 	return a.Run(ctx, task)
 }
 
@@ -182,6 +221,36 @@ func (w *ScheduledTaskWorker) notifyFailure(ctx context.Context, ch string, meta
 	msg := fmt.Sprintf("Scheduled task #%d failed after retries: %v", scheduleID, taskErr)
 	if err := pusher.Push(ctx, msg); err != nil {
 		slog.Error("scheduled task: push failure notification", "error", err)
+	}
+}
+
+func (w *ScheduledTaskWorker) recordTaskStart(taskID, task string) {
+	if w.TasksDB == nil {
+		return
+	}
+	if err := tasks.Insert(w.TasksDB, &tasks.TaskRecord{
+		ID: taskID, Task: task, Agent: "scheduled",
+		Status: "running", StartedAt: time.Now().UTC(),
+	}); err != nil {
+		slog.Warn("tasks: record start failed", "id", taskID, "error", err)
+	}
+}
+
+func (w *ScheduledTaskWorker) recordTaskCompleted(taskID, output string) {
+	if w.TasksDB == nil {
+		return
+	}
+	if err := tasks.SetCompleted(w.TasksDB, taskID, output); err != nil {
+		slog.Warn("tasks: record completed failed", "id", taskID, "error", err)
+	}
+}
+
+func (w *ScheduledTaskWorker) recordTaskFailed(taskID, errMsg string) {
+	if w.TasksDB == nil {
+		return
+	}
+	if err := tasks.SetFailed(w.TasksDB, taskID, errMsg); err != nil {
+		slog.Warn("tasks: record failed failed", "id", taskID, "error", err)
 	}
 }
 
