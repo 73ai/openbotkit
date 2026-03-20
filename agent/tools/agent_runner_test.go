@@ -134,35 +134,27 @@ func TestAgentRunner_StripsCLAUDECODE(t *testing.T) {
 	}
 }
 
-func TestAgentRunner_GeminiKeepsCLAUDECODE(t *testing.T) {
-	t.Setenv("CLAUDECODE", "1")
+func TestAgentRunner_GeminiScrubsSecrets(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test")
 	r := NewAgentRunner(AgentInfo{Kind: AgentGemini, Binary: "gemini"})
 	env := r.buildEnv()
-	found := false
 	for _, e := range env {
-		if e == "CLAUDECODE=1" {
-			found = true
-			break
+		if strings.HasPrefix(e, "OPENAI_API_KEY=") || strings.HasPrefix(e, "ANTHROPIC_API_KEY=") {
+			t.Errorf("sensitive var not scrubbed: %s", e)
 		}
-	}
-	if !found {
-		t.Error("CLAUDECODE should NOT be stripped for gemini")
 	}
 }
 
-func TestAgentRunner_CodexKeepsCLAUDECODE(t *testing.T) {
-	t.Setenv("CLAUDECODE", "1")
+func TestAgentRunner_CodexScrubsSecrets(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("GITHUB_TOKEN", "ghp_test")
 	r := NewAgentRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	env := r.buildEnv()
-	found := false
 	for _, e := range env {
-		if e == "CLAUDECODE=1" {
-			found = true
-			break
+		if strings.HasPrefix(e, "OPENAI_API_KEY=") || strings.HasPrefix(e, "GITHUB_TOKEN=") {
+			t.Errorf("sensitive var not scrubbed: %s", e)
 		}
-	}
-	if !found {
-		t.Error("CLAUDECODE should NOT be stripped for codex")
 	}
 }
 
