@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/73ai/openbotkit/service/memory"
+	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/store"
 )
 
@@ -23,40 +24,30 @@ type memoryAddResponse struct {
 }
 
 type memoryItem struct {
-	ID        int64  `json:"id"`
-	Content   string `json:"content"`
-	Category  string `json:"category"`
-	Source    string `json:"source"`
-	CreatedAt string `json:"created_at"`
+	ID       int64  `json:"id"`
+	Content  string `json:"content"`
+	Category string `json:"category"`
+	Source   string `json:"source"`
 }
 
-func (s *Server) openMemoryDB() (*store.DB, error) {
-	db, err := store.Open(store.Config{
-		Driver: s.cfg.UserMemory.Storage.Driver,
-		DSN:    s.cfg.UserMemoryDataDSN(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("open memory db: %w", err)
-	}
-	return db, nil
+func (s *Server) openMemoryStore() *memory.Store {
+	dir := config.UserMemoryDir()
+	memory.EnsureDir(dir)
+	return memory.NewStore(dir)
 }
 
 func (s *Server) handleMemoryList(w http.ResponseWriter, r *http.Request) {
-	db, err := s.openMemoryDB()
-	if err != nil {
-		slog.Error("memory handler: open db", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to open database")
-		return
-	}
-	defer db.Close()
-
+	ms := s.openMemoryStore()
 	category := r.URL.Query().Get("category")
 
-	var memories []memory.Memory
+	var (
+		memories []memory.Memory
+		err      error
+	)
 	if category != "" {
-		memories, err = memory.ListByCategory(db, memory.Category(category))
+		memories, err = ms.ListByCategory(memory.Category(category))
 	} else {
-		memories, err = memory.List(db)
+		memories, err = ms.List()
 	}
 	if err != nil {
 		slog.Error("memory handler: list", "error", err)
@@ -67,11 +58,10 @@ func (s *Server) handleMemoryList(w http.ResponseWriter, r *http.Request) {
 	items := make([]memoryItem, len(memories))
 	for i, m := range memories {
 		items[i] = memoryItem{
-			ID:        m.ID,
-			Content:   m.Content,
-			Category:  string(m.Category),
-			Source:    m.Source,
-			CreatedAt: m.CreatedAt.Format("2006-01-02 15:04:05"),
+			ID:       m.ID,
+			Content:  m.Content,
+			Category: string(m.Category),
+			Source:   m.Source,
 		}
 	}
 
@@ -97,15 +87,8 @@ func (s *Server) handleMemoryAdd(w http.ResponseWriter, r *http.Request) {
 		req.Source = "manual"
 	}
 
-	db, err := s.openMemoryDB()
-	if err != nil {
-		slog.Error("memory handler: open db", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to open database")
-		return
-	}
-	defer db.Close()
-
-	id, err := memory.Add(db, req.Content, memory.Category(req.Category), req.Source, "")
+	ms := s.openMemoryStore()
+	id, err := ms.Add(req.Content, memory.Category(req.Category), req.Source, "")
 	if err != nil {
 		slog.Error("memory handler: add", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to add memory")
@@ -125,15 +108,8 @@ func (s *Server) handleMemoryDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := s.openMemoryDB()
-	if err != nil {
-		slog.Error("memory handler: open db", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to open database")
-		return
-	}
-	defer db.Close()
-
-	if err := memory.Delete(db, id); err != nil {
+	ms := s.openMemoryStore()
+	if err := ms.Delete(id); err != nil {
 		slog.Error("memory handler: delete", "id", id, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete memory")
 		return
@@ -187,13 +163,7 @@ func (s *Server) handleMemoryExtract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memDB, err := s.openMemoryDB()
-	if err != nil {
-		slog.Error("memory extract handler: open memory db", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to open database")
-		return
-	}
-	defer memDB.Close()
+	ms := s.openMemoryStore()
 
 	llm, err := s.buildLLM()
 	if err != nil {
@@ -216,7 +186,7 @@ func (s *Server) handleMemoryExtract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := memory.Reconcile(ctx, memDB, llm, candidates)
+	result, err := memory.Reconcile(ctx, ms, llm, candidates)
 	if err != nil {
 		slog.Error("memory extract handler: reconcile", "error", err)
 		writeError(w, http.StatusInternalServerError, "memory reconciliation failed")
@@ -265,4 +235,3 @@ func (s *Server) buildLLM() (memory.LLM, error) {
 	router := provider.NewRouter(registry, s.cfg.Models)
 	return &memory.RouterLLM{Router: router, Tier: provider.TierFast}, nil
 }
-

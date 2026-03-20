@@ -19,7 +19,6 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
 	learningssvc "github.com/73ai/openbotkit/service/learnings"
-	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
@@ -186,7 +185,6 @@ func (s *Server) migrateDBs() {
 		dsn    string
 		fn     func(*store.DB) error
 	}{
-		{"memory", s.cfg.UserMemory.Storage.Driver, s.cfg.UserMemoryDataDSN(), memory.Migrate},
 		{"history", s.cfg.History.Storage.Driver, s.cfg.HistoryDataDSN(), historysrc.Migrate},
 		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
 		{"imessage", s.cfg.IMessage.Storage.Driver, s.cfg.IMessageDataDSN(), imsrc.Migrate},
