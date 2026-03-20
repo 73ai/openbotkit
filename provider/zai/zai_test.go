@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/provider"
@@ -115,6 +116,26 @@ func TestChat_ErrorResponse(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestChat_ErrorResponseZAICodeFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error":{"code":"1302","message":"Rate limit reached for requests"}}`))
+	}))
+	defer server.Close()
+
+	p := New("test-key", WithBaseURL(server.URL))
+	_, err := p.Chat(context.Background(), provider.ChatRequest{
+		Model:    "glm-4.5-flash",
+		Messages: []provider.Message{provider.NewTextMessage(provider.RoleUser, "Hi")},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "1302") || !strings.Contains(got, "Rate limit") {
+		t.Errorf("error = %q, want Z.AI code format with 1302", got)
 	}
 }
 
