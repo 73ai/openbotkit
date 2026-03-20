@@ -11,6 +11,7 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
 	_ "github.com/73ai/openbotkit/provider/anthropic"
+	_ "github.com/73ai/openbotkit/provider/cerebras"
 	_ "github.com/73ai/openbotkit/provider/gemini"
 	_ "github.com/73ai/openbotkit/provider/groq"
 	_ "github.com/73ai/openbotkit/provider/openai"
@@ -73,6 +74,14 @@ var llmProviders = []providerInfo{
 			huh.NewOption("llama-3.1-8b-instant (fastest)", "llama-3.1-8b-instant"),
 			huh.NewOption("llama-3.3-70b-versatile", "llama-3.3-70b-versatile"),
 			huh.NewOption("llama-4-scout-17b-16e", "llama-4-scout-17b-16e"),
+		},
+	},
+	{
+		name:  "cerebras",
+		label: "Cerebras (fast inference)",
+		models: []huh.Option[string]{
+			huh.NewOption("gpt-oss-120b (most capable)", "gpt-oss-120b"),
+			huh.NewOption("qwen-3-235b", "qwen-3-235b"),
 		},
 	},
 }
