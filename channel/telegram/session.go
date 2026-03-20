@@ -75,7 +75,7 @@ func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, pro
 		provider:     p,
 		providerName: providerName,
 		model:        model,
-		taskTracker:  tools.NewTaskTracker(),
+		taskTracker:  openTaskTracker(cfg),
 	}
 	if len(deps) > 0 {
 		d := deps[0]
@@ -647,6 +647,22 @@ func (sm *SessionManager) openUsageRecorder() *usagesrc.Recorder {
 
 func (sm *SessionManager) openAuditLogger() *audit.Logger {
 	return audit.OpenDefault(config.AuditDBPath())
+}
+
+func openTaskTracker(cfg *config.Config) *tools.TaskTracker {
+	if err := config.EnsureSourceDir("tasks"); err != nil {
+		slog.Warn("tasks: ensure dir failed", "error", err)
+		return tools.NewTaskTracker()
+	}
+	db, err := store.Open(store.Config{
+		Driver: cfg.Tasks.Storage.Driver,
+		DSN:    cfg.TasksDataDSN(),
+	})
+	if err != nil {
+		slog.Warn("tasks: open db failed, using in-memory tracker", "error", err)
+		return tools.NewTaskTracker()
+	}
+	return tools.NewPersistentTaskTracker(db)
 }
 
 func generateSessionID() string {
