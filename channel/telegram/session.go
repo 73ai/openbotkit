@@ -283,20 +283,12 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	memDB, err := store.Open(store.Config{
-		Driver: sm.cfg.UserMemory.Storage.Driver,
-		DSN:    sm.cfg.UserMemoryDataDSN(),
-	})
-	if err != nil {
-		slog.Error("telegram session: open memory db for extraction", "error", err)
+	dir := config.UserMemoryDir()
+	if err := memory.EnsureDir(dir); err != nil {
+		slog.Error("telegram session: ensure memory dir", "error", err)
 		return
 	}
-	defer memDB.Close()
-
-	if err := memory.Migrate(memDB); err != nil {
-		slog.Error("telegram session: migrate memory db", "error", err)
-		return
-	}
+	ms := memory.NewStore(dir)
 
 	extractLLM, reconcileLLM, err := sm.buildMemoryLLMs()
 	if err != nil {
@@ -314,7 +306,7 @@ func (sm *SessionManager) extractMemories(ctx context.Context, messages []string
 		return
 	}
 
-	result, err := memory.Reconcile(ctx, memDB, reconcileLLM, candidates)
+	result, err := memory.Reconcile(ctx, ms, reconcileLLM, candidates)
 	if err != nil {
 		slog.Error("telegram session: reconcile memories", "error", err)
 		return
@@ -574,18 +566,10 @@ func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
 }
 
 func (sm *SessionManager) userMemoriesPrompt() string {
-	memDB, err := store.Open(store.Config{
-		Driver: sm.cfg.UserMemory.Storage.Driver,
-		DSN:    sm.cfg.UserMemoryDataDSN(),
-	})
-	if err != nil {
-		return ""
-	}
-	defer memDB.Close()
-	if err := memory.Migrate(memDB); err != nil {
-		return ""
-	}
-	memories, err := memory.List(memDB)
+	dir := config.UserMemoryDir()
+	memory.EnsureDir(dir)
+	ms := memory.NewStore(dir)
+	memories, err := ms.List()
 	if err != nil || len(memories) == 0 {
 		return ""
 	}

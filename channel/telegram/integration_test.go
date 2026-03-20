@@ -41,14 +41,6 @@ func TestSession_MessageAndHistorySaved(t *testing.T) {
 	historysrc.Migrate(histDB)
 	histDB.Close()
 
-	// Migrate memory DB
-	memDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
-	}
-	memory.Migrate(memDB)
-	memDB.Close()
-
 	// Create real Gemini provider
 	p := gemini.New(key)
 	model := "gemini-2.5-flash"
@@ -119,14 +111,11 @@ func TestSession_MemoryInjectedIntoPrompt(t *testing.T) {
 
 	cfg := config.Default()
 
-	// Migrate and seed memory DB
-	memDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
-	}
-	memory.Migrate(memDB)
-	memory.Add(memDB, "User's name is TestBot42", memory.CategoryIdentity, "manual", "")
-	memDB.Close()
+	// Seed memory store
+	memDir := config.UserMemoryDir()
+	memory.EnsureDir(memDir)
+	ms := memory.NewStore(memDir)
+	ms.Add("User's name is TestBot42", memory.CategoryIdentity, "manual", "")
 
 	// Migrate history DB
 	histDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
@@ -193,13 +182,6 @@ func TestSession_ToolUseViaBash(t *testing.T) {
 	}
 	historysrc.Migrate(histDB)
 	histDB.Close()
-
-	memDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open memory db: %v", err)
-	}
-	memory.Migrate(memDB)
-	memDB.Close()
 
 	p := gemini.New(key)
 	model := "gemini-2.5-flash"

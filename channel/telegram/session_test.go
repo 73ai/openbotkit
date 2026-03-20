@@ -612,14 +612,6 @@ func TestHandleMessage_MultiTurnAccumulates(t *testing.T) {
 func TestUserMemoriesPrompt_Empty(t *testing.T) {
 	cfg := setupTestEnv(t)
 
-	// Migrate memory DB but don't seed
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	memory.Migrate(db)
-	db.Close()
-
 	sm := &SessionManager{cfg: cfg}
 	prompt := sm.userMemoriesPrompt()
 	if prompt != "" {
@@ -630,13 +622,10 @@ func TestUserMemoriesPrompt_Empty(t *testing.T) {
 func TestUserMemoriesPrompt_WithMemories(t *testing.T) {
 	cfg := setupTestEnv(t)
 
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	memory.Migrate(db)
-	memory.Add(db, "User prefers Go over Python", memory.CategoryPreference, "test", "")
-	db.Close()
+	dir := config.UserMemoryDir()
+	memory.EnsureDir(dir)
+	ms := memory.NewStore(dir)
+	ms.Add("User prefers Go over Python", memory.CategoryPreference, "test", "")
 
 	sm := &SessionManager{cfg: cfg}
 	prompt := sm.userMemoriesPrompt()
@@ -649,14 +638,6 @@ func TestUserMemoriesPrompt_WithMemories(t *testing.T) {
 
 func TestNewAgent_CreatesAgentWithOptions(t *testing.T) {
 	cfg := setupTestEnv(t)
-
-	// Migrate memory DB for userMemoriesPrompt
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	memory.Migrate(db)
-	db.Close()
 
 	sp := &stubProvider{}
 	sm := &SessionManager{
@@ -690,13 +671,6 @@ func TestNewAgent_CreatesAgentWithOptions(t *testing.T) {
 
 func TestNewAgent_WithHistory(t *testing.T) {
 	cfg := setupTestEnv(t)
-
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.UserMemoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	memory.Migrate(db)
-	db.Close()
 
 	sp := &stubProvider{}
 	sm := &SessionManager{
