@@ -151,10 +151,12 @@ func (s *Scheduler) loadSchedules() error {
 func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error) {
 	metaJSON, _ := json.Marshal(sched.ChannelMeta)
 	args := jobs.ScheduledTaskArgs{
-		ScheduleID:  sched.ID,
-		Task:        sched.Task,
-		Channel:     sched.Channel,
-		ChannelMeta: string(metaJSON),
+		ScheduleID:   sched.ID,
+		Task:         sched.Task,
+		Channel:      sched.Channel,
+		ChannelMeta:  string(metaJSON),
+		ModelTier:    sched.ModelTier,
+		MaxBudgetUSD: sched.MaxBudgetUSD,
 	}
 
 	return s.cron.AddFunc(sched.CronExpr, func() {
@@ -192,10 +194,12 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 	for _, sched := range due {
 		metaJSON, _ := json.Marshal(sched.ChannelMeta)
 		args := jobs.ScheduledTaskArgs{
-			ScheduleID:  sched.ID,
-			Task:        sched.Task,
-			Channel:     sched.Channel,
-			ChannelMeta: string(metaJSON),
+			ScheduleID:   sched.ID,
+			Task:         sched.Task,
+			Channel:      sched.Channel,
+			ChannelMeta:  string(metaJSON),
+			ModelTier:    sched.ModelTier,
+			MaxBudgetUSD: sched.MaxBudgetUSD,
 		}
 
 		tx, err := s.jobsDB.Begin()

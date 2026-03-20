@@ -80,6 +80,15 @@ func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 			"description": {
 				"type": "string",
 				"description": "Human-readable description of the schedule"
+			},
+			"model_tier": {
+				"type": "string",
+				"enum": ["fast", "default", "complex", "nano"],
+				"description": "Model tier for the task (default: fast)"
+			},
+			"max_budget_usd": {
+				"type": "number",
+				"description": "Maximum cost budget in USD (0 = unlimited)"
 			}
 		},
 		"required": ["type", "task", "timezone"]
@@ -87,12 +96,14 @@ func (t *CreateScheduleTool) InputSchema() json.RawMessage {
 }
 
 type createScheduleInput struct {
-	Type        string `json:"type"`
-	CronExpr    string `json:"cron_expr"`
-	ScheduledAt string `json:"scheduled_at"`
-	Task        string `json:"task"`
-	Timezone    string `json:"timezone"`
-	Description string `json:"description"`
+	Type         string  `json:"type"`
+	CronExpr     string  `json:"cron_expr"`
+	ScheduledAt  string  `json:"scheduled_at"`
+	Task         string  `json:"task"`
+	Timezone     string  `json:"timezone"`
+	Description  string  `json:"description"`
+	ModelTier    string  `json:"model_tier"`
+	MaxBudgetUSD float64 `json:"max_budget_usd"`
 }
 
 func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (string, error) {
@@ -110,13 +121,20 @@ func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (
 		return "", fmt.Errorf("invalid timezone %q: %w", in.Timezone, err)
 	}
 
+	modelTier := in.ModelTier
+	if modelTier == "" {
+		modelTier = "fast"
+	}
+
 	s := &scheduler.Schedule{
-		Type:        scheduler.ScheduleType(in.Type),
-		Task:        in.Task,
-		Channel:     t.deps.Channel,
-		ChannelMeta: t.deps.ChannelMeta,
-		Timezone:    in.Timezone,
-		Description: in.Description,
+		Type:         scheduler.ScheduleType(in.Type),
+		Task:         in.Task,
+		Channel:      t.deps.Channel,
+		ChannelMeta:  t.deps.ChannelMeta,
+		Timezone:     in.Timezone,
+		Description:  in.Description,
+		ModelTier:    modelTier,
+		MaxBudgetUSD: in.MaxBudgetUSD,
 	}
 
 	switch s.Type {
@@ -227,7 +245,11 @@ func (t *ListSchedulesTool) Execute(_ context.Context, _ json.RawMessage) (strin
 			status = "disabled"
 		}
 
-		fmt.Fprintf(&b, "ID: %d | %s | %s | %s\n", s.ID, s.Type, status, s.Description)
+		fmt.Fprintf(&b, "ID: %d | %s | %s | %s | tier=%s", s.ID, s.Type, status, s.Description, s.ModelTier)
+		if s.MaxBudgetUSD > 0 {
+			fmt.Fprintf(&b, " | budget=$%.2f", s.MaxBudgetUSD)
+		}
+		fmt.Fprintln(&b)
 		if s.Type == scheduler.Recurring {
 			fmt.Fprintf(&b, "  Cron: %s (UTC)\n", s.CronExpr)
 			parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
