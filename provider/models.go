@@ -29,6 +29,8 @@ func ListModels(ctx context.Context, providerName, apiKey string, cfg config.Mod
 		return listModelsGemini(ctx, apiKey, cfg)
 	case "groq":
 		return listModelsGroq(ctx, apiKey, cfg)
+	case "cerebras":
+		return listModelsCerebras(ctx, apiKey, cfg)
 	case "openrouter":
 		return listModelsOpenRouter(ctx, apiKey, cfg)
 	default:
@@ -201,6 +203,12 @@ func listModelsGemini(ctx context.Context, apiKey string, cfg config.ModelProvid
 
 func listModelsGroq(ctx context.Context, apiKey string, cfg config.ModelProviderConfig) ([]AvailableModel, error) {
 	return listModelsOpenAICompat(ctx, apiKey, cfg, "https://api.groq.com/openai", "groq")
+}
+
+// --- Cerebras (OpenAI-compatible) ---
+
+func listModelsCerebras(ctx context.Context, apiKey string, cfg config.ModelProviderConfig) ([]AvailableModel, error) {
+	return listModelsOpenAICompat(ctx, apiKey, cfg, "https://api.cerebras.ai", "cerebras")
 }
 
 // --- OpenRouter (OpenAI-compatible) ---
