@@ -51,6 +51,24 @@ func TestDefaultContextWindow_NestedModelID(t *testing.T) {
 	}
 }
 
+func TestDefaultContextWindow_GeminiFlashLite(t *testing.T) {
+	if got := DefaultContextWindow("gemini-2.5-flash-lite"); got != 1048576 {
+		t.Errorf("gemini-2.5-flash-lite = %d, want 1048576", got)
+	}
+}
+
+func TestDefaultContextWindow_CerebrasModels(t *testing.T) {
+	models := map[string]int{
+		"gpt-oss-120b": 65536,
+		"qwen-3-235b":  65536,
+	}
+	for model, want := range models {
+		if got := DefaultContextWindow(model); got != want {
+			t.Errorf("%s = %d, want %d", model, got, want)
+		}
+	}
+}
+
 func TestDefaultContextWindow_GroqModels(t *testing.T) {
 	models := map[string]int{
 		"llama-3.1-8b-instant":      131072,

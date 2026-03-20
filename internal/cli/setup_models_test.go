@@ -13,7 +13,7 @@ func TestProfileTestModels_PicksOnePerProvider(t *testing.T) {
 		Tiers: config.ProfileTiers{
 			Default: "openrouter/anthropic/claude-haiku-4-5",
 			Complex: "openrouter/anthropic/claude-sonnet-4-6",
-			Fast:    "openrouter/google/gemini-2.0-flash",
+			Fast:    "openrouter/google/gemini-2.5-flash-lite",
 			Nano:    "groq/llama-3.1-8b-instant",
 		},
 	}
@@ -176,8 +176,8 @@ func TestCustomProfileToModelProfile_LabelDefaultsToName(t *testing.T) {
 		Tiers: config.ProfileTiers{
 			Default: "gemini/gemini-2.5-flash",
 			Complex: "gemini/gemini-2.5-pro",
-			Fast:    "gemini/gemini-2.0-flash",
-			Nano:    "gemini/gemini-2.0-flash",
+			Fast:    "gemini/gemini-2.5-flash-lite",
+			Nano:    "gemini/gemini-2.5-flash-lite",
 		},
 		Providers: []string{"gemini"},
 	}
