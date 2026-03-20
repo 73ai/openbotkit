@@ -85,22 +85,7 @@ func (s *Store) SaveMessage(sessionID, role, content string) error {
 	if err := json.NewEncoder(f).Encode(entry); err != nil {
 		return fmt.Errorf("write message: %w", err)
 	}
-
-	// Update the index with new updated_at.
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	idx := s.loadIndex()
-	existing, ok := idx[sessionID]
-	if ok {
-		existing.UpdatedAt = now
-	} else {
-		existing = sessionIndex{
-			SessionID: sessionID,
-			CWD:       "",
-			StartedAt: now,
-			UpdatedAt: now,
-		}
-	}
-	return s.appendIndex(existing)
+	return nil
 }
 
 func (s *Store) LoadRecentSession(cwd string, maxAge time.Duration) (*RecentSession, error) {
