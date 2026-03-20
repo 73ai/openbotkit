@@ -16,7 +16,6 @@ import (
 	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	historysrc "github.com/73ai/openbotkit/service/history"
-	"github.com/73ai/openbotkit/store"
 )
 
 type stubProvider struct{}
@@ -36,28 +35,20 @@ func setupTestEnv(t *testing.T) *config.Config {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", dir)
-	for _, src := range []string{"history", "user_memory"} {
-		os.MkdirAll(filepath.Join(dir, src), 0700)
-	}
+	historysrc.EnsureDir(filepath.Join(dir, "history"))
+	os.MkdirAll(filepath.Join(dir, "user_memory"), 0700)
 	return config.Default()
 }
 
-func seedHistory(t *testing.T, cfg *config.Config, sessionID string, msgs []historysrc.Message) {
+func seedHistory(t *testing.T, sessionID string, msgs []historysrc.Message) {
 	t.Helper()
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open history db: %v", err)
-	}
-	defer db.Close()
-	if err := historysrc.Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	convID, err := historysrc.UpsertConversation(db, sessionID, "telegram")
-	if err != nil {
+	dir := config.HistoryDir()
+	s := historysrc.NewStore(dir)
+	if err := s.UpsertConversation(sessionID, "telegram"); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	for _, m := range msgs {
-		if err := historysrc.SaveMessage(db, convID, m.Role, m.Content); err != nil {
+		if err := s.SaveMessage(sessionID, m.Role, m.Content); err != nil {
 			t.Fatalf("save message: %v", err)
 		}
 	}
@@ -65,7 +56,7 @@ func seedHistory(t *testing.T, cfg *config.Config, sessionID string, msgs []hist
 
 func TestRestoreSession_RecentSession(t *testing.T) {
 	cfg := setupTestEnv(t)
-	seedHistory(t, cfg, "tg-abc", []historysrc.Message{
+	seedHistory(t, "tg-abc", []historysrc.Message{
 		{Role: "user", Content: "hello"},
 		{Role: "assistant", Content: "hi there"},
 		{Role: "user", Content: "how are you"},
@@ -95,16 +86,13 @@ func TestRestoreSession_RecentSession(t *testing.T) {
 func TestRestoreSession_ExpiredSession(t *testing.T) {
 	cfg := setupTestEnv(t)
 
-	// Seed a session and manually set it to 1 hour ago
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	historysrc.Migrate(db)
-	historysrc.UpsertConversation(db, "tg-old", "telegram")
-	db.Exec("UPDATE history_conversations SET updated_at = datetime('now', '-1 hour') WHERE session_id = 'tg-old'")
-	historysrc.SaveMessage(db, 1, "user", "old msg")
-	db.Close()
+	// Write an old session entry directly with a timestamp 1 hour ago.
+	dir := config.HistoryDir()
+	oldTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339Nano)
+	line := fmt.Sprintf(`{"session_id":"tg-old","cwd":"telegram","started_at":"%s","updated_at":"%s","ended":false}`, oldTime, oldTime)
+	os.WriteFile(filepath.Join(dir, "sessions.jsonl"), []byte(line+"\n"), 0600)
+	msgLine := fmt.Sprintf(`{"role":"user","content":"old msg","timestamp":"%s"}`, oldTime)
+	os.WriteFile(filepath.Join(dir, "sessions", "tg-old.jsonl"), []byte(msgLine+"\n"), 0600)
 
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
@@ -126,13 +114,7 @@ func TestRestoreSession_ExpiredSession(t *testing.T) {
 func TestRestoreSession_EmptyDB(t *testing.T) {
 	cfg := setupTestEnv(t)
 
-	// Migrate but don't seed
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	historysrc.Migrate(db)
-	db.Close()
+	// No history seeded — just an empty directory.
 
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
@@ -381,28 +363,15 @@ func TestEndSession_DoubleCallSafe(t *testing.T) {
 func TestSaveHistory_PersistsMessages(t *testing.T) {
 	cfg := setupTestEnv(t)
 
-	// Pre-migrate the history DB
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	historysrc.Migrate(db)
-	db.Close()
-
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
 	sm := &SessionManager{cfg: cfg, channel: ch}
 
 	sm.saveHistory("tg-save-test", "hello user", "hi assistant")
 
-	// Verify messages were saved
-	db, err = store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("reopen: %v", err)
-	}
-	defer db.Close()
-
-	msgs, err := historysrc.LoadSessionMessages(db, "tg-save-test", 100)
+	// Verify messages were saved.
+	s := historysrc.NewStore(config.HistoryDir())
+	msgs, err := s.LoadSessionMessages("tg-save-test", 100)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -426,13 +395,8 @@ func TestSaveHistory_MultipleCallsSameSession(t *testing.T) {
 	sm.saveHistory("tg-multi", "msg1", "resp1")
 	sm.saveHistory("tg-multi", "msg2", "resp2")
 
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer db.Close()
-
-	msgs, err := historysrc.LoadSessionMessages(db, "tg-multi", 100)
+	s := historysrc.NewStore(config.HistoryDir())
+	msgs, err := s.LoadSessionMessages("tg-multi", 100)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -553,19 +517,14 @@ func TestHandleMessage_SavesHistoryToDB(t *testing.T) {
 	sid := sm.sessionID
 	sm.mu.Unlock()
 
-	// Verify the history DB was written to
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer db.Close()
-
-	msgs, err := historysrc.LoadSessionMessages(db, sid, 100)
+	// Verify the history store was written to.
+	s := historysrc.NewStore(config.HistoryDir())
+	msgs, err := s.LoadSessionMessages(sid, 100)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
 	if len(msgs) != 2 {
-		t.Fatalf("expected 2 messages in DB, got %d", len(msgs))
+		t.Fatalf("expected 2 messages in store, got %d", len(msgs))
 	}
 	if msgs[0].Content != "test input" {
 		t.Errorf("user msg = %q", msgs[0].Content)

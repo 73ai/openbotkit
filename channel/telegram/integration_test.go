@@ -15,7 +15,6 @@ import (
 	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider/gemini"
 	historysrc "github.com/73ai/openbotkit/service/history"
-	"github.com/73ai/openbotkit/store"
 )
 
 // TestSession_MessageAndHistorySaved verifies the full session lifecycle:
@@ -27,19 +26,10 @@ func TestSession_MessageAndHistorySaved(t *testing.T) {
 	t.Setenv("OBK_CONFIG_DIR", dir)
 
 	// Create source dirs
-	for _, src := range []string{"history", "user_memory"} {
-		os.MkdirAll(filepath.Join(dir, src), 0700)
-	}
+	historysrc.EnsureDir(filepath.Join(dir, "history"))
+	os.MkdirAll(filepath.Join(dir, "user_memory"), 0700)
 
 	cfg := config.Default()
-
-	// Migrate history DB
-	histDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open history db: %v", err)
-	}
-	historysrc.Migrate(histDB)
-	histDB.Close()
 
 	// Create real Gemini provider
 	p := gemini.New(key)
@@ -78,20 +68,17 @@ func TestSession_MessageAndHistorySaved(t *testing.T) {
 		t.Errorf("expected response to contain '4', got: %q", msg.Text)
 	}
 
-	// Verify history was saved
-	histDB, err = store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("reopen history db: %v", err)
+	// Verify history was saved.
+	sm.mu.Lock()
+	sid := sm.sessionID
+	sm.mu.Unlock()
+	hs := historysrc.NewStore(config.HistoryDir())
+	msgs, loadErr := hs.LoadSessionMessages(sid, 100)
+	if loadErr != nil {
+		t.Fatalf("load history messages: %v", loadErr)
 	}
-	defer histDB.Close()
-
-	var count int
-	err = histDB.QueryRow("SELECT COUNT(*) FROM history_messages").Scan(&count)
-	if err != nil {
-		t.Fatalf("count history messages: %v", err)
-	}
-	if count < 2 {
-		t.Fatalf("expected at least 2 history messages (user + assistant), got %d", count)
+	if len(msgs) < 2 {
+		t.Fatalf("expected at least 2 history messages (user + assistant), got %d", len(msgs))
 	}
 }
 
@@ -105,9 +92,8 @@ func TestSession_MemoryInjectedIntoPrompt(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", dir)
 
-	for _, src := range []string{"history", "user_memory"} {
-		os.MkdirAll(filepath.Join(dir, src), 0700)
-	}
+	historysrc.EnsureDir(filepath.Join(dir, "history"))
+	os.MkdirAll(filepath.Join(dir, "user_memory"), 0700)
 
 	cfg := config.Default()
 
@@ -116,14 +102,6 @@ func TestSession_MemoryInjectedIntoPrompt(t *testing.T) {
 	memory.EnsureDir(memDir)
 	ms := memory.NewStore(memDir)
 	ms.Add("User's name is TestBot42", memory.CategoryIdentity, "manual", "")
-
-	// Migrate history DB
-	histDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open history db: %v", err)
-	}
-	historysrc.Migrate(histDB)
-	histDB.Close()
 
 	p := gemini.New(key)
 	model := "gemini-2.5-flash"
@@ -170,18 +148,10 @@ func TestSession_ToolUseViaBash(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("OBK_CONFIG_DIR", dir)
 
-	for _, src := range []string{"history", "user_memory"} {
-		os.MkdirAll(filepath.Join(dir, src), 0700)
-	}
+	historysrc.EnsureDir(filepath.Join(dir, "history"))
+	os.MkdirAll(filepath.Join(dir, "user_memory"), 0700)
 
 	cfg := config.Default()
-
-	histDB, err := store.Open(store.Config{Driver: "sqlite", DSN: cfg.HistoryDataDSN()})
-	if err != nil {
-		t.Fatalf("open history db: %v", err)
-	}
-	historysrc.Migrate(histDB)
-	histDB.Close()
 
 	p := gemini.New(key)
 	model := "gemini-2.5-flash"
