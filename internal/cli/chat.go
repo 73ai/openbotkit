@@ -102,7 +102,9 @@ var chatCmd = &cobra.Command{
 		}))
 
 		// Register delegate_task if external AI CLIs are available.
-		registerDelegateTool(toolReg, ch)
+		tracker := openTaskTracker(cfg)
+		defer tracker.Close()
+		registerDelegateTool(toolReg, ch, tracker)
 
 		// Register Slack tools if configured.
 		registerSlackTools(cfg, toolReg, ch)
@@ -244,13 +246,28 @@ func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Chan
 	reg.Register(tools.NewSlackReactTool(deps))
 }
 
-func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel) {
+func openTaskTracker(cfg *config.Config) *tools.TaskTracker {
+	if err := config.EnsureSourceDir("tasks"); err != nil {
+		slog.Warn("tasks: ensure dir failed", "error", err)
+		return tools.NewTaskTracker()
+	}
+	db, err := store.Open(store.Config{
+		Driver: cfg.Tasks.Storage.Driver,
+		DSN:    cfg.TasksDataDSN(),
+	})
+	if err != nil {
+		slog.Warn("tasks: open db failed, using in-memory tracker", "error", err)
+		return tools.NewTaskTracker()
+	}
+	return tools.NewPersistentTaskTracker(db)
+}
+
+func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel, tracker *tools.TaskTracker) {
 	agents := tools.DetectAgents()
 	if len(agents) == 0 {
 		return
 	}
 	inter := NewCLIInteractor(ch)
-	tracker := tools.NewTaskTracker()
 	reg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
 		Interactor: inter,
 		Agents:     agents,
