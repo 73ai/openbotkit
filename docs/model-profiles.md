@@ -48,7 +48,7 @@ Profiles are organized into two categories: **single-provider** (1 API key) and 
 
 *OR = via OpenRouter*
 
-> **Note:** gemini-2.5-flash-lite was deprecated on March 6, 2026 and is being shut down June 1, 2026. All profiles now use gemini-2.5-flash-lite as the replacement for fast/nano tiers.
+> **Note:** gemini-2.0-flash was deprecated on March 6, 2026 and is being shut down June 1, 2026. All profiles now use gemini-2.5-flash-lite as the replacement for fast/nano tiers.
 
 ### Custom profiles
 
@@ -89,7 +89,7 @@ Same pattern as Groq — reuses OpenAI provider with `https://openrouter.ai/api`
 
 ### Cerebras (`provider/cerebras`)
 
-Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` as the base URL. Offers free API access to large open-source models (qwen-3-235b-a22b-instruct-2507, qwen-3-235b) with fast inference. No credit card required. Env var: `CEREBRAS_API_KEY`.
+Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` as the base URL. Offers free API access to large open-source models (qwen-3-235b-a22b-instruct-2507, llama3.1-8b) with fast inference. No credit card required. Env var: `CEREBRAS_API_KEY`.
 
 ## Task→Tier assignments
 
@@ -104,7 +104,7 @@ Same pattern as Groq — reuses OpenAI provider with `https://api.cerebras.ai` a
 
 ## CLI setup flow
 
-`obk setup models` starts with profile selection. Single-provider profiles appear first:
+`obk setup models` starts with profile selection. Free appears first, then multi-provider, then single-provider:
 
 ```
 How would you like to configure models?
