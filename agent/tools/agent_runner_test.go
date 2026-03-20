@@ -206,6 +206,11 @@ func TestIsSensitiveKey(t *testing.T) {
 		{"SERVICE_CREDENTIAL", true},
 		{"SOME_AUTH", true},
 		{"CLAUDECODE", true},
+		{"DATABASE_URL", true},
+		{"REDIS_URL", true},
+		{"MONGODB_URI", true},
+		{"TLS_PRIVATE_KEY", true},
+		{"PG_DSN", true},
 		{"RANDOM_VAR", false},
 		{"EDITOR", false},
 	}

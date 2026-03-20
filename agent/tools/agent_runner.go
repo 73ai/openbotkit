@@ -174,10 +174,13 @@ var sensitivePrefixes = []string{
 
 var sensitiveSuffixes = []string{
 	"_KEY", "_SECRET", "_TOKEN", "_PASSWORD", "_CREDENTIAL", "_AUTH",
+	"_PRIVATE_KEY", "_DSN",
 }
 
 var sensitiveExact = map[string]bool{
 	"GITHUB_TOKEN": true, "GH_TOKEN": true,
+	"DATABASE_URL": true, "REDIS_URL": true, "MONGODB_URI": true,
+	"AMQP_URL": true, "ELASTICSEARCH_URL": true,
 }
 
 func isSensitiveKey(key string) bool {
