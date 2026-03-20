@@ -66,6 +66,17 @@ func NewPersistentTaskTracker(db *store.DB) *TaskTracker {
 	return t
 }
 
+// OpenPersistentTaskTracker opens a DB and creates a persistent tracker.
+// Falls back to in-memory on DB error.
+func OpenPersistentTaskTracker(driver, dsn string) *TaskTracker {
+	db, err := store.Open(store.Config{Driver: driver, DSN: dsn})
+	if err != nil {
+		slog.Warn("tasks: open db failed, using in-memory tracker", "error", err)
+		return NewTaskTracker()
+	}
+	return NewPersistentTaskTracker(db)
+}
+
 // Close closes the underlying database connection if persistent.
 func (t *TaskTracker) Close() error {
 	if t.db != nil {

@@ -251,15 +251,7 @@ func openTaskTracker(cfg *config.Config) *tools.TaskTracker {
 		slog.Warn("tasks: ensure dir failed", "error", err)
 		return tools.NewTaskTracker()
 	}
-	db, err := store.Open(store.Config{
-		Driver: cfg.Tasks.Storage.Driver,
-		DSN:    cfg.TasksDataDSN(),
-	})
-	if err != nil {
-		slog.Warn("tasks: open db failed, using in-memory tracker", "error", err)
-		return tools.NewTaskTracker()
-	}
-	return tools.NewPersistentTaskTracker(db)
+	return tools.OpenPersistentTaskTracker(cfg.Tasks.Storage.Driver, cfg.TasksDataDSN())
 }
 
 func registerDelegateTool(reg *tools.Registry, ch *clicli.Channel, tracker *tools.TaskTracker) {
