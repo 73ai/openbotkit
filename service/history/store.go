@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -136,6 +137,7 @@ func (s *Store) loadSessionMessages(sessionID string, limit int) ([]Message, err
 	for scanner.Scan() {
 		var entry messageEntry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			slog.Warn("history: skipping malformed message line", "session", sessionID, "error", err)
 			continue
 		}
 		m := Message{
@@ -287,6 +289,7 @@ func (s *Store) loadIndex() map[string]sessionIndex {
 	for scanner.Scan() {
 		var entry sessionIndex
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			slog.Warn("history: skipping malformed index line", "error", err)
 			continue
 		}
 		idx[entry.SessionID] = entry

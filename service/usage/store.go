@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -93,11 +94,13 @@ func Query(path string, opts QueryOpts) ([]AggregatedUsage, error) {
 		}
 		var rec UsageRecord
 		if err := json.Unmarshal(line, &rec); err != nil {
+			slog.Warn("usage: skipping malformed record", "error", err)
 			continue
 		}
 
 		createdAt, err := time.Parse(time.RFC3339, rec.CreatedAt)
 		if err != nil {
+			slog.Warn("usage: skipping record with bad timestamp", "created_at", rec.CreatedAt, "error", err)
 			continue
 		}
 

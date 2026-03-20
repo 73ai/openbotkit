@@ -172,6 +172,7 @@ func LoadSearchHistory(path string, limit int) ([]SearchHistoryEntry, error) {
 		}
 		var e SearchHistoryEntry
 		if err := json.Unmarshal(line, &e); err != nil {
+			slog.Warn("websearch: skipping malformed history line", "error", err)
 			continue
 		}
 		all = append(all, e)
