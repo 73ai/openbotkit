@@ -249,7 +249,9 @@ func TestChat_ReasoningContent(t *testing.T) {
 
 func TestChat_RequestFormat(t *testing.T) {
 	var capturedBody map[string]any
+	var capturedPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedPath = r.URL.Path
 		json.NewDecoder(r.Body).Decode(&capturedBody)
 		json.NewEncoder(w).Encode(apiResponse{
 			Choices: []apiChoice{
@@ -272,6 +274,9 @@ func TestChat_RequestFormat(t *testing.T) {
 		t.Fatalf("Chat: %v", err)
 	}
 
+	if capturedPath != "/chat/completions" {
+		t.Errorf("path = %q, want /chat/completions", capturedPath)
+	}
 	if capturedBody["model"] != "glm-4.5-flash" {
 		t.Errorf("model = %v", capturedBody["model"])
 	}
