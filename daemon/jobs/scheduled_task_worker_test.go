@@ -23,18 +23,8 @@ func TestScheduledTaskWorkerNextRetry(t *testing.T) {
 			minDur: 14 * time.Minute,
 			maxDur: 16 * time.Minute,
 		},
-		{
-			name:   "auth error delays far future",
-			errors: []rivertype.AttemptError{{Error: "API error (HTTP 401): unauthorized"}},
-			minDur: 364 * 24 * time.Hour,
-			maxDur: 366 * 24 * time.Hour,
-		},
-		{
-			name:   "context window error delays far future",
-			errors: []rivertype.AttemptError{{Error: "API error (HTTP 400): context window exceeded"}},
-			minDur: 364 * 24 * time.Hour,
-			maxDur: 366 * 24 * time.Hour,
-		},
+		// Auth and context-window errors are cancelled in Work() via
+		// river.JobCancel, so NextRetry is never called for those.
 		{
 			name:   "rate limit 429 delays 30min",
 			errors: []rivertype.AttemptError{{Error: "API error (HTTP 429): rate limited"}},

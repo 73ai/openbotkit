@@ -106,19 +106,17 @@ func (w *ScheduledTaskWorker) NextRetry(job *river.Job[ScheduledTaskArgs]) time.
 	if len(job.Errors) == 0 {
 		return time.Now().Add(15 * time.Minute)
 	}
+	// Auth and context-window errors are cancelled in Work() via
+	// river.JobCancel, so NextRetry is only called for retryable errors.
 	lastErr := job.Errors[len(job.Errors)-1]
 	apiErr := provider.ClassifyError(fmt.Errorf("%s", lastErr.Error))
-	switch apiErr.Kind {
-	case provider.ErrorAuth, provider.ErrorContextWindow:
-		return time.Now().Add(365 * 24 * time.Hour) // effectively never
-	case provider.ErrorRetryable:
-		if apiErr.StatusCode == 429 {
-			return time.Now().Add(30 * time.Minute)
-		}
-		return time.Now().Add(10 * time.Minute) // 5xx
-	default:
-		return time.Now().Add(15 * time.Minute)
+	if apiErr.Kind == provider.ErrorRetryable && apiErr.StatusCode == 429 {
+		return time.Now().Add(30 * time.Minute)
 	}
+	if apiErr.Kind == provider.ErrorRetryable {
+		return time.Now().Add(10 * time.Minute) // 5xx
+	}
+	return time.Now().Add(15 * time.Minute)
 }
 
 func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string, error) {
