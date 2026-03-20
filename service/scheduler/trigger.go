@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/73ai/openbotkit/store"
@@ -21,22 +22,80 @@ func ValidateTriggerSource(source string) error {
 	return nil
 }
 
-var dangerousKeywords = []string{";", "DROP", "DELETE", "INSERT", "UPDATE", "CREATE", "ALTER", "--"}
+// allowedColumns defines which column names are permitted per trigger source.
+var allowedColumns = map[string]map[string]bool{
+	"gmail":      {"SUBJECT": true, "FROM_ADDR": true, "DATE": true},
+	"whatsapp":   {"MESSAGE_ID": true, "SENDER_NAME": true, "TEXT": true, "TIMESTAMP": true},
+	"imessage":   {"GUID": true, "SENDER_ID": true, "TEXT": true, "DATE_UTC": true},
+	"applenotes": {"TITLE": true, "FOLDER": true, "MODIFIED_AT": true},
+}
 
-func ValidateTriggerQuery(query string) error {
+// allowedKeywords are SQL keywords permitted in trigger WHERE clauses.
+var allowedKeywords = map[string]bool{
+	"AND": true, "OR": true, "NOT": true,
+	"LIKE": true, "GLOB": true, "ESCAPE": true,
+	"IN": true, "BETWEEN": true,
+	"IS": true, "NULL": true,
+}
+
+var identPattern = regexp.MustCompile(`[a-zA-Z_][a-zA-Z0-9_]*`)
+
+// ValidateTriggerQuery validates that a trigger WHERE clause only uses allowed
+// columns and keywords. Uses an allowlist approach instead of a denylist
+// to prevent SQL injection via UNION, subqueries, functions, etc.
+func ValidateTriggerQuery(source, query string) error {
 	if strings.TrimSpace(query) == "" {
 		return fmt.Errorf("trigger query must not be empty")
 	}
-	upper := strings.ToUpper(query)
-	for _, kw := range dangerousKeywords {
-		if strings.Contains(upper, kw) {
-			return fmt.Errorf("trigger query must not contain %q", kw)
-		}
+	if strings.Contains(query, "--") {
+		return fmt.Errorf("trigger query must not contain SQL comments")
+	}
+	if strings.Contains(query, ";") {
+		return fmt.Errorf("trigger query must not contain semicolons")
 	}
 	if strings.Count(query, "(") != strings.Count(query, ")") {
 		return fmt.Errorf("trigger query has unbalanced parentheses")
 	}
+
+	cols := allowedColumns[source]
+	if cols == nil {
+		return fmt.Errorf("unknown trigger source %q", source)
+	}
+
+	// Strip string literals to avoid false positives on keywords inside strings.
+	stripped := stripStringLiterals(query)
+
+	// Every identifier must be an allowed column or SQL keyword.
+	idents := identPattern.FindAllString(stripped, -1)
+	for _, ident := range idents {
+		upper := strings.ToUpper(ident)
+		if cols[upper] || allowedKeywords[upper] {
+			continue
+		}
+		return fmt.Errorf("trigger query contains disallowed identifier %q", ident)
+	}
+
 	return nil
+}
+
+// stripStringLiterals removes content between single quotes (SQL string literals).
+func stripStringLiterals(s string) string {
+	var b strings.Builder
+	inStr := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\'' {
+			if inStr && i+1 < len(s) && s[i+1] == '\'' {
+				i++ // skip escaped quote ('')
+				continue
+			}
+			inStr = !inStr
+			continue
+		}
+		if !inStr {
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 func BuildTriggerQuery(source, whereClause string, lastTriggerID int64) (string, []any, error) {

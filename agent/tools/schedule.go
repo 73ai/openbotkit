@@ -186,7 +186,7 @@ func (t *CreateScheduleTool) Execute(_ context.Context, input json.RawMessage) (
 		if err := scheduler.ValidateTriggerSource(in.TriggerSource); err != nil {
 			return "", err
 		}
-		if err := scheduler.ValidateTriggerQuery(in.TriggerQuery); err != nil {
+		if err := scheduler.ValidateTriggerQuery(in.TriggerSource, in.TriggerQuery); err != nil {
 			return "", err
 		}
 		s.TriggerSource = in.TriggerSource
