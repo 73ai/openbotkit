@@ -60,7 +60,13 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 		slog.Error("scheduled task agent failed", "schedule_id", job.Args.ScheduleID, "error", err)
 		w.updateLastRun(job.Args.ScheduleID, err.Error())
 
-		if job.Attempt >= 2 {
+		apiErr := provider.ClassifyError(err)
+		if apiErr.Kind == provider.ErrorAuth || apiErr.Kind == provider.ErrorContextWindow {
+			w.notifyFailure(ctx, job.Args.Channel, meta, job.Args.ScheduleID, err)
+			return river.JobCancel(err)
+		}
+
+		if job.Attempt >= job.MaxAttempts {
 			w.notifyFailure(ctx, job.Args.Channel, meta, job.Args.ScheduleID, err)
 			return nil
 		}
