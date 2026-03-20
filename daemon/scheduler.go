@@ -164,7 +164,7 @@ func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error)
 			return
 		}
 		_, err = s.river.InsertTx(s.ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 2,
+			MaxAttempts: 3,
 		})
 		if err != nil {
 			tx.Rollback()
@@ -204,7 +204,7 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 			continue
 		}
 		_, err = s.river.InsertTx(ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 2,
+			MaxAttempts: 3,
 		})
 		if err != nil {
 			tx.Rollback()
