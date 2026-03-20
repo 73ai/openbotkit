@@ -152,7 +152,7 @@ func (s *Store) loadSessionMessages(sessionID string, limit int) ([]Message, err
 	}
 
 	if limit > 0 && len(msgs) > limit {
-		msgs = msgs[:limit]
+		msgs = msgs[len(msgs)-limit:]
 	}
 	return msgs, nil
 }

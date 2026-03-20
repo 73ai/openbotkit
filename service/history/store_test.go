@@ -156,6 +156,13 @@ func TestLoadSessionMessages_Limit(t *testing.T) {
 	if len(msgs) != 5 {
 		t.Fatalf("expected 5 messages, got %d", len(msgs))
 	}
+	// Should return the LAST 5 messages (5-9), not the first 5.
+	if msgs[0].Content != "msg 5" {
+		t.Errorf("expected last 5 msgs starting with 'msg 5', got %q", msgs[0].Content)
+	}
+	if msgs[4].Content != "msg 9" {
+		t.Errorf("expected last msg 'msg 9', got %q", msgs[4].Content)
+	}
 }
 
 func TestLoadRecentSession_EmptyDB(t *testing.T) {
