@@ -87,7 +87,22 @@ func (w *ScheduledTaskWorker) Work(ctx context.Context, job *river.Job[Scheduled
 }
 
 func (w *ScheduledTaskWorker) NextRetry(job *river.Job[ScheduledTaskArgs]) time.Time {
-	return time.Now().Add(15 * time.Minute)
+	if len(job.Errors) == 0 {
+		return time.Now().Add(15 * time.Minute)
+	}
+	lastErr := job.Errors[len(job.Errors)-1]
+	apiErr := provider.ClassifyError(fmt.Errorf("%s", lastErr.Error))
+	switch apiErr.Kind {
+	case provider.ErrorAuth, provider.ErrorContextWindow:
+		return time.Now().Add(365 * 24 * time.Hour) // effectively never
+	case provider.ErrorRetryable:
+		if apiErr.StatusCode == 429 {
+			return time.Now().Add(30 * time.Minute)
+		}
+		return time.Now().Add(10 * time.Minute) // 5xx
+	default:
+		return time.Now().Add(15 * time.Minute)
+	}
 }
 
 func (w *ScheduledTaskWorker) runAgent(ctx context.Context, task string) (string, error) {
