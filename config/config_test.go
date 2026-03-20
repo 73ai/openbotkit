@@ -428,8 +428,8 @@ func TestCustomProfile_RoundTrip(t *testing.T) {
 				Tiers: ProfileTiers{
 					Default: "anthropic/claude-haiku-4-5",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"anthropic", "gemini"},
 			},
@@ -494,8 +494,8 @@ func TestCustomProfile_MultipleProfiles_RoundTrip(t *testing.T) {
 				Tiers: ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"gemini"},
 			},
@@ -504,8 +504,8 @@ func TestCustomProfile_MultipleProfiles_RoundTrip(t *testing.T) {
 				Tiers: ProfileTiers{
 					Default: "anthropic/claude-sonnet-4-6",
 					Complex: "anthropic/claude-opus-4-6",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"anthropic", "gemini"},
 			},
@@ -542,8 +542,8 @@ func TestCustomProfile_EmptyLabelAndDescription(t *testing.T) {
 				Tiers: ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"gemini"},
 			},

@@ -30,7 +30,7 @@ func setupTestCache(t *testing.T) {
 		Models: []provider.AvailableModel{
 			{ID: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Provider: "gemini"},
 			{ID: "gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", Provider: "gemini"},
-			{ID: "gemini-2.0-flash", DisplayName: "Gemini 2.0 Flash", Provider: "gemini"},
+			{ID: "gemini-2.5-flash-lite", DisplayName: "Gemini 2.5 Flash Lite", Provider: "gemini"},
 		},
 	})
 	cache.Save("openai", &provider.CachedModelList{
@@ -143,8 +143,8 @@ func TestConfigProfilesDelete_ClearsActiveProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"gemini"},
 			},
@@ -206,8 +206,8 @@ func TestConfigProfilesShow_CustomProfile(t *testing.T) {
 				Tiers: config.ProfileTiers{
 					Default: "gemini/gemini-2.5-flash",
 					Complex: "gemini/gemini-2.5-pro",
-					Fast:    "gemini/gemini-2.0-flash",
-					Nano:    "gemini/gemini-2.0-flash",
+					Fast:    "gemini/gemini-2.5-flash-lite",
+					Nano:    "gemini/gemini-2.5-flash-lite",
 				},
 				Providers: []string{"gemini"},
 			},
