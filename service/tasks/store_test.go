@@ -155,6 +155,27 @@ func TestDeleteOlderThan(t *testing.T) {
 	}
 }
 
+func TestCleanup(t *testing.T) {
+	db := openTestDB(t)
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	Insert(db, &TaskRecord{ID: "old1", Task: "t", Agent: "a", Status: "completed", StartedAt: old})
+	SetCompleted(db, "old1", "done")
+	db.Exec(db.Rebind(`UPDATE tasks SET done_at = ? WHERE id = ?`), old.Format(timeFormat), "old1")
+
+	Insert(db, &TaskRecord{ID: "recent", Task: "t", Agent: "a", Status: "running", StartedAt: time.Now().UTC()})
+
+	Cleanup(db)
+
+	got, _ := Get(db, "old1")
+	if got != nil {
+		t.Error("old task should be cleaned up")
+	}
+	got, _ = Get(db, "recent")
+	if got == nil {
+		t.Error("recent task should still exist")
+	}
+}
+
 func TestMigrateIdempotent(t *testing.T) {
 	db := openTestDB(t)
 	if err := Migrate(db); err != nil {

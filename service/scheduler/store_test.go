@@ -139,6 +139,79 @@ func TestListDueOneShot(t *testing.T) {
 	}
 }
 
+func TestListEnabledReactive(t *testing.T) {
+	db := openTestDB(t)
+
+	// Create a reactive schedule.
+	_, err := Create(db, &Schedule{
+		Type:          Reactive,
+		TriggerSource: "gmail",
+		TriggerQuery:  "from_addr LIKE '%@acme.com%'",
+		Task:          "summarize",
+		Channel:       "test",
+		ChannelMeta:   ChannelMeta{BotToken: "tok", OwnerID: 1},
+		Timezone:      "UTC",
+	})
+	if err != nil {
+		t.Fatalf("create reactive: %v", err)
+	}
+
+	// Create a non-matching reactive (different source).
+	_, err = Create(db, &Schedule{
+		Type:          Reactive,
+		TriggerSource: "whatsapp",
+		TriggerQuery:  "sender_name = 'Bob'",
+		Task:          "reply",
+		Channel:       "test",
+		ChannelMeta:   ChannelMeta{BotToken: "tok", OwnerID: 1},
+		Timezone:      "UTC",
+	})
+	if err != nil {
+		t.Fatalf("create reactive whatsapp: %v", err)
+	}
+
+	// Only gmail reactive should be returned.
+	list, err := ListEnabledReactive(db, "gmail")
+	if err != nil {
+		t.Fatalf("list reactive: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("got %d, want 1", len(list))
+	}
+	if list[0].TriggerSource != "gmail" {
+		t.Errorf("source: got %q, want gmail", list[0].TriggerSource)
+	}
+}
+
+func TestUpdateLastTriggerID(t *testing.T) {
+	db := openTestDB(t)
+
+	id, err := Create(db, &Schedule{
+		Type:          Reactive,
+		TriggerSource: "gmail",
+		TriggerQuery:  "from_addr = 'x'",
+		Task:          "test",
+		Channel:       "test",
+		ChannelMeta:   ChannelMeta{BotToken: "tok", OwnerID: 1},
+		Timezone:      "UTC",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := UpdateLastTriggerID(db, id, 42); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	got, err := Get(db, id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.LastTriggerID != 42 {
+		t.Errorf("last_trigger_id: got %d, want 42", got.LastTriggerID)
+	}
+}
+
 func TestMarkCompleted(t *testing.T) {
 	db := openTestDB(t)
 

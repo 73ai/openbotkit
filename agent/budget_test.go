@@ -48,3 +48,14 @@ func TestBudgetTracker_ChainsInnerRecorder(t *testing.T) {
 		t.Errorf("inner.calls = %d, want 2", inner.calls)
 	}
 }
+
+func TestBudgetTracker_Total(t *testing.T) {
+	bt := NewBudgetTracker(1.0, nil)
+	if bt.Total() != 0 {
+		t.Errorf("initial total = %f, want 0", bt.Total())
+	}
+	bt.RecordUsage("claude-sonnet-4-6", provider.Usage{InputTokens: 1000, OutputTokens: 1000})
+	if bt.Total() <= 0 {
+		t.Error("expected positive total after recording usage")
+	}
+}
