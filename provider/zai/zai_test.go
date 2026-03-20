@@ -207,6 +207,25 @@ func TestStreamChat_ToolCalls(t *testing.T) {
 	}
 }
 
+func TestChat_ReasoningContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"","reasoning_content":"Let me think..."},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":10}}`))
+	}))
+	defer server.Close()
+
+	p := New("test-key", WithBaseURL(server.URL))
+	resp, err := p.Chat(context.Background(), provider.ChatRequest{
+		Model:    "glm-4.5-flash",
+		Messages: []provider.Message{provider.NewTextMessage(provider.RoleUser, "Think about this")},
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if text := resp.TextContent(); text != "Let me think..." {
+		t.Errorf("text = %q, want reasoning_content fallback", text)
+	}
+}
+
 func TestChat_RequestFormat(t *testing.T) {
 	var capturedBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

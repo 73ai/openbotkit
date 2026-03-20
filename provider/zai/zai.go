@@ -258,10 +258,10 @@ func (z *ZAI) parseResponse(resp *apiResponse) *provider.ChatResponse {
 		result.StopReason = provider.StopEndTurn
 	}
 
-	if choice.Message.Content != "" {
+	if text := choice.Message.EffectiveContent(); text != "" {
 		result.Content = append(result.Content, provider.ContentBlock{
 			Type: provider.ContentText,
-			Text: choice.Message.Content,
+			Text: text,
 		})
 	}
 
@@ -310,10 +310,10 @@ func (z *ZAI) parseSSE(body io.ReadCloser, ch chan<- provider.StreamEvent) {
 		delta := event.Choices[0].Delta
 		finishReason := event.Choices[0].FinishReason
 
-		if delta.Content != "" {
+		if text := delta.EffectiveContent(); text != "" {
 			ch <- provider.StreamEvent{
 				Type: provider.EventTextDelta,
-				Text: delta.Content,
+				Text: text,
 			}
 		}
 
@@ -362,9 +362,17 @@ type apiChoice struct {
 }
 
 type apiMessage struct {
-	Role      string        `json:"role"`
-	Content   string        `json:"content"`
-	ToolCalls []apiToolCall `json:"tool_calls,omitempty"`
+	Role             string        `json:"role"`
+	Content          string        `json:"content"`
+	ReasoningContent string        `json:"reasoning_content,omitempty"`
+	ToolCalls        []apiToolCall `json:"tool_calls,omitempty"`
+}
+
+func (m *apiMessage) EffectiveContent() string {
+	if m.Content != "" {
+		return m.Content
+	}
+	return m.ReasoningContent
 }
 
 type apiToolCall struct {
@@ -406,8 +414,16 @@ type sseChoice struct {
 }
 
 type sseDelta struct {
-	Content   string        `json:"content"`
-	ToolCalls []sseToolCall `json:"tool_calls,omitempty"`
+	Content          string        `json:"content"`
+	ReasoningContent string        `json:"reasoning_content,omitempty"`
+	ToolCalls        []sseToolCall `json:"tool_calls,omitempty"`
+}
+
+func (d *sseDelta) EffectiveContent() string {
+	if d.Content != "" {
+		return d.Content
+	}
+	return d.ReasoningContent
 }
 
 type sseToolCall struct {
