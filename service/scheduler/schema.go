@@ -57,6 +57,9 @@ func Migrate(db *store.DB) error {
 	for _, stmt := range []string{
 		"ALTER TABLE schedules ADD COLUMN model_tier TEXT DEFAULT 'fast'",
 		"ALTER TABLE schedules ADD COLUMN max_budget_usd REAL DEFAULT 0",
+		"ALTER TABLE schedules ADD COLUMN trigger_source TEXT",
+		"ALTER TABLE schedules ADD COLUMN trigger_query TEXT",
+		"ALTER TABLE schedules ADD COLUMN last_trigger_id INTEGER DEFAULT 0",
 	} {
 		db.Exec(stmt) // ignore "duplicate column" errors
 	}
