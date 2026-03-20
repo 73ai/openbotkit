@@ -2,8 +2,12 @@ package tools
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/73ai/openbotkit/service/tasks"
+	"github.com/73ai/openbotkit/store"
 )
 
 // TaskStatus represents the state of a delegated task.
@@ -35,6 +39,7 @@ type TaskTracker struct {
 	tasks         map[string]*TaskRecord
 	order         []string // insertion order for deterministic listing
 	maxConcurrent int
+	db            *store.DB // nil for in-memory only
 }
 
 // NewTaskTracker creates a tracker with default max concurrency of 3.
@@ -45,6 +50,30 @@ func NewTaskTracker() *TaskTracker {
 	}
 }
 
+// NewPersistentTaskTracker creates a tracker backed by a database.
+// It migrates the schema, runs cleanup, and loads existing running tasks.
+func NewPersistentTaskTracker(db *store.DB) *TaskTracker {
+	if err := tasks.Migrate(db); err != nil {
+		slog.Warn("tasks: migrate failed", "error", err)
+	}
+	tasks.Cleanup(db)
+
+	t := &TaskTracker{
+		tasks:         make(map[string]*TaskRecord),
+		maxConcurrent: defaultMaxConcurrent,
+		db:            db,
+	}
+	return t
+}
+
+// Close closes the underlying database connection if persistent.
+func (t *TaskTracker) Close() error {
+	if t.db != nil {
+		return t.db.Close()
+	}
+	return nil
+}
+
 // Start registers a new running task. Returns error if at max concurrent.
 func (t *TaskTracker) Start(id, task string, agent AgentKind) error {
 	t.mu.Lock()
@@ -52,14 +81,23 @@ func (t *TaskTracker) Start(id, task string, agent AgentKind) error {
 	if t.runningCountLocked() >= t.maxConcurrent {
 		return fmt.Errorf("too many concurrent tasks (max %d)", t.maxConcurrent)
 	}
+	now := time.Now()
 	t.tasks[id] = &TaskRecord{
 		ID:        id,
 		Task:      task,
 		Agent:     agent,
 		Status:    TaskRunning,
-		StartedAt: time.Now(),
+		StartedAt: now,
 	}
 	t.order = append(t.order, id)
+	if t.db != nil {
+		if err := tasks.Insert(t.db, &tasks.TaskRecord{
+			ID: id, Task: task, Agent: string(agent),
+			Status: "running", StartedAt: now,
+		}); err != nil {
+			slog.Warn("tasks: db insert failed", "id", id, "error", err)
+		}
+	}
 	return nil
 }
 
@@ -72,6 +110,11 @@ func (t *TaskTracker) Complete(id, output string) {
 		rec.Output = output
 		rec.DoneAt = time.Now()
 	}
+	if t.db != nil {
+		if err := tasks.SetCompleted(t.db, id, output); err != nil {
+			slog.Warn("tasks: db set completed failed", "id", id, "error", err)
+		}
+	}
 }
 
 // Fail marks a task as failed with an error message.
@@ -83,24 +126,51 @@ func (t *TaskTracker) Fail(id, errMsg string) {
 		rec.Error = errMsg
 		rec.DoneAt = time.Now()
 	}
+	if t.db != nil {
+		if err := tasks.SetFailed(t.db, id, errMsg); err != nil {
+			slog.Warn("tasks: db set failed", "id", id, "error", err)
+		}
+	}
 }
 
-// Get returns a task record by ID.
+// Get returns a task record by ID. Falls through to DB for cross-session lookup.
 func (t *TaskTracker) Get(id string) (*TaskRecord, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	rec, ok := t.tasks[id]
-	if !ok {
-		return nil, false
+	if ok {
+		copy := *rec
+		return &copy, true
 	}
-	copy := *rec
-	return &copy, true
+	if t.db != nil {
+		dbRec, err := tasks.Get(t.db, id)
+		if err != nil {
+			slog.Warn("tasks: db get failed", "id", id, "error", err)
+			return nil, false
+		}
+		if dbRec != nil {
+			return dbTaskToRecord(dbRec), true
+		}
+	}
+	return nil, false
 }
 
-// List returns all tasks in insertion order.
+// List returns all tasks. When DB is available, returns full cross-session view.
 func (t *TaskTracker) List() []*TaskRecord {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.db != nil {
+		dbRecs, err := tasks.List(t.db)
+		if err != nil {
+			slog.Warn("tasks: db list failed", "error", err)
+		} else {
+			result := make([]*TaskRecord, 0, len(dbRecs))
+			for _, r := range dbRecs {
+				result = append(result, dbTaskToRecord(r))
+			}
+			return result
+		}
+	}
 	result := make([]*TaskRecord, 0, len(t.order))
 	for _, id := range t.order {
 		if rec, ok := t.tasks[id]; ok {
@@ -109,6 +179,22 @@ func (t *TaskTracker) List() []*TaskRecord {
 		}
 	}
 	return result
+}
+
+func dbTaskToRecord(r *tasks.TaskRecord) *TaskRecord {
+	rec := &TaskRecord{
+		ID:        r.ID,
+		Task:      r.Task,
+		Agent:     AgentKind(r.Agent),
+		Status:    TaskStatus(r.Status),
+		StartedAt: r.StartedAt,
+		Output:    r.Output,
+		Error:     r.Error,
+	}
+	if r.DoneAt != nil {
+		rec.DoneAt = *r.DoneAt
+	}
+	return rec
 }
 
 // RunningCount returns the number of currently running tasks.
