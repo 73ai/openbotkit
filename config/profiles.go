@@ -25,6 +25,19 @@ type ProfileTiers struct {
 
 // Profiles contains the built-in model profile presets.
 var Profiles = map[string]ModelProfile{
+	"free": {
+		Name:        "free",
+		Label:       "Free ($0/mo)",
+		Description: "Free tier using Gemini + Cerebras. No credit card required.",
+		Category:    "multi",
+		Tiers: ProfileTiers{
+			Default: "gemini/gemini-2.5-flash",
+			Complex: "gemini/gemini-2.5-pro",
+			Fast:    "cerebras/gpt-oss-120b",
+			Nano:    "gemini/gemini-2.5-flash-lite",
+		},
+		Providers: []string{"gemini", "cerebras"},
+	},
 	"gemini": {
 		Name:        "gemini",
 		Label:       "Gemini (single provider)",
@@ -133,7 +146,7 @@ var Profiles = map[string]ModelProfile{
 
 // ProfileNames returns profile names in display order.
 var ProfileNames = []string{
-	"starter", "standard", "premium",
+	"free", "starter", "standard", "premium",
 	"gemini", "anthropic", "openai", "groq", "openrouter",
 }
 
