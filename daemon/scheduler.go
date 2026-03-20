@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -294,7 +296,7 @@ func (s *Scheduler) checkReactiveTriggersWithDB(ctx context.Context, schedDB *st
 				task += fmt.Sprintf("... and %d more\n", len(match.Rows)-5)
 				break
 			}
-			task += fmt.Sprintf("  %v\n", row)
+			task += formatRow(row)
 		}
 
 		metaJSON, _ := json.Marshal(sched.ChannelMeta)
@@ -350,6 +352,19 @@ func (s *Scheduler) CheckReactiveTriggersForTest(ctx context.Context, source str
 		return fmt.Errorf("list reactive: %w", err)
 	}
 	return s.checkReactiveTriggersWithDB(ctx, schedDB, sourceDB, schedules)
+}
+
+func formatRow(row map[string]string) string {
+	keys := make([]string, 0, len(row))
+	for k := range row {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+": "+row[k])
+	}
+	return "  " + strings.Join(parts, " | ") + "\n"
 }
 
 func (s *Scheduler) isValidFrequency(cronExpr string) bool {
