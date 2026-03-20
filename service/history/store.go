@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
+
+var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type sessionIndex struct {
 	SessionID string `json:"session_id"`
@@ -32,10 +35,20 @@ func (s *Store) indexPath() string {
 }
 
 func (s *Store) sessionPath(sessionID string) string {
-	return filepath.Join(s.dir, "sessions", sessionID+".jsonl")
+	return filepath.Join(s.dir, "sessions", filepath.Base(sessionID)+".jsonl")
+}
+
+func validateSessionID(sessionID string) error {
+	if !validSessionID.MatchString(sessionID) {
+		return fmt.Errorf("invalid session ID: %q", sessionID)
+	}
+	return nil
 }
 
 func (s *Store) UpsertConversation(sessionID, cwd string) error {
+	if err := validateSessionID(sessionID); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -50,6 +63,9 @@ func (s *Store) UpsertConversation(sessionID, cwd string) error {
 }
 
 func (s *Store) SaveMessage(sessionID, role, content string) error {
+	if err := validateSessionID(sessionID); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

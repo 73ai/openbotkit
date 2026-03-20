@@ -233,6 +233,19 @@ func TestEndSession_ExcludedFromRestore(t *testing.T) {
 	}
 }
 
+func TestPathTraversal_Rejected(t *testing.T) {
+	s := testStore(t)
+
+	for _, bad := range []string{"../../etc/passwd", "../escape", "a/b/c", "hello world", ""} {
+		if err := s.UpsertConversation(bad, "cli"); err == nil {
+			t.Errorf("expected error for sessionID %q", bad)
+		}
+		if err := s.SaveMessage(bad, "user", "hi"); err == nil {
+			t.Errorf("expected error for sessionID %q", bad)
+		}
+	}
+}
+
 func TestLoadRecentUserMessages(t *testing.T) {
 	s := testStore(t)
 	s.UpsertConversation("s1", "cli")
