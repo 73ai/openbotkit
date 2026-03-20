@@ -19,21 +19,23 @@ import (
 )
 
 type Scheduler struct {
-	cfg     *config.Config
-	river   *river.Client[*sql.Tx]
-	jobsDB  *sql.DB
-	cron    *cron.Cron
-	mu      sync.Mutex
-	entries map[int64]cron.EntryID
-	ctx     context.Context
+	cfg      *config.Config
+	river    *river.Client[*sql.Tx]
+	jobsDB   *sql.DB
+	cron     *cron.Cron
+	mu       sync.Mutex
+	entries  map[int64]cron.EntryID
+	ctx      context.Context
+	notifier *SyncNotifier
 }
 
-func NewScheduler(cfg *config.Config, riverClient *river.Client[*sql.Tx], jobsDB *sql.DB) *Scheduler {
+func NewScheduler(cfg *config.Config, riverClient *river.Client[*sql.Tx], jobsDB *sql.DB, notifier *SyncNotifier) *Scheduler {
 	return &Scheduler{
-		cfg:     cfg,
-		river:   riverClient,
-		jobsDB:  jobsDB,
-		entries: make(map[int64]cron.EntryID),
+		cfg:      cfg,
+		river:    riverClient,
+		jobsDB:   jobsDB,
+		entries:  make(map[int64]cron.EntryID),
+		notifier: notifier,
 	}
 }
 

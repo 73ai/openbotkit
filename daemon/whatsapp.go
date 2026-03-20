@@ -11,7 +11,7 @@ import (
 
 // runWhatsAppSync starts a WhatsApp sync goroutine that runs until ctx is cancelled.
 // Errors are sent on the returned channel (non-blocking).
-func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
+func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -56,6 +56,9 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config) <-chan error {
 		}
 
 		slog.Info("whatsapp: sync stopped", "received", result.Received, "history", result.HistoryMessages, "errors", result.Errors)
+		if notifier != nil {
+			notifier.Notify("whatsapp")
+		}
 	}()
 
 	return errCh

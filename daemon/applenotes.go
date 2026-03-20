@@ -15,7 +15,7 @@ const appleNotesSyncInterval = 30 * time.Second
 
 // runAppleNotesSync starts a goroutine that periodically syncs Apple Notes.
 // Only runs on macOS. Errors are sent on the returned channel.
-func runAppleNotesSync(ctx context.Context, cfg *config.Config) <-chan error {
+func runAppleNotesSync(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -49,7 +49,7 @@ func runAppleNotesSync(ctx context.Context, cfg *config.Config) <-chan error {
 		defer db.Close()
 
 		// Run initial sync immediately.
-		syncAppleNotes(db)
+		syncAppleNotes(db, notifier)
 
 		ticker := time.NewTicker(appleNotesSyncInterval)
 		defer ticker.Stop()
@@ -60,7 +60,7 @@ func runAppleNotesSync(ctx context.Context, cfg *config.Config) <-chan error {
 				slog.Info("applenotes: stopping sync")
 				return
 			case <-ticker.C:
-				syncAppleNotes(db)
+				syncAppleNotes(db, notifier)
 			}
 		}
 	}()
@@ -68,11 +68,14 @@ func runAppleNotesSync(ctx context.Context, cfg *config.Config) <-chan error {
 	return errCh
 }
 
-func syncAppleNotes(db *store.DB) {
+func syncAppleNotes(db *store.DB, notifier *SyncNotifier) {
 	result, err := ansrc.Sync(db, ansrc.SyncOptions{})
 	if err != nil {
 		slog.Error("applenotes: sync error", "error", err)
 		return
 	}
 	slog.Info("applenotes: sync complete", "synced", result.Synced, "skipped", result.Skipped, "errors", result.Errors)
+	if notifier != nil {
+		notifier.Notify("applenotes")
+	}
 }
