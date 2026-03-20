@@ -26,10 +26,12 @@ func NewStore(dir string) *Store {
 
 type memoryLine struct {
 	ID      int64
+	Source  string
 	Content string
 }
 
-var bulletRe = regexp.MustCompile(`^- \[(\d+)\] (.+)$`)
+// Matches: - [id|source] content  OR  - [id] content (legacy, source="")
+var bulletRe = regexp.MustCompile(`^- \[(\d+)(?:\|([^]]*))?\] (.+)$`)
 
 type counterFile struct {
 	NextID int64 `json:"next_id"`
@@ -45,7 +47,7 @@ func (s *Store) Add(content string, category Category, source, sourceRef string)
 	}
 
 	lines, _ := s.readCategory(category)
-	lines = append(lines, memoryLine{ID: id, Content: content})
+	lines = append(lines, memoryLine{ID: id, Source: source, Content: content})
 	if err := s.writeCategory(category, lines); err != nil {
 		return 0, err
 	}
@@ -64,6 +66,7 @@ func (s *Store) Get(id int64) (*Memory, error) {
 					ID:       line.ID,
 					Content:  line.Content,
 					Category: cat,
+					Source:   line.Source,
 				}, nil
 			}
 		}
@@ -115,6 +118,7 @@ func (s *Store) List() ([]Memory, error) {
 				ID:       line.ID,
 				Content:  line.Content,
 				Category: cat,
+				Source:   line.Source,
 			})
 		}
 	}
@@ -132,6 +136,7 @@ func (s *Store) ListByCategory(category Category) ([]Memory, error) {
 			ID:       line.ID,
 			Content:  line.Content,
 			Category: category,
+			Source:   line.Source,
 		})
 	}
 	return result, nil
@@ -151,6 +156,7 @@ func (s *Store) Search(query string) ([]Memory, error) {
 					ID:       line.ID,
 					Content:  line.Content,
 					Category: cat,
+					Source:   line.Source,
 				})
 			}
 		}
@@ -200,7 +206,7 @@ func (s *Store) readCategory(cat Category) ([]memoryLine, error) {
 		if err != nil {
 			continue
 		}
-		lines = append(lines, memoryLine{ID: id, Content: matches[2]})
+		lines = append(lines, memoryLine{ID: id, Source: matches[2], Content: matches[3]})
 	}
 	return lines, nil
 }
@@ -212,7 +218,7 @@ func (s *Store) writeCategory(cat Category, lines []memoryLine) error {
 	sb.WriteString("updated_at: \"" + time.Now().UTC().Format(time.RFC3339) + "\"\n")
 	sb.WriteString("---\n\n")
 	for _, line := range lines {
-		sb.WriteString(fmt.Sprintf("- [%d] %s\n", line.ID, line.Content))
+		sb.WriteString(fmt.Sprintf("- [%d|%s] %s\n", line.ID, line.Source, line.Content))
 	}
 
 	tmpPath := s.categoryFile(cat) + ".tmp"
