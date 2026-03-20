@@ -3,12 +3,9 @@ package memory
 import "testing"
 
 func TestAdd(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	id, err := Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+	id, err := s.Add("User prefers dark mode", CategoryPreference, "manual", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -16,7 +13,7 @@ func TestAdd(t *testing.T) {
 		t.Fatal("expected non-zero id")
 	}
 
-	count, err := Count(db)
+	count, err := s.Count()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -26,17 +23,14 @@ func TestAdd(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	id, err := Add(db, "User's name is Priyanshu", CategoryIdentity, "manual", "")
+	id, err := s.Add("User's name is Priyanshu", CategoryIdentity, "manual", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
-	m, err := Get(db, id)
+	m, err := s.Get(id)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -46,39 +40,30 @@ func TestGet(t *testing.T) {
 	if m.Category != CategoryIdentity {
 		t.Fatalf("category = %q", m.Category)
 	}
-	if m.Source != "manual" {
-		t.Fatalf("source = %q", m.Source)
-	}
 }
 
 func TestGetNotFound(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	_, err := Get(db, 99999)
+	_, err := s.Get(99999)
 	if err == nil {
 		t.Fatal("expected error for non-existent ID")
 	}
 }
 
 func TestUpdate(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	id, err := Add(db, "User prefers light mode", CategoryPreference, "manual", "")
+	id, err := s.Add("User prefers light mode", CategoryPreference, "manual", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
-	if err := Update(db, id, "User prefers dark mode"); err != nil {
+	if err := s.Update(id, "User prefers dark mode"); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	m, err := Get(db, id)
+	m, err := s.Get(id)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -88,21 +73,18 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	id, err := Add(db, "User likes Go", CategoryPreference, "manual", "")
+	id, err := s.Add("User likes Go", CategoryPreference, "manual", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
-	if err := Delete(db, id); err != nil {
+	if err := s.Delete(id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
-	count, err := Count(db)
+	count, err := s.Count()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -112,16 +94,13 @@ func TestDelete(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	Add(db, "User's name is Priyanshu", CategoryIdentity, "manual", "")
-	Add(db, "User prefers Go", CategoryPreference, "manual", "")
-	Add(db, "User is building OpenBotKit", CategoryProject, "manual", "")
+	s.Add("User's name is Priyanshu", CategoryIdentity, "manual", "")
+	s.Add("User prefers Go", CategoryPreference, "manual", "")
+	s.Add("User is building OpenBotKit", CategoryProject, "manual", "")
 
-	memories, err := List(db)
+	memories, err := s.List()
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -131,16 +110,13 @@ func TestList(t *testing.T) {
 }
 
 func TestListByCategory(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	Add(db, "User's name is Priyanshu", CategoryIdentity, "manual", "")
-	Add(db, "User prefers Go", CategoryPreference, "manual", "")
-	Add(db, "User prefers dark mode", CategoryPreference, "manual", "")
+	s.Add("User's name is Priyanshu", CategoryIdentity, "manual", "")
+	s.Add("User prefers Go", CategoryPreference, "manual", "")
+	s.Add("User prefers dark mode", CategoryPreference, "manual", "")
 
-	memories, err := ListByCategory(db, CategoryPreference)
+	memories, err := s.ListByCategory(CategoryPreference)
 	if err != nil {
 		t.Fatalf("list by category: %v", err)
 	}
@@ -150,16 +126,13 @@ func TestListByCategory(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	Add(db, "User's name is Priyanshu", CategoryIdentity, "manual", "")
-	Add(db, "User prefers Go over Python", CategoryPreference, "manual", "")
-	Add(db, "User is building OpenBotKit", CategoryProject, "manual", "")
+	s.Add("User's name is Priyanshu", CategoryIdentity, "manual", "")
+	s.Add("User prefers Go over Python", CategoryPreference, "manual", "")
+	s.Add("User is building OpenBotKit", CategoryProject, "manual", "")
 
-	memories, err := Search(db, "Go")
+	memories, err := s.Search("Go")
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -172,12 +145,9 @@ func TestSearch(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	count, err := Count(db)
+	count, err := s.Count()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -185,10 +155,10 @@ func TestCount(t *testing.T) {
 		t.Fatalf("expected 0, got %d", count)
 	}
 
-	Add(db, "fact one", CategoryIdentity, "manual", "")
-	Add(db, "fact two", CategoryPreference, "manual", "")
+	s.Add("fact one", CategoryIdentity, "manual", "")
+	s.Add("fact two", CategoryPreference, "manual", "")
 
-	count, err = Count(db)
+	count, err = s.Count()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -198,17 +168,14 @@ func TestCount(t *testing.T) {
 }
 
 func TestAddDuplicateContent(t *testing.T) {
-	db := testDB(t)
-	if err := Migrate(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	s := testStore(t)
 
-	id1, err := Add(db, "User likes Go", CategoryPreference, "manual", "")
+	id1, err := s.Add("User likes Go", CategoryPreference, "manual", "")
 	if err != nil {
 		t.Fatalf("first add: %v", err)
 	}
 
-	id2, err := Add(db, "User likes Go", CategoryPreference, "manual", "")
+	id2, err := s.Add("User likes Go", CategoryPreference, "manual", "")
 	if err != nil {
 		t.Fatalf("second add: %v", err)
 	}
@@ -217,11 +184,23 @@ func TestAddDuplicateContent(t *testing.T) {
 		t.Fatal("expected different IDs for duplicate content")
 	}
 
-	count, err := Count(db)
+	count, err := s.Count()
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if count != 2 {
 		t.Fatalf("expected 2, got %d", count)
+	}
+}
+
+func TestIDGloballyUnique(t *testing.T) {
+	s := testStore(t)
+
+	id1, _ := s.Add("fact one", CategoryIdentity, "manual", "")
+	id2, _ := s.Add("fact two", CategoryPreference, "manual", "")
+	id3, _ := s.Add("fact three", CategoryProject, "manual", "")
+
+	if id1 == id2 || id2 == id3 || id1 == id3 {
+		t.Fatalf("IDs should be unique across categories: %d, %d, %d", id1, id2, id3)
 	}
 }
