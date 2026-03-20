@@ -20,7 +20,8 @@ func (GmailSyncArgs) Kind() string { return "gmail_sync" }
 
 type GmailSyncWorker struct {
 	river.WorkerDefaults[GmailSyncArgs]
-	Cfg *config.Config
+	Cfg        *config.Config
+	OnComplete func() // called after successful sync
 }
 
 func (w *GmailSyncWorker) Work(ctx context.Context, job *river.Job[GmailSyncArgs]) error {
@@ -55,6 +56,9 @@ func (w *GmailSyncWorker) Work(ctx context.Context, job *river.Job[GmailSyncArgs
 	}
 
 	slog.Info("gmail sync complete", "fetched", result.Fetched, "skipped", result.Skipped, "errors", result.Errors)
+	if w.OnComplete != nil {
+		w.OnComplete()
+	}
 	return nil
 }
 

@@ -40,6 +40,7 @@ type Agent struct {
 	summarizer          Summarizer
 	rateLimiter         *provider.RateLimiter
 	usageRecorder       UsageRecorder
+	budgetChecker       BudgetChecker
 }
 
 // Option configures an Agent.
@@ -95,6 +96,11 @@ func WithSummarizer(s Summarizer) Option {
 	return func(a *Agent) { a.summarizer = s }
 }
 
+// WithBudgetChecker sets a budget checker that is called after each LLM call.
+func WithBudgetChecker(bc BudgetChecker) Option {
+	return func(a *Agent) { a.budgetChecker = bc }
+}
+
 // New creates a new Agent.
 func New(p provider.Provider, model string, executor ToolExecutor, opts ...Option) *Agent {
 	a := &Agent{
@@ -142,6 +148,16 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		slog.Info("llm response", "iteration", i, "input_tokens", resp.Usage.InputTokens, "output_tokens", resp.Usage.OutputTokens, "stop", resp.StopReason)
 		if a.usageRecorder != nil {
 			a.usageRecorder.RecordUsage(a.model, resp.Usage)
+		}
+		if a.budgetChecker != nil {
+			if err := a.budgetChecker.CheckBudget(); err != nil {
+				// Return partial text on budget exceeded (graceful).
+				text := resp.TextContent()
+				if text == "" {
+					text = "(budget exceeded before completion)"
+				}
+				return text, err
+			}
 		}
 
 		// Append assistant response to history.

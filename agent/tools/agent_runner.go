@@ -119,7 +119,7 @@ func (r *AgentRunner) buildArgs(opts runOptions) []string {
 }
 
 func (r *AgentRunner) buildEnv() []string {
-	env := os.Environ()
+	env := scrubEnv(os.Environ())
 	if r.info.Kind == AgentClaude {
 		return filterEnv(env, "CLAUDECODE")
 	}
@@ -136,4 +136,75 @@ func filterEnv(env []string, key string) []string {
 		}
 	}
 	return filtered
+}
+
+// scrubEnv removes environment variables that contain sensitive values
+// (API keys, tokens, secrets, passwords) from the given list.
+func scrubEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		eqIdx := strings.IndexByte(e, '=')
+		if eqIdx < 0 {
+			filtered = append(filtered, e)
+			continue
+		}
+		key := e[:eqIdx]
+		if !isSensitiveKey(key) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+var safeKeys = map[string]bool{
+	"PATH": true, "HOME": true, "USER": true, "SHELL": true,
+	"TERM": true, "LANG": true, "TMPDIR": true, "PWD": true,
+	"GOPATH": true, "GOROOT": true, "GOBIN": true,
+	"EDITOR": true, "VISUAL": true, "PAGER": true,
+	"HOSTNAME": true, "LOGNAME": true, "DISPLAY": true,
+	"COLORTERM": true, "TERM_PROGRAM": true, "SHLVL": true,
+}
+
+var safePrefixes = []string{"LC_", "XDG_"}
+
+var sensitivePrefixes = []string{
+	"ANTHROPIC_", "OPENAI_", "GOOGLE_API_", "GEMINI_",
+	"GROQ_", "OPENROUTER_", "AWS_SECRET_", "CLAUDECODE",
+}
+
+var sensitiveSuffixes = []string{
+	"_KEY", "_SECRET", "_TOKEN", "_PASSWORD", "_CREDENTIAL", "_AUTH",
+	"_PRIVATE_KEY", "_DSN",
+}
+
+var sensitiveExact = map[string]bool{
+	"GITHUB_TOKEN": true, "GH_TOKEN": true,
+	"DATABASE_URL": true, "REDIS_URL": true, "MONGODB_URI": true,
+	"AMQP_URL": true, "ELASTICSEARCH_URL": true,
+}
+
+func isSensitiveKey(key string) bool {
+	if safeKeys[key] {
+		return false
+	}
+	for _, p := range safePrefixes {
+		if strings.HasPrefix(key, p) {
+			return false
+		}
+	}
+	if sensitiveExact[key] {
+		return true
+	}
+	upper := strings.ToUpper(key)
+	for _, p := range sensitivePrefixes {
+		if strings.HasPrefix(upper, p) {
+			return true
+		}
+	}
+	for _, s := range sensitiveSuffixes {
+		if strings.HasSuffix(upper, s) {
+			return true
+		}
+	}
+	return false
 }

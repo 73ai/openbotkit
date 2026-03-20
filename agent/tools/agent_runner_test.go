@@ -134,35 +134,27 @@ func TestAgentRunner_StripsCLAUDECODE(t *testing.T) {
 	}
 }
 
-func TestAgentRunner_GeminiKeepsCLAUDECODE(t *testing.T) {
-	t.Setenv("CLAUDECODE", "1")
+func TestAgentRunner_GeminiScrubsSecrets(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test")
 	r := NewAgentRunner(AgentInfo{Kind: AgentGemini, Binary: "gemini"})
 	env := r.buildEnv()
-	found := false
 	for _, e := range env {
-		if e == "CLAUDECODE=1" {
-			found = true
-			break
+		if strings.HasPrefix(e, "OPENAI_API_KEY=") || strings.HasPrefix(e, "ANTHROPIC_API_KEY=") {
+			t.Errorf("sensitive var not scrubbed: %s", e)
 		}
-	}
-	if !found {
-		t.Error("CLAUDECODE should NOT be stripped for gemini")
 	}
 }
 
-func TestAgentRunner_CodexKeepsCLAUDECODE(t *testing.T) {
-	t.Setenv("CLAUDECODE", "1")
+func TestAgentRunner_CodexScrubsSecrets(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("GITHUB_TOKEN", "ghp_test")
 	r := NewAgentRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	env := r.buildEnv()
-	found := false
 	for _, e := range env {
-		if e == "CLAUDECODE=1" {
-			found = true
-			break
+		if strings.HasPrefix(e, "OPENAI_API_KEY=") || strings.HasPrefix(e, "GITHUB_TOKEN=") {
+			t.Errorf("sensitive var not scrubbed: %s", e)
 		}
-	}
-	if !found {
-		t.Error("CLAUDECODE should NOT be stripped for codex")
 	}
 }
 
@@ -184,6 +176,87 @@ func TestFilterEnv(t *testing.T) {
 		if e == "CLAUDECODE=1" {
 			t.Error("CLAUDECODE not filtered")
 		}
+	}
+}
+
+func TestIsSensitiveKey(t *testing.T) {
+	tests := []struct {
+		key       string
+		sensitive bool
+	}{
+		{"PATH", false},
+		{"HOME", false},
+		{"USER", false},
+		{"TERM", false},
+		{"GOPATH", false},
+		{"LC_ALL", false},
+		{"XDG_CONFIG_HOME", false},
+		{"ANTHROPIC_API_KEY", true},
+		{"OPENAI_API_KEY", true},
+		{"GOOGLE_API_KEY", true},
+		{"GEMINI_API_KEY", true},
+		{"GROQ_API_KEY", true},
+		{"OPENROUTER_API_KEY", true},
+		{"AWS_SECRET_ACCESS_KEY", true},
+		{"GITHUB_TOKEN", true},
+		{"GH_TOKEN", true},
+		{"MY_SECRET", true},
+		{"DB_PASSWORD", true},
+		{"AUTH_TOKEN", true},
+		{"SERVICE_CREDENTIAL", true},
+		{"SOME_AUTH", true},
+		{"CLAUDECODE", true},
+		{"DATABASE_URL", true},
+		{"REDIS_URL", true},
+		{"MONGODB_URI", true},
+		{"TLS_PRIVATE_KEY", true},
+		{"PG_DSN", true},
+		{"RANDOM_VAR", false},
+		{"EDITOR", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			if got := isSensitiveKey(tt.key); got != tt.sensitive {
+				t.Errorf("isSensitiveKey(%q) = %v, want %v", tt.key, got, tt.sensitive)
+			}
+		})
+	}
+}
+
+func TestScrubEnv_RemovesSensitiveKeys(t *testing.T) {
+	env := []string{
+		"PATH=/usr/bin",
+		"HOME=/home/user",
+		"ANTHROPIC_API_KEY=sk-ant-123",
+		"OPENAI_API_KEY=sk-123",
+		"GITHUB_TOKEN=ghp_abc",
+		"MY_SECRET=s3cret",
+		"TERM=xterm",
+	}
+	got := scrubEnv(env)
+	allowed := map[string]bool{"PATH=/usr/bin": true, "HOME=/home/user": true, "TERM=xterm": true}
+	if len(got) != len(allowed) {
+		t.Fatalf("got %d entries, want %d: %v", len(got), len(allowed), got)
+	}
+	for _, e := range got {
+		if !allowed[e] {
+			t.Errorf("unexpected env var: %s", e)
+		}
+	}
+}
+
+func TestScrubEnv_KeepsSafeVars(t *testing.T) {
+	env := []string{
+		"PATH=/usr/bin",
+		"HOME=/home/user",
+		"GOPATH=/go",
+		"LC_ALL=en_US.UTF-8",
+		"XDG_CONFIG_HOME=/home/user/.config",
+		"EDITOR=vim",
+	}
+	got := scrubEnv(env)
+	if len(got) != len(env) {
+		t.Errorf("scrubEnv removed safe vars: got %d, want %d", len(got), len(env))
 	}
 }
 
