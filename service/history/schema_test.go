@@ -1,44 +1,42 @@
 package history
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
-
-	"github.com/73ai/openbotkit/store"
 )
 
-func testDB(t *testing.T) *store.DB {
+func testStore(t *testing.T) *Store {
 	t.Helper()
-	db, err := store.Open(store.Config{Driver: "sqlite", DSN: ":memory:"})
+	dir := t.TempDir()
+	if err := EnsureDir(dir); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	return NewStore(dir)
+}
+
+func TestEnsureDir(t *testing.T) {
+	dir := t.TempDir()
+	if err := EnsureDir(dir); err != nil {
+		t.Fatalf("first ensure: %v", err)
+	}
+
+	// Verify sessions subdirectory was created.
+	info, err := os.Stat(filepath.Join(dir, "sessions"))
 	if err != nil {
-		t.Fatalf("open test db: %v", err)
+		t.Fatalf("sessions dir missing: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
-
-func TestMigrate(t *testing.T) {
-	db := testDB(t)
-
-	if err := Migrate(db); err != nil {
-		t.Fatalf("first migrate: %v", err)
-	}
-
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM history_conversations").Scan(&count); err != nil {
-		t.Fatalf("query conversations table: %v", err)
-	}
-	if err := db.QueryRow("SELECT COUNT(*) FROM history_messages").Scan(&count); err != nil {
-		t.Fatalf("query messages table: %v", err)
+	if !info.IsDir() {
+		t.Fatal("sessions is not a directory")
 	}
 }
 
-func TestMigrateIdempotent(t *testing.T) {
-	db := testDB(t)
-
-	if err := Migrate(db); err != nil {
-		t.Fatalf("first migrate: %v", err)
+func TestEnsureDirIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	if err := EnsureDir(dir); err != nil {
+		t.Fatalf("first: %v", err)
 	}
-	if err := Migrate(db); err != nil {
-		t.Fatalf("second migrate should be idempotent: %v", err)
+	if err := EnsureDir(dir); err != nil {
+		t.Fatalf("second should be idempotent: %v", err)
 	}
 }

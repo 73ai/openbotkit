@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/73ai/openbotkit/store"
 )
 
 type transcriptLine struct {
@@ -25,17 +23,12 @@ type contentBlock struct {
 	Text string `json:"text"`
 }
 
-func Capture(db *store.DB, input CaptureInput) error {
-	if err := Migrate(db); err != nil {
-		return fmt.Errorf("migrate schema: %w", err)
-	}
-
-	convID, err := UpsertConversation(db, input.SessionID, input.CWD)
-	if err != nil {
+func Capture(s *Store, input CaptureInput) error {
+	if err := s.UpsertConversation(input.SessionID, input.CWD); err != nil {
 		return fmt.Errorf("upsert conversation: %w", err)
 	}
 
-	existingCount, err := MessageCountForSession(db, input.SessionID)
+	existingCount, err := s.MessageCountForSession(input.SessionID)
 	if err != nil {
 		return fmt.Errorf("count existing messages: %w", err)
 	}
@@ -52,7 +45,7 @@ func Capture(db *store.DB, input CaptureInput) error {
 	newMessages := messages[existingCount:]
 
 	for _, msg := range newMessages {
-		if err := SaveMessage(db, convID, msg.role, msg.content); err != nil {
+		if err := s.SaveMessage(input.SessionID, msg.role, msg.content); err != nil {
 			return fmt.Errorf("save message: %w", err)
 		}
 	}
