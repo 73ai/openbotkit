@@ -34,6 +34,7 @@ var settingsCmd = &cobra.Command{
 			settings.WithVerifyProvider(verifyProviderKey),
 			settings.WithVerifyBackup(verifyBackupDest),
 			settings.WithSetupGDrive(setupGDriveBackup),
+			settings.WithTriggerBackup(triggerBackupNow),
 		)
 		return settingstui.Run(svc)
 	},
@@ -130,6 +131,65 @@ func setupGDriveBackup(cfg *config.Config, folderName string) (string, error) {
 	}
 
 	return folderID, nil
+}
+
+func triggerBackupNow(cfg *config.Config) error {
+	if cfg.Backup == nil || !cfg.Backup.Enabled {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var backend backupsvc.Backend
+	var err error
+
+	switch cfg.Backup.Destination {
+	case "r2":
+		r2 := cfg.Backup.R2
+		if r2 == nil {
+			return fmt.Errorf("R2 not configured")
+		}
+		accessKey, err := provider.LoadCredential(r2.AccessKeyRef)
+		if err != nil {
+			return fmt.Errorf("load R2 access key: %w", err)
+		}
+		secretKey, err := provider.LoadCredential(r2.SecretKeyRef)
+		if err != nil {
+			return fmt.Errorf("load R2 secret key: %w", err)
+		}
+		backend, err = backupsvc.NewR2Backend(r2.Endpoint, accessKey, secretKey, r2.Bucket)
+		if err != nil {
+			return fmt.Errorf("create R2 backend: %w", err)
+		}
+	case "gdrive":
+		gd := cfg.Backup.GDrive
+		if gd == nil || gd.FolderID == "" {
+			return fmt.Errorf("Google Drive not configured")
+		}
+		gp := google.New(google.Config{
+			CredentialsFile: cfg.GoogleCredentialsFile(),
+			TokenDBPath:     cfg.GoogleTokenDBPath(),
+		})
+		accounts, _ := gp.Accounts(ctx)
+		if len(accounts) == 0 {
+			return fmt.Errorf("no Google account found")
+		}
+		httpClient, err := gp.Client(ctx, accounts[0], []string{"https://www.googleapis.com/auth/drive.file"})
+		if err != nil {
+			return fmt.Errorf("get Drive client: %w", err)
+		}
+		backend, err = backupsvc.NewGDriveBackend(ctx, httpClient, gd.FolderID)
+		if err != nil {
+			return fmt.Errorf("create Drive backend: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown destination: %s", cfg.Backup.Destination)
+	}
+
+	svc := backupsvc.New(backend, config.Dir())
+	_, err = svc.Run(ctx)
+	return err
 }
 
 func init() {
