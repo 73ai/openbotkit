@@ -26,6 +26,9 @@ const (
 	stateProviderAuth
 	stateVerifying
 	stateModelSelect
+	stateBackupDest
+	stateBackupCreds
+	stateBackupSchedule
 )
 
 type flashMsg struct{}
@@ -41,6 +44,11 @@ type verifyModelResultMsg struct {
 	tier  string
 	model string
 	err   error
+}
+
+// backupVerifyResultMsg is returned by async backup verification.
+type backupVerifyResultMsg struct {
+	err error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -75,6 +83,15 @@ type model struct {
 	wizardSpinner   spinner.Model
 	wizardAPIKey    *string
 	wizardError     string
+
+	// Backup wizard state
+	wizardBackupDest     *string
+	wizardBackupBucket   *string
+	wizardBackupEndpoint *string
+	wizardBackupAK       *string
+	wizardBackupSK       *string
+	wizardBackupFolder   *string
+	wizardBackupSchedule *string
 }
 
 func newModel(svc *settings.Service) model {
@@ -113,6 +130,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateVerifying(msg)
 	case stateModelSelect:
 		return m.updateModelSelect(msg)
+	case stateBackupDest:
+		return m.updateBackupDest(msg)
+	case stateBackupCreds:
+		return m.updateBackupCreds(msg)
+	case stateBackupSchedule:
+		return m.updateBackupSchedule(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -193,8 +216,13 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 	if r.node.Field != nil {
 		f := r.node.Field
 
+		// Backup wizard — intercept before ReadOnly check.
+		if f.Key == "backup.enabled" || f.Key == "backup.destination" {
+			return m.enterBackupDest()
+		}
+
 		if f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
-			m.flash = "Locked by profile — change profile to edit"
+			m.flash = "Locked — configure prerequisites first"
 			m.viewport.SetContent(m.renderTree())
 			return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
 				return flashMsg{}
@@ -473,6 +501,19 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizardSpinner, cmd = m.wizardSpinner.Update(msg)
 		return m, cmd
 
+	case backupVerifyResultMsg:
+		if msg.err != nil {
+			m.flash = fmt.Sprintf("Backup verification failed: %v", msg.err)
+			m.state = stateBrowse
+			m.form = nil
+			m.rebuildRows()
+			m.viewport.SetContent(m.renderTree())
+			return m, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+				return flashMsg{}
+			})
+		}
+		return m.enterBackupSchedule()
+
 	case verifyResultMsg:
 		if msg.err != nil {
 			m.wizardError = fmt.Sprintf("%s verification failed: %v", msg.provider, msg.err)
@@ -673,7 +714,8 @@ func (m model) renderTree() string {
 
 func (m model) View() string {
 	switch m.state {
-	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect:
+	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
+		stateBackupDest, stateBackupCreds, stateBackupSchedule:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {
@@ -686,6 +728,9 @@ func (m model) View() string {
 			return b.String()
 		}
 	case stateVerifying:
+		if m.wizardBackupDest != nil && *m.wizardBackupDest != "" {
+			return fmt.Sprintf("\n  %s Verifying backup connection...\n", m.wizardSpinner.View())
+		}
 		provName := ""
 		if m.wizardProvIdx < len(m.wizardProviders) {
 			provName = m.wizardProviders[m.wizardProvIdx]

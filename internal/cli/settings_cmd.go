@@ -14,6 +14,7 @@ import (
 	_ "github.com/73ai/openbotkit/provider/openai"
 	_ "github.com/73ai/openbotkit/provider/openrouter"
 	_ "github.com/73ai/openbotkit/provider/zai"
+	backupsvc "github.com/73ai/openbotkit/service/backup"
 	"github.com/73ai/openbotkit/settings"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +31,7 @@ var settingsCmd = &cobra.Command{
 			settings.WithStoreCred(provider.StoreCredential),
 			settings.WithLoadCred(provider.LoadCredential),
 			settings.WithVerifyProvider(verifyProviderKey),
+			settings.WithVerifyBackup(verifyBackupDest),
 		)
 		return settingstui.Run(svc)
 	},
@@ -69,6 +71,28 @@ func verifyProviderKey(name string, pcfg config.ModelProviderConfig) error {
 	_ = cache.Save(name, list)
 
 	return nil
+}
+
+func verifyBackupDest(dest string, cfg *config.Config) error {
+	if dest != "r2" {
+		return nil
+	}
+	if cfg.Backup == nil || cfg.Backup.R2 == nil {
+		return fmt.Errorf("R2 not configured")
+	}
+	r2 := cfg.Backup.R2
+	accessKey, err := provider.LoadCredential(r2.AccessKeyRef)
+	if err != nil {
+		return fmt.Errorf("load access key: %w", err)
+	}
+	secretKey, err := provider.LoadCredential(r2.SecretKeyRef)
+	if err != nil {
+		return fmt.Errorf("load secret key: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return backupsvc.ValidateR2(ctx, r2.Endpoint, accessKey, secretKey, r2.Bucket)
 }
 
 func init() {

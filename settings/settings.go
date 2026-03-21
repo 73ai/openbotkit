@@ -53,6 +53,7 @@ type Service struct {
 	storeCred      func(ref, value string) error
 	loadCred       func(ref string) (string, error)
 	verifyProvider func(name string, cfg config.ModelProviderConfig) error
+	verifyBackup   func(dest string, cfg *config.Config) error
 }
 
 type ServiceOption func(*Service)
@@ -71,6 +72,10 @@ func WithLoadCred(fn func(ref string) (string, error)) ServiceOption {
 
 func WithVerifyProvider(fn func(name string, cfg config.ModelProviderConfig) error) ServiceOption {
 	return func(s *Service) { s.verifyProvider = fn }
+}
+
+func WithVerifyBackup(fn func(dest string, cfg *config.Config) error) ServiceOption {
+	return func(s *Service) { s.verifyBackup = fn }
 }
 
 func New(cfg *config.Config, opts ...ServiceOption) *Service {
@@ -134,6 +139,13 @@ func (s *Service) VerifyProvider(name string, cfg config.ModelProviderConfig) er
 		return nil
 	}
 	return s.verifyProvider(name, cfg)
+}
+
+func (s *Service) VerifyBackup(dest string, cfg *config.Config) error {
+	if s.verifyBackup == nil {
+		return nil
+	}
+	return s.verifyBackup(dest, cfg)
 }
 
 // ResolvedOptions returns the options for a field, using OptionsFunc if set.
