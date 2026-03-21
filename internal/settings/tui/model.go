@@ -286,6 +286,11 @@ func (m model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Rebuild tree when destination changes (shows/hides R2 category).
+		if strings.HasPrefix(m.editField.Key, "backup.") {
+			m.svc.RebuildTree()
+		}
+
 		m.state = stateBrowse
 		m.form = nil
 		m.editField = nil
