@@ -55,6 +55,7 @@ type Service struct {
 	verifyProvider func(name string, cfg config.ModelProviderConfig) error
 	verifyBackup   func(dest string, cfg *config.Config) error
 	setupGDrive    func(cfg *config.Config, folderName string) (string, error)
+	triggerBackup  func(cfg *config.Config) error
 }
 
 type ServiceOption func(*Service)
@@ -81,6 +82,10 @@ func WithVerifyBackup(fn func(dest string, cfg *config.Config) error) ServiceOpt
 
 func WithSetupGDrive(fn func(cfg *config.Config, folderName string) (string, error)) ServiceOption {
 	return func(s *Service) { s.setupGDrive = fn }
+}
+
+func WithTriggerBackup(fn func(cfg *config.Config) error) ServiceOption {
+	return func(s *Service) { s.triggerBackup = fn }
 }
 
 func New(cfg *config.Config, opts ...ServiceOption) *Service {
@@ -158,6 +163,24 @@ func (s *Service) SetupGDrive(cfg *config.Config, folderName string) (string, er
 		return "", fmt.Errorf("Google Drive setup not available — run 'obk setup' instead")
 	}
 	return s.setupGDrive(cfg, folderName)
+}
+
+func (s *Service) TriggerBackup() error {
+	if s.triggerBackup == nil {
+		return nil
+	}
+	return s.triggerBackup(s.cfg)
+}
+
+// IsBackupDestConfigured returns true if the given destination has credentials configured.
+func (s *Service) IsBackupDestConfigured(dest string) bool {
+	switch dest {
+	case "r2":
+		return isR2Configured(s.cfg)
+	case "gdrive":
+		return isGDriveConfigured(s.cfg)
+	}
+	return false
 }
 
 // ResolvedOptions returns the options for a field, using OptionsFunc if set.
