@@ -963,13 +963,6 @@ func ensureBackupR2(c *config.Config) {
 	}
 }
 
-func ensureBackupGDrive(c *config.Config) {
-	ensureBackup(c)
-	if c.Backup.GDrive == nil {
-		c.Backup.GDrive = &config.GDriveConfig{}
-	}
-}
-
 func advancedCategory() *Category {
 	return &Category{
 		Key:   "advanced",
