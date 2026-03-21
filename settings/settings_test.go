@@ -853,34 +853,28 @@ func TestBackupDisableAlwaysAllowed(t *testing.T) {
 	}
 }
 
-func TestBackupR2FieldsReadOnlyWhenNotR2(t *testing.T) {
+func TestBackupR2FieldsHiddenWhenNotR2(t *testing.T) {
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{Destination: "gdrive"}
 	svc := testService(cfg)
 
 	for _, key := range []string{"backup.r2.bucket", "backup.r2.endpoint", "backup.r2.access_key", "backup.r2.secret_key"} {
 		field := findFieldInNodes(svc.Tree(), key)
-		if field == nil {
-			t.Fatalf("%s field not found", key)
-		}
-		if field.ReadOnly == nil {
-			t.Fatalf("%s should have ReadOnly", key)
-		}
-		if !field.ReadOnly(cfg) {
-			t.Errorf("%s should be read-only when destination is gdrive", key)
+		if field != nil {
+			t.Errorf("%s should not be in tree when destination is gdrive", key)
 		}
 	}
 }
 
-func TestBackupR2FieldsEditableWhenR2(t *testing.T) {
+func TestBackupR2FieldsVisibleWhenR2(t *testing.T) {
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{Destination: "r2"}
 	svc := testService(cfg)
 
 	for _, key := range []string{"backup.r2.bucket", "backup.r2.endpoint", "backup.r2.access_key", "backup.r2.secret_key"} {
 		field := findFieldInNodes(svc.Tree(), key)
-		if field.ReadOnly(cfg) {
-			t.Errorf("%s should be editable when destination is r2", key)
+		if field == nil {
+			t.Fatalf("%s should be in tree when destination is r2", key)
 		}
 	}
 }
