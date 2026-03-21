@@ -198,11 +198,11 @@ func TestTreeStructure(t *testing.T) {
 	svc := testService(cfg)
 
 	tree := svc.Tree()
-	if len(tree) != 6 {
-		t.Fatalf("tree has %d top-level nodes, want 6", len(tree))
+	if len(tree) != 7 {
+		t.Fatalf("tree has %d top-level nodes, want 7", len(tree))
 	}
 
-	labels := []string{"General", "LLM Models", "Channels", "Data Sources", "Integrations", "Advanced"}
+	labels := []string{"General", "LLM Models", "Channels", "Data Sources", "Integrations", "Backup", "Advanced"}
 	for i, n := range tree {
 		if n.Category == nil {
 			t.Errorf("tree[%d] is not a category", i)
