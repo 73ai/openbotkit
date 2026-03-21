@@ -759,26 +759,8 @@ func setupBackup(cfg *config.Config) error {
 		}
 	}
 
-	var schedule string
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("How often should backups run?").
-				Options(
-					huh.NewOption("Every 6 hours", "6h"),
-					huh.NewOption("Every 12 hours", "12h"),
-					huh.NewOption("Daily", "24h"),
-					huh.NewOption("Manual only", ""),
-				).
-				Value(&schedule),
-		),
-	).Run()
-	if err != nil {
-		return err
-	}
-
 	cfg.Backup.Enabled = true
-	cfg.Backup.Schedule = schedule
+	cfg.Backup.Schedule = "6h"
 
 	if err := config.EnsureSourceDir("backup"); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
