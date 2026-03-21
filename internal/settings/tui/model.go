@@ -217,8 +217,8 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 	if r.node.Field != nil {
 		f := r.node.Field
 
-		// Backup wizard — intercept before ReadOnly check.
-		if f.Key == "backup.enabled" || f.Key == "backup.destination" {
+		// Backup wizard — only when not yet configured.
+		if f.Key == "backup.enabled" && f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
 			return m.enterBackupDest()
 		}
 
