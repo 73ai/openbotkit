@@ -91,16 +91,20 @@ func (m model) enterBackupR2Creds() (model, tea.Cmd) {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("R2 Bucket name").
+				Description("Cloudflare Dashboard → R2 Object Storage → your bucket").
 				Value(m.wizardBackupBucket),
 			huh.NewInput().
 				Title("R2 Endpoint").
+				Description("Bucket → Settings → S3 API → copy the endpoint URL").
 				Placeholder("https://<account-id>.r2.cloudflarestorage.com").
 				Value(m.wizardBackupEndpoint),
 			huh.NewInput().
 				Title("Access Key ID").
+				Description("R2 → Manage R2 API Tokens → Create API Token").
 				Value(m.wizardBackupAK),
 			huh.NewInput().
 				Title("Secret Access Key").
+				Description("Shown once when you create the API token above").
 				EchoMode(huh.EchoModePassword).
 				Value(m.wizardBackupSK),
 		),
