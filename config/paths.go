@@ -90,3 +90,15 @@ func CleanScratch(sessionID string) error {
 func LearningsDir() string {
 	return filepath.Join(Dir(), "learnings")
 }
+
+func BackupDir() string {
+	return filepath.Join(Dir(), "backup")
+}
+
+func BackupStagingDir() string {
+	return filepath.Join(BackupDir(), "staging")
+}
+
+func BackupLastManifestPath() string {
+	return filepath.Join(BackupDir(), "last_manifest.json")
+}
