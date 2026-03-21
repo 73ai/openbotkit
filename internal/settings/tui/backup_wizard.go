@@ -109,22 +109,19 @@ func (m model) enterBackupR2Creds() (model, tea.Cmd) {
 }
 
 func (m model) enterBackupGDriveCreds() (model, tea.Cmd) {
-	m.state = stateBackupCreds
+	// Go straight to Google OAuth + folder creation. No prompts needed.
+	cfg := m.svc.Config()
+	if cfg.Backup == nil {
+		cfg.Backup = &config.BackupConfig{}
+	}
+	cfg.Backup.Destination = "gdrive"
+
+	m.state = stateVerifying
 	m.wizardError = ""
-
-	folder := "obk-backup"
-	m.wizardBackupFolder = &folder
-
-	m.form = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Drive folder name").
-				Description("A folder will be created or found in your Google Drive").
-				Placeholder("obk-backup").
-				Value(m.wizardBackupFolder),
-		),
+	return m, tea.Batch(
+		m.wizardSpinner.Tick,
+		setupGDriveCmd(m.svc, "obk-backup"),
 	)
-	return m, m.form.Init()
 }
 
 func (m model) updateBackupCreds(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -145,12 +142,7 @@ func (m model) updateBackupCreds(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.form.State == huh.StateCompleted {
-		switch *m.wizardBackupDest {
-		case "r2":
-			return m.handleR2CredsComplete()
-		case "gdrive":
-			return m.handleGDriveCredsComplete()
-		}
+		return m.handleR2CredsComplete()
 	}
 
 	return m, cmd
@@ -203,27 +195,6 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 	)
 }
 
-func (m model) handleGDriveCredsComplete() (model, tea.Cmd) {
-	folderName := strings.TrimSpace(*m.wizardBackupFolder)
-	if folderName == "" {
-		folderName = "obk-backup"
-	}
-
-	// Update config destination before verification.
-	cfg := m.svc.Config()
-	if cfg.Backup == nil {
-		cfg.Backup = &config.BackupConfig{}
-	}
-	cfg.Backup.Destination = "gdrive"
-
-	// Run Google OAuth + folder creation async.
-	m.state = stateVerifying
-	m.wizardError = ""
-	return m, tea.Batch(
-		m.wizardSpinner.Tick,
-		setupGDriveCmd(m.svc, folderName),
-	)
-}
 
 func (m model) enterBackupSchedule() (model, tea.Cmd) {
 	m.state = stateBackupSchedule
