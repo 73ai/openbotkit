@@ -112,19 +112,15 @@ func (m model) enterBackupGDriveCreds() (model, tea.Cmd) {
 	m.state = stateBackupCreds
 	m.wizardError = ""
 
-	folder := ""
-	cfg := m.svc.Config()
-	if cfg.Backup != nil && cfg.Backup.GDrive != nil {
-		folder = cfg.Backup.GDrive.FolderID
-	}
-
+	folder := "obk-backup"
 	m.wizardBackupFolder = &folder
 
 	m.form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Google Drive Folder ID").
-				Description("Run 'obk setup' to configure Google OAuth and create the folder automatically").
+				Title("Drive folder name").
+				Description("A folder will be created or found in your Google Drive").
+				Placeholder("obk-backup").
 				Value(m.wizardBackupFolder),
 		),
 	)
@@ -208,25 +204,25 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 }
 
 func (m model) handleGDriveCredsComplete() (model, tea.Cmd) {
-	folder := strings.TrimSpace(*m.wizardBackupFolder)
-	if folder == "" {
-		m.wizardError = "Folder ID is required"
-		return m.enterBackupGDriveCreds()
+	folderName := strings.TrimSpace(*m.wizardBackupFolder)
+	if folderName == "" {
+		folderName = "obk-backup"
 	}
 
-	// Update config.
+	// Update config destination before verification.
 	cfg := m.svc.Config()
 	if cfg.Backup == nil {
 		cfg.Backup = &config.BackupConfig{}
 	}
 	cfg.Backup.Destination = "gdrive"
-	if cfg.Backup.GDrive == nil {
-		cfg.Backup.GDrive = &config.GDriveConfig{}
-	}
-	cfg.Backup.GDrive.FolderID = folder
 
-	// GDrive verification requires OAuth (complex); skip to schedule.
-	return m.enterBackupSchedule()
+	// Run Google OAuth + folder creation async.
+	m.state = stateVerifying
+	m.wizardError = ""
+	return m, tea.Batch(
+		m.wizardSpinner.Tick,
+		setupGDriveCmd(m.svc, folderName),
+	)
 }
 
 func (m model) enterBackupSchedule() (model, tea.Cmd) {
@@ -302,5 +298,15 @@ func verifyBackupCmd(svc *settings.Service, dest string) tea.Cmd {
 	return func() tea.Msg {
 		err := svc.VerifyBackup(dest, svc.Config())
 		return backupVerifyResultMsg{err: err}
+	}
+}
+
+func setupGDriveCmd(svc *settings.Service, folderName string) tea.Cmd {
+	return func() tea.Msg {
+		folderID, err := svc.SetupGDrive(svc.Config(), folderName)
+		if err != nil {
+			return backupVerifyResultMsg{err: err}
+		}
+		return backupVerifyResultMsg{folderID: folderID}
 	}
 }

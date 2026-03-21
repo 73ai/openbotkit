@@ -7,6 +7,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	settingstui "github.com/73ai/openbotkit/internal/settings/tui"
+	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
 	_ "github.com/73ai/openbotkit/provider/anthropic"
 	_ "github.com/73ai/openbotkit/provider/gemini"
@@ -32,6 +33,7 @@ var settingsCmd = &cobra.Command{
 			settings.WithLoadCred(provider.LoadCredential),
 			settings.WithVerifyProvider(verifyProviderKey),
 			settings.WithVerifyBackup(verifyBackupDest),
+			settings.WithSetupGDrive(setupGDriveBackup),
 		)
 		return settingstui.Run(svc)
 	},
@@ -93,6 +95,41 @@ func verifyBackupDest(dest string, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return backupsvc.ValidateR2(ctx, r2.Endpoint, accessKey, secretKey, r2.Bucket)
+}
+
+func setupGDriveBackup(cfg *config.Config, folderName string) (string, error) {
+	gp := google.New(google.Config{
+		CredentialsFile: cfg.GoogleCredentialsFile(),
+		TokenDBPath:     cfg.GoogleTokenDBPath(),
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	accounts, _ := gp.Accounts(ctx)
+	var account string
+	if len(accounts) > 0 {
+		account = accounts[0]
+	}
+
+	scopes := []string{"https://www.googleapis.com/auth/drive.file"}
+	email, err := gp.GrantScopes(ctx, account, scopes)
+	if err != nil {
+		return "", fmt.Errorf("Google auth: %w", err)
+	}
+	_ = email
+
+	httpClient, err := gp.Client(ctx, account, scopes)
+	if err != nil {
+		return "", fmt.Errorf("get Drive client: %w", err)
+	}
+
+	folderID, err := backupsvc.FindOrCreateDriveFolder(ctx, httpClient, folderName)
+	if err != nil {
+		return "", fmt.Errorf("create Drive folder: %w", err)
+	}
+
+	return folderID, nil
 }
 
 func init() {

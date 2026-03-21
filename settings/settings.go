@@ -54,6 +54,7 @@ type Service struct {
 	loadCred       func(ref string) (string, error)
 	verifyProvider func(name string, cfg config.ModelProviderConfig) error
 	verifyBackup   func(dest string, cfg *config.Config) error
+	setupGDrive    func(cfg *config.Config, folderName string) (string, error)
 }
 
 type ServiceOption func(*Service)
@@ -76,6 +77,10 @@ func WithVerifyProvider(fn func(name string, cfg config.ModelProviderConfig) err
 
 func WithVerifyBackup(fn func(dest string, cfg *config.Config) error) ServiceOption {
 	return func(s *Service) { s.verifyBackup = fn }
+}
+
+func WithSetupGDrive(fn func(cfg *config.Config, folderName string) (string, error)) ServiceOption {
+	return func(s *Service) { s.setupGDrive = fn }
 }
 
 func New(cfg *config.Config, opts ...ServiceOption) *Service {
@@ -146,6 +151,13 @@ func (s *Service) VerifyBackup(dest string, cfg *config.Config) error {
 		return nil
 	}
 	return s.verifyBackup(dest, cfg)
+}
+
+func (s *Service) SetupGDrive(cfg *config.Config, folderName string) (string, error) {
+	if s.setupGDrive == nil {
+		return "", fmt.Errorf("Google Drive setup not available — run 'obk setup' instead")
+	}
+	return s.setupGDrive(cfg, folderName)
 }
 
 // ResolvedOptions returns the options for a field, using OptionsFunc if set.

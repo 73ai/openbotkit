@@ -48,7 +48,8 @@ type verifyModelResultMsg struct {
 
 // backupVerifyResultMsg is returned by async backup verification.
 type backupVerifyResultMsg struct {
-	err error
+	folderID string // set for GDrive setup
+	err      error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -506,11 +507,22 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flash = fmt.Sprintf("Backup verification failed: %v", msg.err)
 			m.state = stateBrowse
 			m.form = nil
+			m.wizardBackupDest = nil
 			m.rebuildRows()
 			m.viewport.SetContent(m.renderTree())
 			return m, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
 				return flashMsg{}
 			})
+		}
+		if msg.folderID != "" {
+			cfg := m.svc.Config()
+			if cfg.Backup == nil {
+				cfg.Backup = &config.BackupConfig{}
+			}
+			if cfg.Backup.GDrive == nil {
+				cfg.Backup.GDrive = &config.GDriveConfig{}
+			}
+			cfg.Backup.GDrive.FolderID = msg.folderID
 		}
 		return m.enterBackupSchedule()
 
@@ -729,7 +741,11 @@ func (m model) View() string {
 		}
 	case stateVerifying:
 		if m.wizardBackupDest != nil && *m.wizardBackupDest != "" {
-			return fmt.Sprintf("\n  %s Verifying backup connection...\n", m.wizardSpinner.View())
+			label := "Verifying backup connection..."
+			if *m.wizardBackupDest == "gdrive" {
+				label = "Setting up Google Drive (check your browser)..."
+			}
+			return fmt.Sprintf("\n  %s %s\n", m.wizardSpinner.View(), label)
 		}
 		provName := ""
 		if m.wizardProvIdx < len(m.wizardProviders) {
