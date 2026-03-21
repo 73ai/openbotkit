@@ -28,7 +28,6 @@ const (
 	stateModelSelect
 	stateBackupDest
 	stateBackupCreds
-	stateBackupSchedule
 )
 
 type flashMsg struct{}
@@ -50,6 +49,11 @@ type verifyModelResultMsg struct {
 type backupVerifyResultMsg struct {
 	folderID string // set for GDrive setup
 	err      error
+}
+
+// backupTriggeredMsg is returned after an async backup trigger attempt.
+type backupTriggeredMsg struct {
+	err error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -91,8 +95,7 @@ type model struct {
 	wizardBackupEndpoint *string
 	wizardBackupAK       *string
 	wizardBackupSK       *string
-	wizardBackupFolder   *string
-	wizardBackupSchedule *string
+	wizardBackupSnapshot *config.BackupConfig // for transactional rollback
 }
 
 func newModel(svc *settings.Service) model {
@@ -135,8 +138,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateBackupDest(msg)
 	case stateBackupCreds:
 		return m.updateBackupCreds(msg)
-	case stateBackupSchedule:
-		return m.updateBackupSchedule(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -158,6 +159,17 @@ func (m model) updateBrowse(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash = ""
 		m.viewport.SetContent(m.renderTree())
 		return m, nil
+
+	case backupTriggeredMsg:
+		if msg.err != nil {
+			m.flash = fmt.Sprintf("Backup failed: %v", msg.err)
+		} else {
+			m.flash = "Backup started"
+		}
+		m.viewport.SetContent(m.renderTree())
+		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+			return flashMsg{}
+		})
 
 	case modelsLoadedMsg:
 		// Silently update cache, no UI change.
@@ -219,7 +231,12 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 
 		// Backup wizard — only when not yet configured.
 		if f.Key == "backup.enabled" && f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
-			return m.enterBackupDest()
+			return m.enterBackupWizard()
+		}
+
+		// Destination change — transactional flow.
+		if f.Key == "backup.destination" {
+			return m.enterDestinationChange()
 		}
 
 		if f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
@@ -286,9 +303,15 @@ func (m model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Rebuild tree when destination changes (shows/hides R2 category).
+		// Rebuild tree when backup config changes (shows/hides R2 category).
 		if strings.HasPrefix(m.editField.Key, "backup.") {
 			m.svc.RebuildTree()
+		}
+
+		// Trigger backup when re-enabling (false → true).
+		var triggerCmd tea.Cmd
+		if m.editField.Key == "backup.enabled" && value == "true" {
+			triggerCmd = triggerBackupIfStaleCmd(m.svc)
 		}
 
 		m.state = stateBrowse
@@ -296,9 +319,12 @@ func (m model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editField = nil
 		m.rebuildRows()
 		m.viewport.SetContent(m.renderTree())
-		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
-			return flashMsg{}
-		})
+		return m, tea.Batch(
+			tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+				return flashMsg{}
+			}),
+			triggerCmd,
+		)
 	}
 
 	return m, cmd
@@ -510,26 +536,20 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backupVerifyResultMsg:
 		if msg.err != nil {
 			m.flash = fmt.Sprintf("Backup verification failed: %v", msg.err)
-			m.state = stateBrowse
-			m.form = nil
-			m.wizardBackupDest = nil
-			m.rebuildRows()
-			m.viewport.SetContent(m.renderTree())
-			return m, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+			ret, _ := m.rollbackBackup()
+			return ret, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
 				return flashMsg{}
 			})
 		}
 		if msg.folderID != "" {
 			cfg := m.svc.Config()
-			if cfg.Backup == nil {
-				cfg.Backup = &config.BackupConfig{}
-			}
+			ensureBackup(cfg)
 			if cfg.Backup.GDrive == nil {
 				cfg.Backup.GDrive = &config.GDriveConfig{}
 			}
 			cfg.Backup.GDrive.FolderID = msg.folderID
 		}
-		return m.enterBackupSchedule()
+		return m.saveBackup()
 
 	case verifyResultMsg:
 		if msg.err != nil {
@@ -549,6 +569,9 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
+			if m.wizardBackupSnapshot != nil {
+				return m.rollbackBackup()
+			}
 			m.state = stateBrowse
 			m.form = nil
 			m.viewport.SetContent(m.renderTree())
@@ -732,7 +755,7 @@ func (m model) renderTree() string {
 func (m model) View() string {
 	switch m.state {
 	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
-		stateBackupDest, stateBackupCreds, stateBackupSchedule:
+		stateBackupDest, stateBackupCreds:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {

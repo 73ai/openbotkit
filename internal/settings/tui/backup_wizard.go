@@ -8,10 +8,32 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/config"
+	backupsvc "github.com/73ai/openbotkit/service/backup"
 	"github.com/73ai/openbotkit/settings"
 )
 
-// --- Backup wizard: destination → credentials → verify → schedule → save ---
+// --- Backup wizard: destination → credentials → verify → save ---
+
+// enterBackupWizard starts the first-time wizard (destination not yet configured).
+func (m model) enterBackupWizard() (model, tea.Cmd) {
+	m.wizardBackupSnapshot = cloneBackupConfig(m.svc.Config().Backup)
+
+	cfg := m.svc.Config()
+	dest := backupDest(cfg)
+	if dest != "" && !m.svc.IsBackupDestConfigured(dest) {
+		// Destination set but not authenticated — skip picker, go to auth.
+		d := dest
+		m.wizardBackupDest = &d
+		return m.enterBackupAuth(dest)
+	}
+	return m.enterBackupDest()
+}
+
+// enterDestinationChange handles transactional destination change from settings tree.
+func (m model) enterDestinationChange() (model, tea.Cmd) {
+	m.wizardBackupSnapshot = cloneBackupConfig(m.svc.Config().Backup)
+	return m.enterBackupDest()
+}
 
 func (m model) enterBackupDest() (model, tea.Cmd) {
 	m.state = stateBackupDest
@@ -42,11 +64,7 @@ func (m model) updateBackupDest(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
-			m.state = stateBrowse
-			m.form = nil
-			m.wizardBackupDest = nil
-			m.viewport.SetContent(m.renderTree())
-			return m, nil
+			return m.rollbackBackup()
 		}
 	}
 
@@ -56,15 +74,60 @@ func (m model) updateBackupDest(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.form.State == huh.StateCompleted {
-		switch *m.wizardBackupDest {
-		case "r2":
-			return m.enterBackupR2Creds()
-		case "gdrive":
-			return m.enterBackupGDriveCreds()
+		newDest := *m.wizardBackupDest
+
+		// If destination is already authenticated, commit immediately.
+		if m.svc.IsBackupDestConfigured(newDest) {
+			return m.commitDestinationSwap(newDest)
 		}
+
+		// Otherwise, start auth flow for the new destination.
+		return m.enterBackupAuth(newDest)
 	}
 
 	return m, cmd
+}
+
+// enterBackupAuth routes to the correct auth flow for a destination.
+func (m model) enterBackupAuth(dest string) (model, tea.Cmd) {
+	switch dest {
+	case "r2":
+		return m.enterBackupR2Creds()
+	case "gdrive":
+		return m.enterBackupGDriveCreds()
+	}
+	return m.rollbackBackup()
+}
+
+// commitDestinationSwap saves the destination change and triggers backup if stale.
+func (m model) commitDestinationSwap(dest string) (model, tea.Cmd) {
+	cfg := m.svc.Config()
+	ensureBackup(cfg)
+	cfg.Backup.Destination = dest
+	cfg.Backup.Enabled = true
+	if cfg.Backup.Schedule == "" {
+		cfg.Backup.Schedule = "6h"
+	}
+
+	if err := m.svc.Save(); err != nil {
+		m.flash = fmt.Sprintf("Error saving: %v", err)
+		return m.rollbackBackup()
+	}
+
+	m.flash = "Destination updated!"
+	m.wizardBackupSnapshot = nil
+	m.state = stateBrowse
+	m.form = nil
+	m.wizardBackupDest = nil
+	m.svc.RebuildTree()
+	m.rebuildRows()
+	m.viewport.SetContent(m.renderTree())
+	return m, tea.Batch(
+		tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+			return flashMsg{}
+		}),
+		triggerBackupIfStaleCmd(m.svc),
+	)
 }
 
 func (m model) enterBackupR2Creds() (model, tea.Cmd) {
@@ -113,11 +176,8 @@ func (m model) enterBackupR2Creds() (model, tea.Cmd) {
 }
 
 func (m model) enterBackupGDriveCreds() (model, tea.Cmd) {
-	// Go straight to Google OAuth + folder creation. No prompts needed.
 	cfg := m.svc.Config()
-	if cfg.Backup == nil {
-		cfg.Backup = &config.BackupConfig{}
-	}
+	ensureBackup(cfg)
 	cfg.Backup.Destination = "gdrive"
 
 	m.state = stateVerifying
@@ -132,11 +192,7 @@ func (m model) updateBackupCreds(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
-			m.state = stateBrowse
-			m.form = nil
-			m.wizardBackupDest = nil
-			m.viewport.SetContent(m.renderTree())
-			return m, nil
+			return m.rollbackBackup()
 		}
 	}
 
@@ -163,7 +219,6 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 		return m.enterBackupR2Creds()
 	}
 
-	// Store credentials.
 	akRef := "keychain:obk/r2-access-key"
 	skRef := "keychain:obk/r2-secret-key"
 
@@ -176,11 +231,8 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 		return m.enterBackupR2Creds()
 	}
 
-	// Update config.
 	cfg := m.svc.Config()
-	if cfg.Backup == nil {
-		cfg.Backup = &config.BackupConfig{}
-	}
+	ensureBackup(cfg)
 	cfg.Backup.Destination = "r2"
 	if cfg.Backup.R2 == nil {
 		cfg.Backup.R2 = &config.R2Config{}
@@ -190,7 +242,6 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 	cfg.Backup.R2.AccessKeyRef = akRef
 	cfg.Backup.R2.SecretKeyRef = skRef
 
-	// Verify connection.
 	m.state = stateVerifying
 	m.wizardError = ""
 	return m, tea.Batch(
@@ -199,74 +250,46 @@ func (m model) handleR2CredsComplete() (model, tea.Cmd) {
 	)
 }
 
-
-func (m model) enterBackupSchedule() (model, tea.Cmd) {
-	m.state = stateBackupSchedule
-	m.wizardError = ""
-
-	schedule := "6h"
-	m.wizardBackupSchedule = &schedule
-
-	m.form = huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("How often should backups run?").
-				Options(
-					huh.NewOption("Every 6 hours", "6h"),
-					huh.NewOption("Every 12 hours", "12h"),
-					huh.NewOption("Daily", "24h"),
-					huh.NewOption("Manual only", ""),
-				).
-				Value(m.wizardBackupSchedule),
-		),
-	)
-	return m, m.form.Init()
-}
-
-func (m model) updateBackupSchedule(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.state = stateBrowse
-			m.form = nil
-			m.wizardBackupDest = nil
-			m.viewport.SetContent(m.renderTree())
-			return m, nil
-		}
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	if m.form.State == huh.StateCompleted {
-		return m.saveBackup()
-	}
-
-	return m, cmd
-}
-
+// saveBackup completes the wizard: enables backup, saves, triggers if stale.
 func (m model) saveBackup() (model, tea.Cmd) {
 	cfg := m.svc.Config()
 	cfg.Backup.Enabled = true
-	cfg.Backup.Schedule = *m.wizardBackupSchedule
+	if cfg.Backup.Schedule == "" {
+		cfg.Backup.Schedule = "6h"
+	}
 
 	if err := m.svc.Save(); err != nil {
 		m.flash = fmt.Sprintf("Error saving: %v", err)
-	} else {
-		m.flash = "Backup configured and enabled!"
+		return m.rollbackBackup()
 	}
 
+	m.flash = "Backup configured and enabled!"
+	m.wizardBackupSnapshot = nil
 	m.state = stateBrowse
 	m.form = nil
 	m.wizardBackupDest = nil
 	m.svc.RebuildTree()
 	m.rebuildRows()
 	m.viewport.SetContent(m.renderTree())
-	return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
-		return flashMsg{}
-	})
+	return m, tea.Batch(
+		tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+			return flashMsg{}
+		}),
+		triggerBackupIfStaleCmd(m.svc),
+	)
+}
+
+// rollbackBackup reverts config to the snapshot taken before the wizard started.
+func (m model) rollbackBackup() (model, tea.Cmd) {
+	m.svc.Config().Backup = m.wizardBackupSnapshot
+	m.wizardBackupSnapshot = nil
+	m.state = stateBrowse
+	m.form = nil
+	m.wizardBackupDest = nil
+	m.svc.RebuildTree()
+	m.rebuildRows()
+	m.viewport.SetContent(m.renderTree())
+	return m, nil
 }
 
 func verifyBackupCmd(svc *settings.Service, dest string) tea.Cmd {
@@ -284,4 +307,73 @@ func setupGDriveCmd(svc *settings.Service, folderName string) tea.Cmd {
 		}
 		return backupVerifyResultMsg{folderID: folderID}
 	}
+}
+
+// triggerBackupIfStaleCmd triggers a backup if the last one is older than the schedule.
+func triggerBackupIfStaleCmd(svc *settings.Service) tea.Cmd {
+	return func() tea.Msg {
+		cfg := svc.Config()
+		if cfg.Backup == nil || !cfg.Backup.Enabled {
+			return nil
+		}
+
+		schedule := parseSchedule(cfg.Backup.Schedule)
+		if schedule == 0 {
+			return nil // manual only
+		}
+
+		manifest, err := backupsvc.LoadManifest(config.BackupLastManifestPath())
+		if err != nil {
+			return nil
+		}
+
+		if manifest.ID != "" && time.Since(manifest.Timestamp) < schedule {
+			return nil // recent enough
+		}
+
+		err = svc.TriggerBackup()
+		return backupTriggeredMsg{err: err}
+	}
+}
+
+func parseSchedule(s string) time.Duration {
+	switch s {
+	case "6h":
+		return 6 * time.Hour
+	case "12h":
+		return 12 * time.Hour
+	case "24h":
+		return 24 * time.Hour
+	default:
+		return 0
+	}
+}
+
+func ensureBackup(c *config.Config) {
+	if c.Backup == nil {
+		c.Backup = &config.BackupConfig{}
+	}
+}
+
+func backupDest(c *config.Config) string {
+	if c.Backup == nil {
+		return ""
+	}
+	return c.Backup.Destination
+}
+
+func cloneBackupConfig(b *config.BackupConfig) *config.BackupConfig {
+	if b == nil {
+		return nil
+	}
+	clone := *b
+	if b.R2 != nil {
+		r2 := *b.R2
+		clone.R2 = &r2
+	}
+	if b.GDrive != nil {
+		gd := *b.GDrive
+		clone.GDrive = &gd
+	}
+	return &clone
 }
