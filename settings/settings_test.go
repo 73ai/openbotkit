@@ -1023,6 +1023,58 @@ func TestBackupDestinationSameValueKeepsEnabled(t *testing.T) {
 	}
 }
 
+func TestIsBackupDestConfiguredR2(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	// Not configured at all.
+	if svc.IsBackupDestConfigured("r2") {
+		t.Error("r2 should not be configured when backup is nil")
+	}
+
+	// Partially configured.
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2:          &config.R2Config{Bucket: "b"},
+	}
+	if svc.IsBackupDestConfigured("r2") {
+		t.Error("r2 should not be configured when only bucket is set")
+	}
+
+	// Fully configured.
+	cfg.Backup.R2 = &config.R2Config{
+		Bucket:       "b",
+		Endpoint:     "e",
+		AccessKeyRef: "ref-ak",
+		SecretKeyRef: "ref-sk",
+	}
+	if !svc.IsBackupDestConfigured("r2") {
+		t.Error("r2 should be configured when all fields are set")
+	}
+}
+
+func TestIsBackupDestConfiguredGDrive(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	if svc.IsBackupDestConfigured("gdrive") {
+		t.Error("gdrive should not be configured when backup is nil")
+	}
+
+	cfg.Backup = &config.BackupConfig{
+		Destination: "gdrive",
+		GDrive:      &config.GDriveConfig{},
+	}
+	if svc.IsBackupDestConfigured("gdrive") {
+		t.Error("gdrive should not be configured when folder_id is empty")
+	}
+
+	cfg.Backup.GDrive.FolderID = "abc123"
+	if !svc.IsBackupDestConfigured("gdrive") {
+		t.Error("gdrive should be configured when folder_id is set")
+	}
+}
+
 func findFieldInNodes(nodes []Node, key string) *Field {
 	for _, n := range nodes {
 		if n.Field != nil && n.Field.Key == key {
