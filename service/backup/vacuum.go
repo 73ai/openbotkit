@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "modernc.org/sqlite"
 )
 
-func VacuumInto(dbPath, stagingDir string) (string, error) {
-	rel := strings.TrimPrefix(dbPath, "/")
-	destPath := filepath.Join(stagingDir, filepath.Base(rel))
+// VacuumInto creates a consistent snapshot of a SQLite database.
+// relPath is the path relative to ~/.obk (e.g. "gmail/data.db") used to
+// preserve directory structure in the staging dir and avoid collisions.
+func VacuumInto(dbPath, stagingDir, relPath string) (string, error) {
+	destPath := filepath.Join(stagingDir, relPath)
 	if err := os.MkdirAll(filepath.Dir(destPath), 0700); err != nil {
 		return "", fmt.Errorf("create staging dir: %w", err)
 	}

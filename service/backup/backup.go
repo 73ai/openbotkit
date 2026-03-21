@@ -26,21 +26,34 @@ type RunResult struct {
 }
 
 type Service struct {
-	backend Backend
-	baseDir string
+	backend      Backend
+	baseDir      string
+	manifestPath string
+	stagingDir   string
 }
 
 func New(backend Backend, baseDir string) *Service {
 	return &Service{
-		backend: backend,
-		baseDir: baseDir,
+		backend:      backend,
+		baseDir:      baseDir,
+		manifestPath: config.BackupLastManifestPath(),
+		stagingDir:   config.BackupStagingDir(),
+	}
+}
+
+func NewWithPaths(backend Backend, baseDir, manifestPath, stagingDir string) *Service {
+	return &Service{
+		backend:      backend,
+		baseDir:      baseDir,
+		manifestPath: manifestPath,
+		stagingDir:   stagingDir,
 	}
 }
 
 func (s *Service) Run(ctx context.Context) (*RunResult, error) {
 	start := time.Now()
 
-	lastManifest, err := LoadManifest(config.BackupLastManifestPath())
+	lastManifest, err := LoadManifest(s.manifestPath)
 	if err != nil {
 		return nil, fmt.Errorf("load last manifest: %w", err)
 	}
@@ -50,7 +63,7 @@ func (s *Service) Run(ctx context.Context) (*RunResult, error) {
 		return nil, fmt.Errorf("scan files: %w", err)
 	}
 
-	stagingDir := config.BackupStagingDir()
+	stagingDir := s.stagingDir
 	if err := os.MkdirAll(stagingDir, 0700); err != nil {
 		return nil, fmt.Errorf("create staging dir: %w", err)
 	}
@@ -64,7 +77,7 @@ func (s *Service) Run(ctx context.Context) (*RunResult, error) {
 		var filePath string
 
 		if strings.HasSuffix(rel, ".db") {
-			vacuumed, err := VacuumInto(absPath, stagingDir)
+			vacuumed, err := VacuumInto(absPath, stagingDir, rel)
 			if err != nil {
 				return nil, fmt.Errorf("vacuum %s: %w", rel, err)
 			}
@@ -154,10 +167,10 @@ func (s *Service) Run(ctx context.Context) (*RunResult, error) {
 		return nil, fmt.Errorf("upload manifest: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(config.BackupLastManifestPath()), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.manifestPath), 0700); err != nil {
 		return nil, fmt.Errorf("create backup dir: %w", err)
 	}
-	if err := SaveManifest(config.BackupLastManifestPath(), manifest); err != nil {
+	if err := SaveManifest(s.manifestPath, manifest); err != nil {
 		return nil, fmt.Errorf("save local manifest: %w", err)
 	}
 
