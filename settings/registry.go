@@ -897,31 +897,6 @@ func backupCategory(svc *Service) *Category {
 					}},
 				},
 			}},
-			{Category: &Category{
-				Key:   "backup.gdrive",
-				Label: "Google Drive",
-				Children: []Node{
-					{Field: &Field{
-						Key:   "backup.gdrive.folder_id",
-						Label: "Folder ID",
-						Type:  TypeString,
-						Get: func(c *config.Config) string {
-							if c.Backup == nil || c.Backup.GDrive == nil {
-								return ""
-							}
-							return c.Backup.GDrive.FolderID
-						},
-						Set: func(c *config.Config, v string) error {
-							ensureBackupGDrive(c)
-							c.Backup.GDrive.FolderID = v
-							return nil
-						},
-						ReadOnly: func(c *config.Config) bool {
-							return backupDest(c) != "gdrive"
-						},
-					}},
-				},
-			}},
 		},
 	}
 }

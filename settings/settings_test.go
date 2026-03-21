@@ -885,31 +885,6 @@ func TestBackupR2FieldsEditableWhenR2(t *testing.T) {
 	}
 }
 
-func TestBackupGDriveFieldsReadOnlyWhenNotGDrive(t *testing.T) {
-	cfg := config.Default()
-	cfg.Backup = &config.BackupConfig{Destination: "r2"}
-	svc := testService(cfg)
-
-	field := findFieldInNodes(svc.Tree(), "backup.gdrive.folder_id")
-	if field == nil {
-		t.Fatal("backup.gdrive.folder_id field not found")
-	}
-	if !field.ReadOnly(cfg) {
-		t.Error("folder_id should be read-only when destination is r2")
-	}
-}
-
-func TestBackupGDriveFieldsEditableWhenGDrive(t *testing.T) {
-	cfg := config.Default()
-	cfg.Backup = &config.BackupConfig{Destination: "gdrive"}
-	svc := testService(cfg)
-
-	field := findFieldInNodes(svc.Tree(), "backup.gdrive.folder_id")
-	if field.ReadOnly(cfg) {
-		t.Error("folder_id should be editable when destination is gdrive")
-	}
-}
-
 func TestBackupScheduleReadOnlyWhenNotEnabled(t *testing.T) {
 	cfg := config.Default()
 	svc := testService(cfg)
