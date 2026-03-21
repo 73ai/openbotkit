@@ -742,6 +742,206 @@ func findField(svc *Service, key string) *Field {
 	return findFieldInNodes(svc.Tree(), key)
 }
 
+func TestBackupEnabledRequiresDestination(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if field == nil {
+		t.Fatal("backup.enabled field not found")
+	}
+
+	// Enabling without any destination should fail.
+	err := svc.SetValue(field, "true")
+	if err == nil {
+		t.Fatal("expected error enabling backup without destination")
+	}
+	if !strings.Contains(err.Error(), "select a destination") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestBackupEnabledRequiresR2Credentials(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2:          &config.R2Config{},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+
+	// Enabling with destination=r2 but no credentials should fail.
+	err := svc.SetValue(field, "true")
+	if err == nil {
+		t.Fatal("expected error enabling backup without R2 credentials")
+	}
+	if !strings.Contains(err.Error(), "configure R2") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestBackupEnabledSucceedsWithR2Configured(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "test-bucket",
+			Endpoint:     "https://example.r2.cloudflarestorage.com",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if err := svc.SetValue(field, "true"); err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !cfg.Backup.Enabled {
+		t.Error("backup should be enabled")
+	}
+}
+
+func TestBackupEnabledRequiresGDriveFolderID(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "gdrive",
+		GDrive:      &config.GDriveConfig{},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+
+	err := svc.SetValue(field, "true")
+	if err == nil {
+		t.Fatal("expected error enabling backup without GDrive folder ID")
+	}
+	if !strings.Contains(err.Error(), "Google Drive folder ID") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestBackupEnabledSucceedsWithGDriveConfigured(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "gdrive",
+		GDrive:      &config.GDriveConfig{FolderID: "1abc"},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if err := svc.SetValue(field, "true"); err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !cfg.Backup.Enabled {
+		t.Error("backup should be enabled")
+	}
+}
+
+func TestBackupDisableAlwaysAllowed(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{Enabled: true, Destination: "r2"}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if err := svc.SetValue(field, "false"); err != nil {
+		t.Fatalf("disabling should always work: %v", err)
+	}
+	if cfg.Backup.Enabled {
+		t.Error("backup should be disabled")
+	}
+}
+
+func TestBackupR2FieldsReadOnlyWhenNotR2(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{Destination: "gdrive"}
+	svc := testService(cfg)
+
+	for _, key := range []string{"backup.r2.bucket", "backup.r2.endpoint", "backup.r2.access_key", "backup.r2.secret_key"} {
+		field := findFieldInNodes(svc.Tree(), key)
+		if field == nil {
+			t.Fatalf("%s field not found", key)
+		}
+		if field.ReadOnly == nil {
+			t.Fatalf("%s should have ReadOnly", key)
+		}
+		if !field.ReadOnly(cfg) {
+			t.Errorf("%s should be read-only when destination is gdrive", key)
+		}
+	}
+}
+
+func TestBackupR2FieldsEditableWhenR2(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{Destination: "r2"}
+	svc := testService(cfg)
+
+	for _, key := range []string{"backup.r2.bucket", "backup.r2.endpoint", "backup.r2.access_key", "backup.r2.secret_key"} {
+		field := findFieldInNodes(svc.Tree(), key)
+		if field.ReadOnly(cfg) {
+			t.Errorf("%s should be editable when destination is r2", key)
+		}
+	}
+}
+
+func TestBackupGDriveFieldsReadOnlyWhenNotGDrive(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{Destination: "r2"}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.gdrive.folder_id")
+	if field == nil {
+		t.Fatal("backup.gdrive.folder_id field not found")
+	}
+	if !field.ReadOnly(cfg) {
+		t.Error("folder_id should be read-only when destination is r2")
+	}
+}
+
+func TestBackupGDriveFieldsEditableWhenGDrive(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{Destination: "gdrive"}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.gdrive.folder_id")
+	if field.ReadOnly(cfg) {
+		t.Error("folder_id should be editable when destination is gdrive")
+	}
+}
+
+func TestBackupScheduleReadOnlyWithoutDestination(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.schedule")
+	if field == nil {
+		t.Fatal("backup.schedule field not found")
+	}
+	if !field.ReadOnly(cfg) {
+		t.Error("schedule should be read-only when no destination is configured")
+	}
+}
+
+func TestBackupScheduleEditableWhenConfigured(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "b",
+			Endpoint:     "e",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.schedule")
+	if field.ReadOnly(cfg) {
+		t.Error("schedule should be editable when R2 is fully configured")
+	}
+}
+
 func findFieldInNodes(nodes []Node, key string) *Field {
 	for _, n := range nodes {
 		if n.Field != nil && n.Field.Key == key {

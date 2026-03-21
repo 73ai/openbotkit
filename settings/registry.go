@@ -732,11 +732,16 @@ func backupCategory(svc *Service) *Category {
 					return strconv.FormatBool(c.Backup.Enabled)
 				},
 				Set: func(c *config.Config, v string) error {
-					ensureBackup(c)
 					b, err := strconv.ParseBool(v)
 					if err != nil {
 						return fmt.Errorf("invalid boolean: %w", err)
 					}
+					if b {
+						if err := validateBackupReady(c); err != nil {
+							return err
+						}
+					}
+					ensureBackup(c)
 					c.Backup.Enabled = b
 					return nil
 				},
@@ -746,6 +751,7 @@ func backupCategory(svc *Service) *Category {
 				Label: "Destination",
 				Type:  TypeSelect,
 				Options: []Option{
+					{"(not set)", ""},
 					{"Cloudflare R2", "r2"},
 					{"Google Drive", "gdrive"},
 				},
@@ -782,6 +788,9 @@ func backupCategory(svc *Service) *Category {
 					c.Backup.Schedule = v
 					return nil
 				},
+				ReadOnly: func(c *config.Config) bool {
+					return !isBackupDestinationConfigured(c)
+				},
 			}},
 			{Category: &Category{
 				Key:   "backup.r2",
@@ -802,6 +811,9 @@ func backupCategory(svc *Service) *Category {
 							c.Backup.R2.Bucket = v
 							return nil
 						},
+						ReadOnly: func(c *config.Config) bool {
+							return backupDest(c) != "r2"
+						},
 					}},
 					{Field: &Field{
 						Key:   "backup.r2.endpoint",
@@ -817,6 +829,9 @@ func backupCategory(svc *Service) *Category {
 							ensureBackupR2(c)
 							c.Backup.R2.Endpoint = v
 							return nil
+						},
+						ReadOnly: func(c *config.Config) bool {
+							return backupDest(c) != "r2"
 						},
 					}},
 					{Field: &Field{
@@ -841,6 +856,9 @@ func backupCategory(svc *Service) *Category {
 							c.Backup.R2.AccessKeyRef = ref
 							return nil
 						},
+						ReadOnly: func(c *config.Config) bool {
+							return backupDest(c) != "r2"
+						},
 					}},
 					{Field: &Field{
 						Key:   "backup.r2.secret_key",
@@ -864,6 +882,9 @@ func backupCategory(svc *Service) *Category {
 							c.Backup.R2.SecretKeyRef = ref
 							return nil
 						},
+						ReadOnly: func(c *config.Config) bool {
+							return backupDest(c) != "r2"
+						},
 					}},
 				},
 			}},
@@ -886,11 +907,65 @@ func backupCategory(svc *Service) *Category {
 							c.Backup.GDrive.FolderID = v
 							return nil
 						},
+						ReadOnly: func(c *config.Config) bool {
+							return backupDest(c) != "gdrive"
+						},
 					}},
 				},
 			}},
 		},
 	}
+}
+
+func backupDest(c *config.Config) string {
+	if c.Backup == nil {
+		return ""
+	}
+	return c.Backup.Destination
+}
+
+func isR2Configured(c *config.Config) bool {
+	if c.Backup == nil || c.Backup.R2 == nil {
+		return false
+	}
+	r := c.Backup.R2
+	return r.Bucket != "" && r.Endpoint != "" && r.AccessKeyRef != "" && r.SecretKeyRef != ""
+}
+
+func isGDriveConfigured(c *config.Config) bool {
+	if c.Backup == nil || c.Backup.GDrive == nil {
+		return false
+	}
+	return c.Backup.GDrive.FolderID != ""
+}
+
+func isBackupDestinationConfigured(c *config.Config) bool {
+	switch backupDest(c) {
+	case "r2":
+		return isR2Configured(c)
+	case "gdrive":
+		return isGDriveConfigured(c)
+	default:
+		return false
+	}
+}
+
+func validateBackupReady(c *config.Config) error {
+	dest := backupDest(c)
+	if dest == "" {
+		return fmt.Errorf("select a destination first")
+	}
+	switch dest {
+	case "r2":
+		if !isR2Configured(c) {
+			return fmt.Errorf("configure R2 bucket, endpoint, and credentials first")
+		}
+	case "gdrive":
+		if !isGDriveConfigured(c) {
+			return fmt.Errorf("configure Google Drive folder ID first")
+		}
+	}
+	return nil
 }
 
 func ensureBackup(c *config.Config) {
