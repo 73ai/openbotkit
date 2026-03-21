@@ -910,7 +910,7 @@ func TestBackupGDriveFieldsEditableWhenGDrive(t *testing.T) {
 	}
 }
 
-func TestBackupScheduleReadOnlyWithoutDestination(t *testing.T) {
+func TestBackupScheduleReadOnlyWhenNotEnabled(t *testing.T) {
 	cfg := config.Default()
 	svc := testService(cfg)
 
@@ -919,13 +919,28 @@ func TestBackupScheduleReadOnlyWithoutDestination(t *testing.T) {
 		t.Fatal("backup.schedule field not found")
 	}
 	if !field.ReadOnly(cfg) {
-		t.Error("schedule should be read-only when no destination is configured")
+		t.Error("schedule should be read-only when backup is not enabled")
+	}
+
+	// Even with destination configured but not enabled, schedule is locked.
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "b",
+			Endpoint:     "e",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	if !field.ReadOnly(cfg) {
+		t.Error("schedule should be read-only when destination is configured but backup not enabled")
 	}
 }
 
-func TestBackupScheduleEditableWhenConfigured(t *testing.T) {
+func TestBackupScheduleEditableWhenEnabled(t *testing.T) {
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{
+		Enabled:     true,
 		Destination: "r2",
 		R2: &config.R2Config{
 			Bucket:       "b",
@@ -938,7 +953,104 @@ func TestBackupScheduleEditableWhenConfigured(t *testing.T) {
 
 	field := findFieldInNodes(svc.Tree(), "backup.schedule")
 	if field.ReadOnly(cfg) {
-		t.Error("schedule should be editable when R2 is fully configured")
+		t.Error("schedule should be editable when backup is enabled")
+	}
+}
+
+func TestBackupEnabledReadOnlyWithoutDestination(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if field == nil {
+		t.Fatal("backup.enabled field not found")
+	}
+	if field.ReadOnly == nil {
+		t.Fatal("backup.enabled should have ReadOnly")
+	}
+	if !field.ReadOnly(cfg) {
+		t.Error("enabled should be read-only when no destination is configured")
+	}
+}
+
+func TestBackupEnabledEditableWhenDestConfigured(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "b",
+			Endpoint:     "e",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if field.ReadOnly(cfg) {
+		t.Error("enabled should be editable when destination is fully configured")
+	}
+}
+
+func TestBackupEnabledEditableWhenAlreadyEnabled(t *testing.T) {
+	// Even if destination becomes unconfigured, user can still toggle OFF.
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Enabled:     true,
+		Destination: "gdrive",
+		GDrive:      &config.GDriveConfig{},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.enabled")
+	if field.ReadOnly(cfg) {
+		t.Error("enabled should be editable when already enabled (so user can disable)")
+	}
+}
+
+func TestBackupDestinationChangeResetsEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Enabled:     true,
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "b",
+			Endpoint:     "e",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.destination")
+	if err := svc.SetValue(field, "gdrive"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Backup.Enabled {
+		t.Error("changing destination should reset enabled to false")
+	}
+}
+
+func TestBackupDestinationSameValueKeepsEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Backup = &config.BackupConfig{
+		Enabled:     true,
+		Destination: "r2",
+		R2: &config.R2Config{
+			Bucket:       "b",
+			Endpoint:     "e",
+			AccessKeyRef: "keychain:obk/r2-access-key",
+			SecretKeyRef: "keychain:obk/r2-secret-key",
+		},
+	}
+	svc := testService(cfg)
+
+	field := findFieldInNodes(svc.Tree(), "backup.destination")
+	if err := svc.SetValue(field, "r2"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Backup.Enabled {
+		t.Error("setting same destination should keep enabled=true")
 	}
 }
 

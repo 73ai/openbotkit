@@ -745,6 +745,12 @@ func backupCategory(svc *Service) *Category {
 					c.Backup.Enabled = b
 					return nil
 				},
+				ReadOnly: func(c *config.Config) bool {
+					if c.Backup != nil && c.Backup.Enabled {
+						return false
+					}
+					return !isBackupDestinationConfigured(c)
+				},
 			}},
 			{Field: &Field{
 				Key:   "backup.destination",
@@ -763,6 +769,9 @@ func backupCategory(svc *Service) *Category {
 				},
 				Set: func(c *config.Config, v string) error {
 					ensureBackup(c)
+					if c.Backup.Destination != v {
+						c.Backup.Enabled = false
+					}
 					c.Backup.Destination = v
 					return nil
 				},
@@ -789,7 +798,7 @@ func backupCategory(svc *Service) *Category {
 					return nil
 				},
 				ReadOnly: func(c *config.Config) bool {
-					return !isBackupDestinationConfigured(c)
+					return c.Backup == nil || !c.Backup.Enabled
 				},
 			}},
 			{Category: &Category{
