@@ -18,6 +18,7 @@ func BuildTree(svc *Service) []Node {
 		{Category: channelsCategory()},
 		{Category: dataSourcesCategory()},
 		{Category: integrationsCategory()},
+		{Category: backupCategory(svc)},
 		{Category: advancedCategory()},
 	}
 }
@@ -712,6 +713,203 @@ func integrationsCategory() *Category {
 				},
 			}},
 		},
+	}
+}
+
+func backupCategory(svc *Service) *Category {
+	return &Category{
+		Key:   "backup",
+		Label: "Backup",
+		Children: []Node{
+			{Field: &Field{
+				Key:   "backup.enabled",
+				Label: "Enabled",
+				Type:  TypeBool,
+				Get: func(c *config.Config) string {
+					if c.Backup == nil {
+						return "false"
+					}
+					return strconv.FormatBool(c.Backup.Enabled)
+				},
+				Set: func(c *config.Config, v string) error {
+					ensureBackup(c)
+					b, err := strconv.ParseBool(v)
+					if err != nil {
+						return fmt.Errorf("invalid boolean: %w", err)
+					}
+					c.Backup.Enabled = b
+					return nil
+				},
+			}},
+			{Field: &Field{
+				Key:   "backup.destination",
+				Label: "Destination",
+				Type:  TypeSelect,
+				Options: []Option{
+					{"Cloudflare R2", "r2"},
+					{"Google Drive", "gdrive"},
+				},
+				Get: func(c *config.Config) string {
+					if c.Backup == nil {
+						return ""
+					}
+					return c.Backup.Destination
+				},
+				Set: func(c *config.Config, v string) error {
+					ensureBackup(c)
+					c.Backup.Destination = v
+					return nil
+				},
+			}},
+			{Field: &Field{
+				Key:   "backup.schedule",
+				Label: "Schedule",
+				Type:  TypeSelect,
+				Options: []Option{
+					{"Every 6 hours", "6h"},
+					{"Every 12 hours", "12h"},
+					{"Daily", "24h"},
+					{"Manual only", ""},
+				},
+				Get: func(c *config.Config) string {
+					if c.Backup == nil {
+						return ""
+					}
+					return c.Backup.Schedule
+				},
+				Set: func(c *config.Config, v string) error {
+					ensureBackup(c)
+					c.Backup.Schedule = v
+					return nil
+				},
+			}},
+			{Category: &Category{
+				Key:   "backup.r2",
+				Label: "Cloudflare R2",
+				Children: []Node{
+					{Field: &Field{
+						Key:   "backup.r2.bucket",
+						Label: "Bucket",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							if c.Backup == nil || c.Backup.R2 == nil {
+								return ""
+							}
+							return c.Backup.R2.Bucket
+						},
+						Set: func(c *config.Config, v string) error {
+							ensureBackupR2(c)
+							c.Backup.R2.Bucket = v
+							return nil
+						},
+					}},
+					{Field: &Field{
+						Key:   "backup.r2.endpoint",
+						Label: "Endpoint",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							if c.Backup == nil || c.Backup.R2 == nil {
+								return ""
+							}
+							return c.Backup.R2.Endpoint
+						},
+						Set: func(c *config.Config, v string) error {
+							ensureBackupR2(c)
+							c.Backup.R2.Endpoint = v
+							return nil
+						},
+					}},
+					{Field: &Field{
+						Key:   "backup.r2.access_key",
+						Label: "Access Key ID",
+						Type:  TypePassword,
+						Get: func(c *config.Config) string {
+							if c.Backup == nil || c.Backup.R2 == nil || c.Backup.R2.AccessKeyRef == "" {
+								return "not configured"
+							}
+							return maskCredential(svc, c.Backup.R2.AccessKeyRef)
+						},
+						Set: func(c *config.Config, v string) error {
+							if v == "" {
+								return nil
+							}
+							ensureBackupR2(c)
+							ref := "keychain:obk/r2-access-key"
+							if err := svc.StoreCredential(ref, v); err != nil {
+								return fmt.Errorf("store credential: %w", err)
+							}
+							c.Backup.R2.AccessKeyRef = ref
+							return nil
+						},
+					}},
+					{Field: &Field{
+						Key:   "backup.r2.secret_key",
+						Label: "Secret Access Key",
+						Type:  TypePassword,
+						Get: func(c *config.Config) string {
+							if c.Backup == nil || c.Backup.R2 == nil || c.Backup.R2.SecretKeyRef == "" {
+								return "not configured"
+							}
+							return maskCredential(svc, c.Backup.R2.SecretKeyRef)
+						},
+						Set: func(c *config.Config, v string) error {
+							if v == "" {
+								return nil
+							}
+							ensureBackupR2(c)
+							ref := "keychain:obk/r2-secret-key"
+							if err := svc.StoreCredential(ref, v); err != nil {
+								return fmt.Errorf("store credential: %w", err)
+							}
+							c.Backup.R2.SecretKeyRef = ref
+							return nil
+						},
+					}},
+				},
+			}},
+			{Category: &Category{
+				Key:   "backup.gdrive",
+				Label: "Google Drive",
+				Children: []Node{
+					{Field: &Field{
+						Key:   "backup.gdrive.folder_id",
+						Label: "Folder ID",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							if c.Backup == nil || c.Backup.GDrive == nil {
+								return ""
+							}
+							return c.Backup.GDrive.FolderID
+						},
+						Set: func(c *config.Config, v string) error {
+							ensureBackupGDrive(c)
+							c.Backup.GDrive.FolderID = v
+							return nil
+						},
+					}},
+				},
+			}},
+		},
+	}
+}
+
+func ensureBackup(c *config.Config) {
+	if c.Backup == nil {
+		c.Backup = &config.BackupConfig{}
+	}
+}
+
+func ensureBackupR2(c *config.Config) {
+	ensureBackup(c)
+	if c.Backup.R2 == nil {
+		c.Backup.R2 = &config.R2Config{}
+	}
+}
+
+func ensureBackupGDrive(c *config.Config) {
+	ensureBackup(c)
+	if c.Backup.GDrive == nil {
+		c.Backup.GDrive = &config.GDriveConfig{}
 	}
 }
 
