@@ -273,6 +273,35 @@ import Footer from '../components/Footer.astro';
       </ol>
     </section>
 
+    <!-- Backup & Restore -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        Backup &amp; restore
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        Your data is yours. Losing it is not acceptable. OpenBotKit includes a full backup system
+        so your databases, config, and learnings are always recoverable.
+      </p>
+      <dl class="mt-6 space-y-4 text-[1.25rem] leading-[1.7]">
+        <div>
+          <dt class="font-bold text-heading">Cloud backends</dt>
+          <dd class="mt-1 text-paragraph">
+            Back up to Cloudflare R2, any S3-compatible storage, or Google Drive. A setup wizard
+            walks you through credentials and verification.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">CLI commands</dt>
+          <dd class="mt-1 text-paragraph">
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup now</code>,
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup list</code>,
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup restore</code>.
+            Automatic scheduled backups run in the background daemon.
+          </dd>
+        </div>
+      </dl>
+    </section>
+
     <!-- Get Started CTA -->
     <section class="mt-20 border-t border-border pt-12">
       <p class="text-[1.25rem] leading-[1.7] text-paragraph">
