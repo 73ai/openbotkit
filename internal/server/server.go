@@ -155,7 +155,6 @@ func (s *Server) startTelegram(ctx context.Context) error {
 	}
 
 	ch := tgchannel.NewChannel(bot, ownerID)
-	poller := tgchannel.NewPoller(bot, ownerID, ch)
 
 	interactor := channel.NewInteractor(ch)
 	account := s.resolveAccount()
@@ -169,6 +168,7 @@ func (s *Server) startTelegram(ctx context.Context) error {
 		Account:     account,
 	})
 
+	poller := tgchannel.NewPoller(bot, ownerID, ch, sm)
 	go poller.Run(ctx)
 	go sm.Run(ctx)
 
