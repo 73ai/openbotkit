@@ -1,7 +1,7 @@
 package backup
 
 import (
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 )
@@ -34,11 +34,14 @@ var excludePatterns = []string{
 
 func ScanFiles(baseDir string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() {
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		if d.IsDir() {
 			return nil
 		}
 		rel, err := filepath.Rel(baseDir, path)

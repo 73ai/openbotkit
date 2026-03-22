@@ -175,6 +175,27 @@ func TestScanFiles(t *testing.T) {
 	}
 }
 
+func TestScanFilesSkipsSymlinks(t *testing.T) {
+	dir := t.TempDir()
+
+	mkFile(t, dir, "config.yaml")
+	// Create a symlink that points back to the base dir (infinite loop risk).
+	if err := os.Symlink(dir, filepath.Join(dir, "learnings")); err != nil {
+		t.Skip("symlinks not supported on this OS")
+	}
+
+	files, err := ScanFiles(dir)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	for _, f := range files {
+		if f == "learnings" || filepath.Dir(f) == "learnings" {
+			t.Errorf("symlink target should not be followed: found %q", f)
+		}
+	}
+}
+
 func TestLocalBackendPutGetHeadListDelete(t *testing.T) {
 	dir := t.TempDir()
 	backend := NewLocalBackend(dir)
