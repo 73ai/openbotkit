@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -17,6 +18,7 @@ const (
 	TaskRunning   TaskStatus = "running"
 	TaskCompleted TaskStatus = "completed"
 	TaskFailed    TaskStatus = "failed"
+	TaskCancelled TaskStatus = "cancelled"
 )
 
 const defaultMaxConcurrent = 3
@@ -37,6 +39,7 @@ type TaskRecord struct {
 type TaskTracker struct {
 	mu            sync.Mutex
 	tasks         map[string]*TaskRecord
+	cancelFuncs   map[string]context.CancelFunc
 	order         []string // insertion order for deterministic listing
 	maxConcurrent int
 	db            *store.DB // nil for in-memory only
@@ -46,6 +49,7 @@ type TaskTracker struct {
 func NewTaskTracker() *TaskTracker {
 	return &TaskTracker{
 		tasks:         make(map[string]*TaskRecord),
+		cancelFuncs:   make(map[string]context.CancelFunc),
 		maxConcurrent: defaultMaxConcurrent,
 	}
 }
@@ -60,6 +64,7 @@ func NewPersistentTaskTracker(db *store.DB) *TaskTracker {
 
 	t := &TaskTracker{
 		tasks:         make(map[string]*TaskRecord),
+		cancelFuncs:   make(map[string]context.CancelFunc),
 		maxConcurrent: defaultMaxConcurrent,
 		db:            db,
 	}
@@ -121,6 +126,7 @@ func (t *TaskTracker) Complete(id, output string) {
 		rec.Output = output
 		rec.DoneAt = time.Now()
 	}
+	delete(t.cancelFuncs, id)
 	if t.db != nil {
 		if err := tasks.SetCompleted(t.db, id, output); err != nil {
 			slog.Warn("tasks: db set completed failed", "id", id, "error", err)
@@ -137,6 +143,7 @@ func (t *TaskTracker) Fail(id, errMsg string) {
 		rec.Error = errMsg
 		rec.DoneAt = time.Now()
 	}
+	delete(t.cancelFuncs, id)
 	if t.db != nil {
 		if err := tasks.SetFailed(t.db, id, errMsg); err != nil {
 			slog.Warn("tasks: db set failed", "id", id, "error", err)
@@ -223,4 +230,68 @@ func (t *TaskTracker) runningCountLocked() int {
 		}
 	}
 	return count
+}
+
+// RegisterCancel stores a cancel function for an active task.
+func (t *TaskTracker) RegisterCancel(id string, cancel context.CancelFunc) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.cancelFuncs[id] = cancel
+}
+
+// Cancel cancels a running task by ID. Returns true if the task was found and cancelled.
+func (t *TaskTracker) Cancel(id string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	cancel, ok := t.cancelFuncs[id]
+	if !ok {
+		return false
+	}
+	cancel()
+	delete(t.cancelFuncs, id)
+	if rec, exists := t.tasks[id]; exists && rec.Status == TaskRunning {
+		rec.Status = TaskCancelled
+		rec.Error = "cancelled by user"
+		rec.DoneAt = time.Now()
+	}
+	if t.db != nil {
+		if err := tasks.SetFailed(t.db, id, "cancelled by user"); err != nil {
+			slog.Warn("tasks: db set cancelled failed", "id", id, "error", err)
+		}
+	}
+	return true
+}
+
+// CancelAll cancels all running tasks. Returns the number of tasks cancelled.
+func (t *TaskTracker) CancelAll() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	count := 0
+	for id, cancel := range t.cancelFuncs {
+		cancel()
+		delete(t.cancelFuncs, id)
+		if rec, ok := t.tasks[id]; ok && rec.Status == TaskRunning {
+			rec.Status = TaskCancelled
+			rec.Error = "cancelled by user"
+			rec.DoneAt = time.Now()
+		}
+		if t.db != nil {
+			tasks.SetFailed(t.db, id, "cancelled by user")
+		}
+		count++
+	}
+	return count
+}
+
+// RunningTasks returns summaries of all currently running tasks.
+func (t *TaskTracker) RunningTasks() []TaskRecord {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var result []TaskRecord
+	for _, id := range t.order {
+		if rec, ok := t.tasks[id]; ok && rec.Status == TaskRunning {
+			result = append(result, *rec)
+		}
+	}
+	return result
 }

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -238,6 +239,130 @@ func TestPersistentTaskTracker_CrossSessionList(t *testing.T) {
 	list := tr2.List()
 	if len(list) != 2 {
 		t.Fatalf("got %d tasks, want 2", len(list))
+	}
+}
+
+func TestTaskTracker_RegisterAndCancel(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "research", AgentClaude)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tr.RegisterCancel("t1", cancel)
+
+	ok := tr.Cancel("t1")
+	if !ok {
+		t.Fatal("Cancel should return true for registered task")
+	}
+	if ctx.Err() != context.Canceled {
+		t.Error("context should be cancelled")
+	}
+	rec, _ := tr.Get("t1")
+	if rec.Status != TaskCancelled {
+		t.Errorf("status = %q, want cancelled", rec.Status)
+	}
+	if rec.DoneAt.IsZero() {
+		t.Error("DoneAt should be set")
+	}
+}
+
+func TestTaskTracker_CancelNonexistent(t *testing.T) {
+	tr := NewTaskTracker()
+	if tr.Cancel("ghost") {
+		t.Error("Cancel should return false for unknown ID")
+	}
+}
+
+func TestTaskTracker_CancelAll(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "task1", AgentClaude)
+	tr.Start("t2", "task2", AgentClaude)
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	tr.RegisterCancel("t1", cancel1)
+	tr.RegisterCancel("t2", cancel2)
+
+	count := tr.CancelAll()
+	if count != 2 {
+		t.Errorf("CancelAll returned %d, want 2", count)
+	}
+	if ctx1.Err() != context.Canceled {
+		t.Error("ctx1 should be cancelled")
+	}
+	if ctx2.Err() != context.Canceled {
+		t.Error("ctx2 should be cancelled")
+	}
+	rec1, _ := tr.Get("t1")
+	rec2, _ := tr.Get("t2")
+	if rec1.Status != TaskCancelled {
+		t.Errorf("t1 status = %q", rec1.Status)
+	}
+	if rec2.Status != TaskCancelled {
+		t.Errorf("t2 status = %q", rec2.Status)
+	}
+}
+
+func TestTaskTracker_CompleteCleansCancelFunc(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "task", AgentClaude)
+	_, cancel := context.WithCancel(context.Background())
+	tr.RegisterCancel("t1", cancel)
+
+	tr.Complete("t1", "done")
+
+	if tr.Cancel("t1") {
+		t.Error("Cancel should return false after Complete")
+	}
+}
+
+func TestTaskTracker_FailCleansCancelFunc(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "task", AgentClaude)
+	_, cancel := context.WithCancel(context.Background())
+	tr.RegisterCancel("t1", cancel)
+
+	tr.Fail("t1", "err")
+
+	if tr.Cancel("t1") {
+		t.Error("Cancel should return false after Fail")
+	}
+}
+
+func TestTaskTracker_RunningTasks(t *testing.T) {
+	tr := NewTaskTracker()
+	tr.Start("t1", "task1", AgentClaude)
+	tr.Start("t2", "task2", AgentGemini)
+	tr.Start("t3", "task3", AgentClaude)
+	tr.Complete("t2", "done")
+
+	running := tr.RunningTasks()
+	if len(running) != 2 {
+		t.Fatalf("got %d running, want 2", len(running))
+	}
+	if running[0].ID != "t1" || running[1].ID != "t3" {
+		t.Errorf("running = %s, %s", running[0].ID, running[1].ID)
+	}
+}
+
+func TestTaskTracker_CancelWithDB(t *testing.T) {
+	db := openTestTrackerDB(t)
+	tr := NewPersistentTaskTracker(db)
+	tr.Start("t1", "research", AgentClaude)
+
+	_, cancel := context.WithCancel(context.Background())
+	tr.RegisterCancel("t1", cancel)
+
+	tr.Cancel("t1")
+
+	dbRec, err := tasks.Get(db, "t1")
+	if err != nil {
+		t.Fatalf("tasks.Get: %v", err)
+	}
+	if dbRec.Status != "failed" {
+		t.Errorf("DB status = %q, want failed (cancelled persisted as failed)", dbRec.Status)
+	}
+	if dbRec.Error != "cancelled by user" {
+		t.Errorf("DB error = %q", dbRec.Error)
 	}
 }
 

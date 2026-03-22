@@ -736,6 +736,43 @@ func TestDelegateTask_ProgressIgnoresToolUseEvents(t *testing.T) {
 	}
 }
 
+func TestDelegateTask_AsyncRegistersCancel(t *testing.T) {
+	tool, _, runner := setupAsyncDelegateTest(t, true)
+	input, _ := json.Marshal(delegateTaskInput{Task: "cancellable task", Async: true})
+	result, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var resp struct {
+		TaskID string `json:"task_id"`
+	}
+	json.Unmarshal([]byte(result), &resp)
+
+	// Wait for runner to start.
+	<-runner.called
+
+	// Cancel via tracker — should stop the running task.
+	ok := tool.tracker.Cancel(resp.TaskID)
+	if !ok {
+		t.Fatal("Cancel should return true for registered task")
+	}
+
+	// Wait for cancellation notification.
+	select {
+	case msg := <-tool.interactor.(*syncMockInteractor).notifyCh:
+		if !strings.Contains(msg, "cancelled") {
+			t.Errorf("notification = %q, want cancelled", msg)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for cancel notification")
+	}
+
+	rec, _ := tool.tracker.Get(resp.TaskID)
+	if rec.Status != TaskCancelled {
+		t.Errorf("status = %q, want cancelled", rec.Status)
+	}
+}
+
 func TestDelegateTask_NoAgentsAvailable(t *testing.T) {
 	inter := &mockInteractor{approveAll: true}
 	tool := NewDelegateTaskTool(DelegateTaskConfig{

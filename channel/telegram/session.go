@@ -51,11 +51,13 @@ type SessionManager struct {
 	nanoProvider provider.Provider
 	nanoModel    string
 
-	mu        sync.Mutex
-	sessionID string
-	timer     *time.Timer
-	messages  []string           // user messages collected in this session
-	history   []provider.Message // conversation history for context
+	mu           sync.Mutex
+	sessionID    string
+	timer        *time.Timer
+	messages     []string           // user messages collected in this session
+	history      []provider.Message // conversation history for context
+	agentRunning bool
+	runCancel    context.CancelFunc
 }
 
 // SessionManagerDeps holds optional GWS-related dependencies.
@@ -89,6 +91,48 @@ func NewSessionManager(cfg *config.Config, ch *Channel, p provider.Provider, pro
 	}
 	sm.initWebSearch()
 	return sm
+}
+
+// IsAgentRunning returns true if the agent is currently executing.
+func (sm *SessionManager) IsAgentRunning() bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return sm.agentRunning
+}
+
+// Kill cancels the currently running agent. Returns true if an agent was running.
+func (sm *SessionManager) Kill() bool {
+	sm.mu.Lock()
+	cancel := sm.runCancel
+	running := sm.agentRunning
+	sm.mu.Unlock()
+	if !running || cancel == nil {
+		return false
+	}
+	sm.channel.CancelPendingApproval()
+	cancel()
+	return true
+}
+
+// RunningDelegateTasks returns summaries of running delegate tasks.
+func (sm *SessionManager) RunningDelegateTasks() []TaskSummary {
+	if sm.taskTracker == nil {
+		return nil
+	}
+	running := sm.taskTracker.RunningTasks()
+	summaries := make([]TaskSummary, len(running))
+	for i, r := range running {
+		summaries[i] = TaskSummary{ID: r.ID, Task: r.Task}
+	}
+	return summaries
+}
+
+// KillDelegateTask cancels a specific delegate task by ID.
+func (sm *SessionManager) KillDelegateTask(id string) bool {
+	if sm.taskTracker == nil {
+		return false
+	}
+	return sm.taskTracker.Cancel(id)
 }
 
 func (sm *SessionManager) Run(ctx context.Context) {
@@ -141,8 +185,37 @@ func (sm *SessionManager) handleMessage(ctx context.Context, text string, messag
 		defer auditLogger.Close()
 	}
 
-	response, err := a.Run(ctx, text)
+	agentCtx, cancel := context.WithCancel(ctx)
+	sm.mu.Lock()
+	sm.agentRunning = true
+	sm.runCancel = cancel
+	sm.mu.Unlock()
+
+	response, err := a.Run(agentCtx, text)
 	fb.Stop()
+
+	// Check before cancel() — cancel() would set agentCtx.Err() on normal completion too.
+	killed := agentCtx.Err() != nil && ctx.Err() == nil
+
+	sm.mu.Lock()
+	sm.agentRunning = false
+	sm.runCancel = nil
+	sm.mu.Unlock()
+	cancel()
+	if killed {
+		sm.mu.Lock()
+		sid := sm.sessionID
+		sm.messages = append(sm.messages, text)
+		sm.history = append(sm.history,
+			provider.NewTextMessage(provider.RoleUser, text),
+			provider.NewTextMessage(provider.RoleAssistant, "(interrupted)"),
+		)
+		sm.mu.Unlock()
+		sm.saveHistory(sid, text, "(interrupted)")
+		sm.channel.Send("Stopped.")
+		return
+	}
+
 	if err != nil {
 		slog.Error("telegram session: agent error", "error", err)
 		sm.channel.Send(fmt.Sprintf("Error: %v", err))

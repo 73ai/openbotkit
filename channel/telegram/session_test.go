@@ -755,6 +755,229 @@ func newTaskTracker() *tools.TaskTracker {
 	return tools.NewTaskTracker()
 }
 
+// blockingProvider blocks on Chat() until released or context is cancelled.
+type blockingProvider struct {
+	called   chan struct{}
+	released chan struct{}
+	response *provider.ChatResponse
+}
+
+func newBlockingProvider() *blockingProvider {
+	return &blockingProvider{
+		called:   make(chan struct{}),
+		released: make(chan struct{}),
+		response: &provider.ChatResponse{
+			Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "blocking response"}},
+			StopReason: provider.StopEndTurn,
+		},
+	}
+}
+
+func (p *blockingProvider) Chat(ctx context.Context, _ provider.ChatRequest) (*provider.ChatResponse, error) {
+	close(p.called)
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-p.released:
+		return p.response, nil
+	}
+}
+
+func (p *blockingProvider) StreamChat(_ context.Context, _ provider.ChatRequest) (<-chan provider.StreamEvent, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func TestSessionManager_IsAgentRunning(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	bp := newBlockingProvider()
+	sm := &SessionManager{
+		cfg: cfg, channel: ch, provider: bp, model: "test",
+		fastProvider: bp, fastModel: "test",
+		nanoProvider: bp, nanoModel: "test",
+		taskTracker:  newTaskTracker(),
+	}
+
+	if sm.IsAgentRunning() {
+		t.Fatal("should not be running initially")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		sm.handleMessage(context.Background(), "test", 0)
+		close(done)
+	}()
+
+	<-bp.called
+	if !sm.IsAgentRunning() {
+		t.Fatal("should be running during agent execution")
+	}
+
+	close(bp.released)
+	<-done
+	if sm.IsAgentRunning() {
+		t.Fatal("should not be running after agent completes")
+	}
+}
+
+func TestSessionManager_Kill(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	bp := newBlockingProvider()
+	sm := &SessionManager{
+		cfg: cfg, channel: ch, provider: bp, model: "test",
+		fastProvider: bp, fastModel: "test",
+		nanoProvider: bp, nanoModel: "test",
+		taskTracker:  newTaskTracker(),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		sm.handleMessage(context.Background(), "test input", 0)
+		close(done)
+	}()
+
+	<-bp.called
+	if !sm.Kill() {
+		t.Fatal("Kill should return true when agent is running")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handleMessage should have returned after kill")
+	}
+
+	texts := sentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "Stopped.") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'Stopped.' message, got: %v", texts)
+	}
+}
+
+func TestSessionManager_KillNotRunning(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	sm := &SessionManager{cfg: cfg, channel: ch, taskTracker: newTaskTracker()}
+
+	if sm.Kill() {
+		t.Fatal("Kill should return false when no agent is running")
+	}
+}
+
+func TestSessionManager_HandleMessageKilled(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	bp := newBlockingProvider()
+	sm := &SessionManager{
+		cfg: cfg, channel: ch, provider: bp, model: "test",
+		fastProvider: bp, fastModel: "test",
+		nanoProvider: bp, nanoModel: "test",
+		taskTracker:  newTaskTracker(),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		sm.handleMessage(context.Background(), "hello", 0)
+		close(done)
+	}()
+
+	<-bp.called
+	sm.Kill()
+	<-done
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if len(sm.history) != 2 {
+		t.Fatalf("expected 2 history entries, got %d", len(sm.history))
+	}
+	if sm.history[1].Content[0].Text != "(interrupted)" {
+		t.Errorf("history[1].Text = %q, want (interrupted)", sm.history[1].Content[0].Text)
+	}
+}
+
+func TestSessionManager_KillDuringApproval(t *testing.T) {
+	bot := &mockBot{notify: make(chan struct{}, 1)}
+	ch := NewChannel(bot, 123)
+
+	approvalDone := make(chan bool, 1)
+	go func() {
+		approved, _ := ch.RequestApproval("risky action")
+		approvalDone <- approved
+	}()
+
+	select {
+	case <-bot.notify:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval message")
+	}
+
+	ch.CancelPendingApproval()
+
+	select {
+	case approved := <-approvalDone:
+		if approved {
+			t.Fatal("expected approval to be denied after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval result")
+	}
+}
+
+func TestSessionManager_RunningDelegateTasks(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	tracker := newTaskTracker()
+	tracker.Start("t1", "research Go", tools.AgentClaude)
+	tracker.Start("t2", "write docs", tools.AgentGemini)
+	tracker.Complete("t2", "done")
+
+	sm := &SessionManager{cfg: cfg, channel: ch, taskTracker: tracker}
+
+	tasks := sm.RunningDelegateTasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d running tasks, want 1", len(tasks))
+	}
+	if tasks[0].ID != "t1" || tasks[0].Task != "research Go" {
+		t.Errorf("task = %+v", tasks[0])
+	}
+}
+
+func TestSessionManager_KillDelegateTask(t *testing.T) {
+	cfg := setupTestEnv(t)
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	tracker := newTaskTracker()
+	tracker.Start("t1", "research", tools.AgentClaude)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tracker.RegisterCancel("t1", cancel)
+
+	sm := &SessionManager{cfg: cfg, channel: ch, taskTracker: tracker}
+
+	if !sm.KillDelegateTask("t1") {
+		t.Fatal("expected true")
+	}
+	if ctx.Err() != context.Canceled {
+		t.Error("context should be cancelled")
+	}
+	if sm.KillDelegateTask("nonexistent") {
+		t.Fatal("expected false for nonexistent task")
+	}
+}
+
 func TestAuthRedirectURL_WithCallback(t *testing.T) {
 	cfg := config.Default()
 	cfg.Integrations = &config.IntegrationsConfig{

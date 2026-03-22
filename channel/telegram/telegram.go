@@ -29,6 +29,12 @@ type incomingMessage struct {
 	messageID int
 }
 
+// callbackData carries a parsed callback from the Telegram inline keyboard.
+type callbackData struct {
+	ID   string // callback query ID (for answering)
+	Data string // raw callback data string
+}
+
 // Channel implements channel.Channel for Telegram.
 type Channel struct {
 	bot      botSender
@@ -39,14 +45,19 @@ type Channel struct {
 	approvalMu    sync.Mutex
 	approvalCh    chan approvalResponse
 	approvalMsgID int
+
+	interruptCh chan callbackData
+	killTaskCh  chan callbackData
 }
 
 func NewChannel(bot botSender, chatID int64) *Channel {
 	return &Channel{
-		bot:      bot,
-		chatID:   chatID,
-		incoming: make(chan incomingMessage, 16),
-		done:     make(chan struct{}),
+		bot:         bot,
+		chatID:      chatID,
+		incoming:    make(chan incomingMessage, 16),
+		done:        make(chan struct{}),
+		interruptCh: make(chan callbackData, 1),
+		killTaskCh:  make(chan callbackData, 1),
 	}
 }
 
@@ -144,14 +155,25 @@ func (c *Channel) RequestApproval(action string) (bool, error) {
 	}
 	c.approvalMu.Lock()
 	c.approvalMsgID = sentMsg.MessageID
+	ch := c.approvalCh
 	c.approvalMu.Unlock()
 
-	resp := <-c.approvalCh
+	resp := <-ch
 	return resp.approved, resp.err
 }
 
-// HandleCallback processes an inline keyboard callback.
+// HandleCallback processes an inline keyboard callback, routing by data prefix.
 func (c *Channel) HandleCallback(callbackID string, data string) {
+	switch {
+	case strings.HasPrefix(data, "interrupt:"):
+		c.interruptCh <- callbackData{ID: callbackID, Data: data}
+		return
+	case strings.HasPrefix(data, "kill_task:"):
+		c.killTaskCh <- callbackData{ID: callbackID, Data: data}
+		return
+	}
+
+	// Default: approval flow.
 	c.approvalMu.Lock()
 	ch := c.approvalCh
 	msgID := c.approvalMsgID
@@ -160,7 +182,6 @@ func (c *Channel) HandleCallback(callbackID string, data string) {
 
 	approved := data == "approve"
 
-	// Answer the callback query (dismisses button loading spinner).
 	label := "Approved"
 	if !approved {
 		label = "Denied"
@@ -168,7 +189,6 @@ func (c *Channel) HandleCallback(callbackID string, data string) {
 	answer := tgbotapi.NewCallback(callbackID, label)
 	c.bot.Request(answer)
 
-	// Remove inline keyboard buttons.
 	if msgID != 0 {
 		edit := tgbotapi.NewEditMessageReplyMarkup(
 			c.chatID, msgID,
@@ -179,6 +199,18 @@ func (c *Channel) HandleCallback(callbackID string, data string) {
 
 	if ch != nil {
 		ch <- approvalResponse{approved: approved}
+	}
+}
+
+// CancelPendingApproval sends a denial to unblock RequestApproval if the
+// agent is killed while waiting for user approval.
+func (c *Channel) CancelPendingApproval() {
+	c.approvalMu.Lock()
+	ch := c.approvalCh
+	c.approvalCh = nil
+	c.approvalMu.Unlock()
+	if ch != nil {
+		ch <- approvalResponse{approved: false}
 	}
 }
 

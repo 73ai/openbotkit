@@ -507,7 +507,7 @@ func TestLoop_RateLimiterContextCancel(t *testing.T) {
 		_, _ = a.Run(context.Background(), "burst")
 	}
 
-	// Now cancel context; should fail on rate limiter.
+	// Now cancel context; should fail early (ctx.Err check at loop top).
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	mp.idx = 0
@@ -515,10 +515,10 @@ func TestLoop_RateLimiterContextCancel(t *testing.T) {
 	a.history = nil
 	_, err = a.Run(ctx, "should fail")
 	if err == nil {
-		t.Fatal("expected rate limiter error")
+		t.Fatal("expected context cancelled error")
 	}
-	if !strings.Contains(err.Error(), "rate limiter") {
-		t.Errorf("error = %q, expected rate limiter error", err.Error())
+	if err != context.Canceled {
+		t.Errorf("error = %v, expected context.Canceled", err)
 	}
 }
 
@@ -651,4 +651,125 @@ func TestLoop_TracksLastInputTokens(t *testing.T) {
 	if a.lastInputTokens != 42000 {
 		t.Errorf("lastInputTokens = %d, want 42000", a.lastInputTokens)
 	}
+}
+
+func TestRun_ContextCancelledBeforeFirstIteration(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{Content: []provider.ContentBlock{{Type: provider.ContentText, Text: "ok"}}, StopReason: provider.StopEndTurn},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{}}
+	a := New(mp, "test-model", exec)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := a.Run(ctx, "hi")
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+	if err != context.Canceled {
+		t.Errorf("error = %v, want context.Canceled", err)
+	}
+	if len(mp.requests) != 0 {
+		t.Errorf("provider should not have been called, got %d requests", len(mp.requests))
+	}
+}
+
+func TestRun_ContextCancelledDuringToolExecution(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+						ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+					}},
+				},
+				StopReason: provider.StopToolUse,
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	exec := &cancellingExecutor{cancel: cancel}
+	a := New(mp, "test-model", exec)
+
+	_, err := a.Run(ctx, "run something")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// The second provider.Chat call will fail because context is cancelled.
+	// But the error might come from ctx.Err() check at the top of the loop.
+	if !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("error = %q, want context canceled", err.Error())
+	}
+}
+
+// cancellingExecutor cancels the context during Execute.
+type cancellingExecutor struct {
+	cancel context.CancelFunc
+}
+
+func (c *cancellingExecutor) Execute(_ context.Context, _ provider.ToolCall) (string, error) {
+	c.cancel()
+	return "ok", nil
+}
+
+func (c *cancellingExecutor) ToolSchemas() []provider.Tool {
+	return []provider.Tool{
+		{Name: "bash", Description: "Run a command", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+}
+
+func TestRun_ContextCancelledBetweenIterations(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Provider returns tool use on first call, then we check the loop catches ctx.Err().
+	callCount := 0
+	mp := &hookProvider{
+		hook: func() (*provider.ChatResponse, error) {
+			callCount++
+			if callCount == 1 {
+				return &provider.ChatResponse{
+					Content: []provider.ContentBlock{
+						{Type: provider.ContentToolUse, ToolCall: &provider.ToolCall{
+							ID: "c1", Name: "bash", Input: json.RawMessage(`{}`),
+						}},
+					},
+					StopReason: provider.StopToolUse,
+				}, nil
+			}
+			// Should not be reached — loop should catch ctx.Err() first.
+			return &provider.ChatResponse{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "should not reach"}},
+				StopReason: provider.StopEndTurn,
+			}, nil
+		},
+	}
+
+	// Cancel after executor returns, before next iteration.
+	exec := &cancellingExecutor{cancel: cancel}
+	a := New(mp, "test-model", exec, WithMaxIterations(10))
+
+	_, err := a.Run(ctx, "test")
+	if err != context.Canceled {
+		t.Errorf("error = %v, want context.Canceled", err)
+	}
+	if callCount > 1 {
+		t.Errorf("provider called %d times, expected 1 (cancelled before second call)", callCount)
+	}
+}
+
+// hookProvider calls a hook function for each Chat call.
+type hookProvider struct {
+	hook func() (*provider.ChatResponse, error)
+}
+
+func (h *hookProvider) Chat(_ context.Context, _ provider.ChatRequest) (*provider.ChatResponse, error) {
+	return h.hook()
+}
+
+func (h *hookProvider) StreamChat(_ context.Context, _ provider.ChatRequest) (<-chan provider.StreamEvent, error) {
+	return nil, fmt.Errorf("not implemented")
 }
