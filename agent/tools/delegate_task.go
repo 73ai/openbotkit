@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -228,6 +229,7 @@ func (d *DelegateTaskTool) runAsync(
 ) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.timeout)
 	defer cancel()
+	d.tracker.RegisterCancel(taskID, cancel)
 
 	// Try streaming runner for progress reporting.
 	sr, ok := d.streamRunners[kind]
@@ -241,6 +243,11 @@ func (d *DelegateTaskTool) runAsync(
 		}
 		output, err := sr.RunStream(ctx, task, d.timeout, onEvent, runOpts...)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				d.logAudit(taskID, preview, "", "cancelled")
+				d.interactor.Notify(fmt.Sprintf("Task cancelled: %s", preview))
+				return
+			}
 			d.tracker.Fail(taskID, err.Error())
 			d.logAudit(taskID, preview, "", err.Error())
 			d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
@@ -256,6 +263,11 @@ func (d *DelegateTaskTool) runAsync(
 	// Fallback to non-streaming runner.
 	output, err := runner.Run(ctx, task, d.timeout, runOpts...)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			d.logAudit(taskID, preview, "", "cancelled")
+			d.interactor.Notify(fmt.Sprintf("Task cancelled: %s", preview))
+			return
+		}
 		d.tracker.Fail(taskID, err.Error())
 		d.logAudit(taskID, preview, "", err.Error())
 		d.interactor.Notify(fmt.Sprintf("Task failed: %s. %s", preview, err))
