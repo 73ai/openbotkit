@@ -1,24 +1,36 @@
-name: Release Minor Version
+name: Manual Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 0.2.0). Must bump minor or major.'
+        description: 'Release version with v prefix (e.g., v0.2.0)'
         required: true
         type: string
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: googleapis/release-please-action@v4
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          release-as: ${{ github.event.inputs.version }}
+          fetch-depth: 0
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --tag ${{ github.event.inputs.version }} --prepend CHANGELOG.md
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git tag "${VERSION}"
+          git push origin master --tags
