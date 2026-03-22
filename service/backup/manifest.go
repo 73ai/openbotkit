@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,9 +25,11 @@ type ManifestFile struct {
 
 func NewManifest(hostname string) *Manifest {
 	now := time.Now().UTC()
+	suffix := make([]byte, 4)
+	rand.Read(suffix)
 	return &Manifest{
 		Version:   1,
-		ID:        now.Format("20060102T150405Z"),
+		ID:        now.Format("20060102T150405Z") + "-" + hex.EncodeToString(suffix),
 		Timestamp: now,
 		Hostname:  hostname,
 		Files:     make(map[string]ManifestFile),
