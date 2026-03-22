@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
+
+var errNotFound = errors.New("not found")
 
 type GDriveBackend struct {
 	srv      *drive.Service
@@ -77,7 +80,7 @@ func (b *GDriveBackend) Get(ctx context.Context, key string) (io.ReadCloser, err
 func (b *GDriveBackend) Head(ctx context.Context, key string) (bool, error) {
 	_, err := b.resolveKey(ctx, key)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, errNotFound) {
 			return false, nil
 		}
 		return false, err
@@ -103,7 +106,7 @@ func (b *GDriveBackend) List(ctx context.Context, prefix string) ([]string, erro
 func (b *GDriveBackend) Delete(ctx context.Context, key string) error {
 	fileID, err := b.resolveKey(ctx, key)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, errNotFound) {
 			return nil
 		}
 		return err
@@ -121,7 +124,7 @@ func (b *GDriveBackend) resolveKey(ctx context.Context, key string) (string, err
 			return "", err
 		}
 		if id == "" {
-			return "", fmt.Errorf("%s not found", key)
+			return "", fmt.Errorf("%s: %w", key, errNotFound)
 		}
 		if i < len(parts)-1 {
 			parentID = id
@@ -129,7 +132,7 @@ func (b *GDriveBackend) resolveKey(ctx context.Context, key string) (string, err
 			return id, nil
 		}
 	}
-	return "", fmt.Errorf("%s not found", key)
+	return "", fmt.Errorf("%s: %w", key, errNotFound)
 }
 
 func (b *GDriveBackend) findFile(ctx context.Context, parentID, name string) (string, error) {
@@ -180,7 +183,7 @@ func (b *GDriveBackend) resolveFolderPath(ctx context.Context, parentID string, 
 			return "", err
 		}
 		if id == "" {
-			return "", fmt.Errorf("folder %s not found", part)
+			return "", fmt.Errorf("folder %s: %w", part, errNotFound)
 		}
 		current = id
 	}
