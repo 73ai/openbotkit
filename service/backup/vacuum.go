@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -26,7 +27,8 @@ func VacuumInto(dbPath, stagingDir, relPath string) (string, error) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(fmt.Sprintf("VACUUM INTO '%s'", destPath)); err != nil {
+	escaped := strings.ReplaceAll(destPath, "'", "''")
+	if _, err := db.Exec(fmt.Sprintf("VACUUM INTO '%s'", escaped)); err != nil {
 		return "", fmt.Errorf("vacuum into %s: %w", destPath, err)
 	}
 

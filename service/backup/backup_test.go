@@ -332,6 +332,46 @@ func TestVacuumInto(t *testing.T) {
 	}
 }
 
+func TestVacuumIntoQuoteInPath(t *testing.T) {
+	dir := t.TempDir()
+	stagingDir := t.TempDir()
+
+	// Create a database in a directory with a single quote in the name.
+	dbPath := filepath.Join(dir, "it's-a-test", "data.db")
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("CREATE TABLE test (val TEXT)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO test (val) VALUES ('quoted')"); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	vacuumed, err := VacuumInto(dbPath, stagingDir, "it's-a-test/data.db")
+	if err != nil {
+		t.Fatalf("vacuum with quote in path: %v", err)
+	}
+
+	vdb, err := sql.Open("sqlite", vacuumed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vdb.Close()
+	var val string
+	if err := vdb.QueryRow("SELECT val FROM test").Scan(&val); err != nil {
+		t.Fatalf("read from vacuumed db: %v", err)
+	}
+	if val != "quoted" {
+		t.Errorf("val = %q, want quoted", val)
+	}
+}
+
 func TestVacuumIntoNoCollision(t *testing.T) {
 	dir := t.TempDir()
 	stagingDir := t.TempDir()
