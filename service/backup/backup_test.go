@@ -659,6 +659,45 @@ func TestServiceListSnapshotsEmpty(t *testing.T) {
 	}
 }
 
+func TestServiceRestoreMissingObject(t *testing.T) {
+	baseDir := t.TempDir()
+	remoteDir := t.TempDir()
+	manifestPath := filepath.Join(t.TempDir(), "last_manifest.json")
+	stagingDir := t.TempDir()
+
+	mkFileWithContent(t, baseDir, "config.yaml", "mode: local")
+
+	backend := NewLocalBackend(remoteDir)
+	svc := NewWithPaths(backend, baseDir, manifestPath, stagingDir)
+	ctx := context.Background()
+
+	// Run backup to create a valid snapshot.
+	_, err := svc.Run(ctx)
+	if err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+
+	snapshots, err := svc.ListSnapshots(ctx)
+	if err != nil || len(snapshots) == 0 {
+		t.Fatal("expected at least one snapshot")
+	}
+
+	// Delete the object files from the backend to simulate corruption.
+	objects, _ := backend.List(ctx, "objects/")
+	for _, key := range objects {
+		backend.Delete(ctx, key)
+	}
+
+	// Restore should fail because the objects are missing.
+	restoreDir := t.TempDir()
+	restoreSvc := NewWithPaths(backend, restoreDir, filepath.Join(t.TempDir(), "m.json"), t.TempDir())
+
+	_, err = restoreSvc.Restore(ctx, snapshots[0])
+	if err == nil {
+		t.Fatal("expected error when restoring with missing objects")
+	}
+}
+
 func TestServiceRunWithSQLiteDB(t *testing.T) {
 	baseDir := t.TempDir()
 	remoteDir := t.TempDir()
