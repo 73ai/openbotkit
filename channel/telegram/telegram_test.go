@@ -355,6 +355,115 @@ func TestHandleCallback_DenyShowsDeniedLabel(t *testing.T) {
 	}
 }
 
+func TestHandleCallback_RoutesInterruptStop(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	go ch.HandleCallback("cb1", "interrupt:stop")
+
+	select {
+	case cb := <-ch.interruptCh:
+		if cb.Data != "interrupt:stop" {
+			t.Errorf("data = %q", cb.Data)
+		}
+		if cb.ID != "cb1" {
+			t.Errorf("id = %q", cb.ID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("interrupt callback not routed")
+	}
+}
+
+func TestHandleCallback_RoutesInterruptContinue(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	go ch.HandleCallback("cb2", "interrupt:continue")
+
+	select {
+	case cb := <-ch.interruptCh:
+		if cb.Data != "interrupt:continue" {
+			t.Errorf("data = %q", cb.Data)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("interrupt callback not routed")
+	}
+}
+
+func TestHandleCallback_RoutesKillTask(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+
+	go ch.HandleCallback("cb3", "kill_task:abc123")
+
+	select {
+	case cb := <-ch.killTaskCh:
+		if cb.Data != "kill_task:abc123" {
+			t.Errorf("data = %q", cb.Data)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("kill_task callback not routed")
+	}
+}
+
+func TestHandleCallback_RoutesApprovalUnchanged(t *testing.T) {
+	bot := &mockBot{notify: make(chan struct{}, 1)}
+	ch := NewChannel(bot, 123)
+
+	done := make(chan bool, 1)
+	go func() {
+		approved, _ := ch.RequestApproval("some action")
+		done <- approved
+	}()
+
+	select {
+	case <-bot.notify:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval")
+	}
+
+	ch.HandleCallback("cb4", "approve")
+
+	approved := <-done
+	if !approved {
+		t.Fatal("expected approval")
+	}
+}
+
+func TestCancelPendingApproval_UnblocksRequestApproval(t *testing.T) {
+	bot := &mockBot{notify: make(chan struct{}, 1)}
+	ch := NewChannel(bot, 123)
+
+	done := make(chan bool, 1)
+	go func() {
+		approved, _ := ch.RequestApproval("risky action")
+		done <- approved
+	}()
+
+	select {
+	case <-bot.notify:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval message")
+	}
+
+	ch.CancelPendingApproval()
+
+	select {
+	case approved := <-done:
+		if approved {
+			t.Fatal("expected denied after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for approval result")
+	}
+}
+
+func TestCancelPendingApproval_NoOpWhenNoPending(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	ch.CancelPendingApproval() // should not panic
+}
+
 func TestPoller_PassesMessageID(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
