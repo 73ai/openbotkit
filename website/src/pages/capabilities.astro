@@ -7,7 +7,7 @@ import Footer from '../components/Footer.astro';
 
 <Layout
   title="Capabilities - OpenBotKit"
-  description="What OpenBotKit can do: integrations, the agent harness, safety architecture, and multi-LLM support."
+  description="What OpenBotKit can do: integrations, agent harness with user memory, safety architecture, 7 LLM providers with free tier, and backup system."
 >
   <Nav />
   <main class="mx-auto max-w-2xl px-6 pt-32 pb-20">
@@ -20,7 +20,8 @@ import Footer from '../components/Footer.astro';
       </h2>
       <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
         A single Go binary connects to your data sources, syncs everything to local SQLite, and lets
-        you interact through Telegram or the terminal. Every write action goes through approval
+        you interact through Telegram or the terminal. Run it on your laptop or deploy it to a Linux
+        server and talk to it from anywhere via Telegram. Every write action goes through approval
         gates before it executes.
       </p>
       <figure class="mt-8">
@@ -87,12 +88,16 @@ import Footer from '../components/Footer.astro';
         </div>
         <div>
           <dt class="inline font-bold text-heading">Slack</dt>
-          <dd class="inline text-paragraph">: read channels and send messages.</dd>
+          <dd class="inline text-paragraph">
+            : read channels, search messages, follow threads, react, edit, and send messages.</dd
+          >
         </div>
         <div>
           <dt class="inline font-bold text-heading">Google Workspace</dt>
           <dd class="inline text-paragraph">
-            : Calendar, Docs, Sheets, Drive, and 40+ more APIs via progressive consent.</dd
+            : Calendar, Gmail, Docs, Sheets, Slides, Drive, Meet, Chat, Tasks, Keep, Forms,
+            Classroom, People, Admin Reports, and Workflows. Progressive consent, 40+ workflow
+            recipes.</dd
           >
         </div>
         <div>
@@ -101,7 +106,10 @@ import Footer from '../components/Footer.astro';
         </div>
         <div>
           <dt class="inline font-bold text-heading">Web Search</dt>
-          <dd class="inline text-paragraph">: search the web. No API keys needed.</dd>
+          <dd class="inline text-paragraph">
+            : 8 search engines (Brave, DuckDuckGo, Google, Bing, Yahoo, Yandex, Mojeek, Wikipedia)
+            plus news search. No API keys needed.</dd
+          >
         </div>
         <div>
           <dt class="inline font-bold text-heading">Scheduler</dt>
@@ -131,9 +139,12 @@ import Footer from '../components/Footer.astro';
         Bring your own AI. Not locked into one provider.
       </p>
       <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
-        Anthropic Claude (default), Google Gemini, OpenAI, OpenRouter, and Groq. Switch providers
-        with a single config change. Cost profiles included so you know what each model costs before
-        you use it.
+        Anthropic Claude (default), Google Gemini, OpenAI, OpenRouter, Groq, Cerebras, and Z.AI.
+        Switch providers with a single config change. Cost profiles included so you know what each
+        model costs before you use it.
+      </p>
+      <p class="mt-2 text-[1.25rem] leading-[1.7] text-paragraph">
+        Free tier available: Gemini + Cerebras require no API costs to get started.
       </p>
     </section>
 
@@ -154,10 +165,11 @@ import Footer from '../components/Footer.astro';
           </dd>
         </div>
         <div>
-          <dt class="font-bold text-heading">100+ plain-text skills</dt>
+          <dt class="font-bold text-heading">105 plain-text skills</dt>
           <dd class="mt-1 text-paragraph">
-            Skills are plain language descriptions, not code. Services, helpers, personas, and
-            recipes you can read, edit, or replace in seconds.
+            Skills are plain language descriptions, not code. 10 personas (Executive Assistant,
+            Project Manager, Researcher, and more), 40+ workflow recipes, and service integrations
+            you can read, edit, or replace in seconds.
           </dd>
         </div>
         <div>
@@ -173,6 +185,14 @@ import Footer from '../components/Footer.astro';
             All data lives in SQLite databases under <code
               class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">~/.obk/</code
             >. Pure Go driver, no CGO, no external dependencies.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">User memory</dt>
+          <dd class="mt-1 text-paragraph">
+            Your assistant remembers facts about you across conversations. Learnings are extracted
+            automatically, stored locally as Markdown files, and you can view, search, or delete
+            them at any time.
           </dd>
         </div>
       </dl>
@@ -251,6 +271,35 @@ import Footer from '../components/Footer.astro';
           </span>
         </li>
       </ol>
+    </section>
+
+    <!-- Backup & Restore -->
+    <section class="mt-20">
+      <h2 class="text-[1.4rem] font-semibold leading-[1.7] tracking-[0.02em] text-heading">
+        Backup &amp; restore
+      </h2>
+      <p class="mt-4 text-[1.25rem] leading-[1.7] text-paragraph">
+        Your data is yours. Losing it is not acceptable. OpenBotKit includes a full backup system
+        so your databases, config, and learnings are always recoverable.
+      </p>
+      <dl class="mt-6 space-y-4 text-[1.25rem] leading-[1.7]">
+        <div>
+          <dt class="font-bold text-heading">Cloud backends</dt>
+          <dd class="mt-1 text-paragraph">
+            Back up to Cloudflare R2, any S3-compatible storage, or Google Drive. A setup wizard
+            walks you through credentials and verification.
+          </dd>
+        </div>
+        <div>
+          <dt class="font-bold text-heading">CLI commands</dt>
+          <dd class="mt-1 text-paragraph">
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup now</code>,
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup list</code>,
+            <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup restore</code>.
+            Automatic scheduled backups run in the background daemon.
+          </dd>
+        </div>
+      </dl>
     </section>
 
     <!-- Get Started CTA -->
