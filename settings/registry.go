@@ -18,6 +18,7 @@ func BuildTree(svc *Service) []Node {
 		{Category: channelsCategory()},
 		{Category: dataSourcesCategory()},
 		{Category: integrationsCategory()},
+		{Category: backupCategory(svc)},
 		{Category: advancedCategory()},
 	}
 }
@@ -712,6 +713,253 @@ func integrationsCategory() *Category {
 				},
 			}},
 		},
+	}
+}
+
+func backupCategory(svc *Service) *Category {
+	children := []Node{
+		{Field: &Field{
+			Key:   "backup.enabled",
+			Label: "Enabled",
+			Type:  TypeBool,
+			Get: func(c *config.Config) string {
+				if c.Backup == nil {
+					return "false"
+				}
+				return strconv.FormatBool(c.Backup.Enabled)
+			},
+			Set: func(c *config.Config, v string) error {
+				b, err := strconv.ParseBool(v)
+				if err != nil {
+					return fmt.Errorf("invalid boolean: %w", err)
+				}
+				if b {
+					if err := validateBackupReady(c); err != nil {
+						return err
+					}
+				}
+				ensureBackup(c)
+				c.Backup.Enabled = b
+				return nil
+			},
+			ReadOnly: func(c *config.Config) bool {
+				if c.Backup != nil && c.Backup.Enabled {
+					return false
+				}
+				return !isBackupDestinationConfigured(c)
+			},
+		}},
+		{Field: &Field{
+			Key:   "backup.destination",
+			Label: "Destination",
+			Type:  TypeSelect,
+			Options: []Option{
+				{"(not set)", ""},
+				{"Cloudflare R2", "r2"},
+				{"Google Drive", "gdrive"},
+			},
+			Get: func(c *config.Config) string {
+				if c.Backup == nil {
+					return ""
+				}
+				return c.Backup.Destination
+			},
+			Set: func(c *config.Config, v string) error {
+				ensureBackup(c)
+				if c.Backup.Destination != v {
+					c.Backup.Enabled = false
+				}
+				c.Backup.Destination = v
+				return nil
+			},
+		}},
+		{Field: &Field{
+			Key:   "backup.schedule",
+			Label: "Schedule",
+			Type:  TypeSelect,
+			Options: []Option{
+				{"Every 6 hours", "6h"},
+				{"Every 12 hours", "12h"},
+				{"Daily", "24h"},
+				{"Manual only", ""},
+			},
+			Get: func(c *config.Config) string {
+				if c.Backup == nil {
+					return ""
+				}
+				return c.Backup.Schedule
+			},
+			Set: func(c *config.Config, v string) error {
+				ensureBackup(c)
+				c.Backup.Schedule = v
+				return nil
+			},
+			ReadOnly: func(c *config.Config) bool {
+				return c.Backup == nil || !c.Backup.Enabled
+			},
+		}},
+	}
+
+	// Only show R2 sub-category when destination is R2.
+	if BackupDest(svc.cfg) == "r2" {
+		children = append(children, Node{Category: &Category{
+			Key:   "backup.r2",
+			Label: "Cloudflare R2",
+			Children: []Node{
+				{Field: &Field{
+					Key:         "backup.r2.bucket",
+					Label:       "Bucket",
+					Description: "Cloudflare Dashboard → R2 Object Storage → your bucket",
+					Type:        TypeString,
+					Get: func(c *config.Config) string {
+						if c.Backup == nil || c.Backup.R2 == nil {
+							return ""
+						}
+						return c.Backup.R2.Bucket
+					},
+					Set: func(c *config.Config, v string) error {
+						ensureBackupR2(c)
+						c.Backup.R2.Bucket = v
+						return nil
+					},
+				}},
+				{Field: &Field{
+					Key:         "backup.r2.endpoint",
+					Label:       "Endpoint",
+					Description: "Bucket → Settings → S3 API → endpoint URL",
+					Type:        TypeString,
+					Get: func(c *config.Config) string {
+						if c.Backup == nil || c.Backup.R2 == nil {
+							return ""
+						}
+						return c.Backup.R2.Endpoint
+					},
+					Set: func(c *config.Config, v string) error {
+						ensureBackupR2(c)
+						c.Backup.R2.Endpoint = v
+						return nil
+					},
+				}},
+				{Field: &Field{
+					Key:         "backup.r2.access_key",
+					Label:       "Access Key ID",
+					Description: "R2 → Manage R2 API Tokens → Create API Token",
+					Type:        TypePassword,
+					Get: func(c *config.Config) string {
+						if c.Backup == nil || c.Backup.R2 == nil || c.Backup.R2.AccessKeyRef == "" {
+							return "not configured"
+						}
+						return maskCredential(svc, c.Backup.R2.AccessKeyRef)
+					},
+					Set: func(c *config.Config, v string) error {
+						if v == "" {
+							return nil
+						}
+						ensureBackupR2(c)
+						ref := "keychain:obk/r2-access-key"
+						if err := svc.StoreCredential(ref, v); err != nil {
+							return fmt.Errorf("store credential: %w", err)
+						}
+						c.Backup.R2.AccessKeyRef = ref
+						return nil
+					},
+				}},
+				{Field: &Field{
+					Key:         "backup.r2.secret_key",
+					Label:       "Secret Access Key",
+					Description: "Shown once when you create the API token",
+					Type:        TypePassword,
+					Get: func(c *config.Config) string {
+						if c.Backup == nil || c.Backup.R2 == nil || c.Backup.R2.SecretKeyRef == "" {
+							return "not configured"
+						}
+						return maskCredential(svc, c.Backup.R2.SecretKeyRef)
+					},
+					Set: func(c *config.Config, v string) error {
+						if v == "" {
+							return nil
+						}
+						ensureBackupR2(c)
+						ref := "keychain:obk/r2-secret-key"
+						if err := svc.StoreCredential(ref, v); err != nil {
+							return fmt.Errorf("store credential: %w", err)
+						}
+						c.Backup.R2.SecretKeyRef = ref
+						return nil
+					},
+				}},
+			},
+		}})
+	}
+
+	return &Category{
+		Key:      "backup",
+		Label:    "Backup",
+		Children: children,
+	}
+}
+
+func BackupDest(c *config.Config) string {
+	if c.Backup == nil {
+		return ""
+	}
+	return c.Backup.Destination
+}
+
+func isR2Configured(c *config.Config) bool {
+	if c.Backup == nil || c.Backup.R2 == nil {
+		return false
+	}
+	r := c.Backup.R2
+	return r.Bucket != "" && r.Endpoint != "" && r.AccessKeyRef != "" && r.SecretKeyRef != ""
+}
+
+func isGDriveConfigured(c *config.Config) bool {
+	if c.Backup == nil || c.Backup.GDrive == nil {
+		return false
+	}
+	return c.Backup.GDrive.FolderID != ""
+}
+
+func isBackupDestinationConfigured(c *config.Config) bool {
+	switch BackupDest(c) {
+	case "r2":
+		return isR2Configured(c)
+	case "gdrive":
+		return isGDriveConfigured(c)
+	default:
+		return false
+	}
+}
+
+func validateBackupReady(c *config.Config) error {
+	dest := BackupDest(c)
+	if dest == "" {
+		return fmt.Errorf("select a destination first")
+	}
+	switch dest {
+	case "r2":
+		if !isR2Configured(c) {
+			return fmt.Errorf("configure R2 bucket, endpoint, and credentials first")
+		}
+	case "gdrive":
+		if !isGDriveConfigured(c) {
+			return fmt.Errorf("configure Google Drive folder ID first")
+		}
+	}
+	return nil
+}
+
+func ensureBackup(c *config.Config) {
+	if c.Backup == nil {
+		c.Backup = &config.BackupConfig{}
+	}
+}
+
+func ensureBackupR2(c *config.Config) {
+	ensureBackup(c)
+	if c.Backup.R2 == nil {
+		c.Backup.R2 = &config.R2Config{}
 	}
 }
 

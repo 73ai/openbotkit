@@ -38,6 +38,7 @@ type Config struct {
 	Slack        *SlackConfig        `yaml:"slack,omitempty"`
 	Scheduler    *SchedulerConfig    `yaml:"scheduler,omitempty"`
 	Tasks        *TasksConfig        `yaml:"tasks,omitempty"`
+	Backup       *BackupConfig       `yaml:"backup,omitempty"`
 }
 
 func (c *Config) ResolvedMode() Mode {
@@ -205,6 +206,25 @@ type SchedulerConfig struct {
 
 type TasksConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
+type BackupConfig struct {
+	Enabled     bool          `yaml:"enabled,omitempty"`
+	Schedule    string        `yaml:"schedule,omitempty"` // "6h", "12h", "24h", or "" (manual)
+	Destination string        `yaml:"destination,omitempty"` // "r2" or "gdrive"
+	R2          *R2Config     `yaml:"r2,omitempty"`
+	GDrive      *GDriveConfig `yaml:"gdrive,omitempty"`
+}
+
+type R2Config struct {
+	Bucket       string `yaml:"bucket,omitempty"`
+	Endpoint     string `yaml:"endpoint,omitempty"`
+	AccessKeyRef string `yaml:"access_key_ref,omitempty"` // e.g. "keychain:obk/r2-access-key"
+	SecretKeyRef string `yaml:"secret_key_ref,omitempty"` // e.g. "keychain:obk/r2-secret-key"
+}
+
+type GDriveConfig struct {
+	FolderID string `yaml:"folder_id,omitempty"`
 }
 
 type StorageConfig struct {

@@ -26,6 +26,8 @@ const (
 	stateProviderAuth
 	stateVerifying
 	stateModelSelect
+	stateBackupDest
+	stateBackupCreds
 )
 
 type flashMsg struct{}
@@ -41,6 +43,17 @@ type verifyModelResultMsg struct {
 	tier  string
 	model string
 	err   error
+}
+
+// backupVerifyResultMsg is returned by async backup verification.
+type backupVerifyResultMsg struct {
+	folderID string // set for GDrive setup
+	err      error
+}
+
+// backupTriggeredMsg is returned after an async backup trigger attempt.
+type backupTriggeredMsg struct {
+	err error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -75,6 +88,14 @@ type model struct {
 	wizardSpinner   spinner.Model
 	wizardAPIKey    *string
 	wizardError     string
+
+	// Backup wizard state
+	wizardBackupDest     *string
+	wizardBackupBucket   *string
+	wizardBackupEndpoint *string
+	wizardBackupAK       *string
+	wizardBackupSK       *string
+	wizardBackupSnapshot *config.BackupConfig // for transactional rollback
 }
 
 func newModel(svc *settings.Service) model {
@@ -113,6 +134,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateVerifying(msg)
 	case stateModelSelect:
 		return m.updateModelSelect(msg)
+	case stateBackupDest:
+		return m.updateBackupDest(msg)
+	case stateBackupCreds:
+		return m.updateBackupCreds(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -134,6 +159,17 @@ func (m model) updateBrowse(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash = ""
 		m.viewport.SetContent(m.renderTree())
 		return m, nil
+
+	case backupTriggeredMsg:
+		if msg.err != nil {
+			m.flash = fmt.Sprintf("Backup failed: %v", msg.err)
+		} else {
+			m.flash = "Backup started"
+		}
+		m.viewport.SetContent(m.renderTree())
+		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+			return flashMsg{}
+		})
 
 	case modelsLoadedMsg:
 		// Silently update cache, no UI change.
@@ -193,8 +229,18 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 	if r.node.Field != nil {
 		f := r.node.Field
 
+		// Backup wizard — only when not yet configured.
+		if f.Key == "backup.enabled" && f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
+			return m.enterBackupWizard()
+		}
+
+		// Destination change — transactional flow.
+		if f.Key == "backup.destination" {
+			return m.enterDestinationChange()
+		}
+
 		if f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
-			m.flash = "Locked by profile — change profile to edit"
+			m.flash = "Locked — configure prerequisites first"
 			m.viewport.SetContent(m.renderTree())
 			return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
 				return flashMsg{}
@@ -257,14 +303,28 @@ func (m model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Rebuild tree when backup config changes (shows/hides R2 category).
+		if strings.HasPrefix(m.editField.Key, "backup.") {
+			m.svc.RebuildTree()
+		}
+
+		// Trigger backup when re-enabling (false → true).
+		var triggerCmd tea.Cmd
+		if m.editField.Key == "backup.enabled" && value == "true" {
+			triggerCmd = triggerBackupIfStaleCmd(m.svc)
+		}
+
 		m.state = stateBrowse
 		m.form = nil
 		m.editField = nil
 		m.rebuildRows()
 		m.viewport.SetContent(m.renderTree())
-		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
-			return flashMsg{}
-		})
+		return m, tea.Batch(
+			tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+				return flashMsg{}
+			}),
+			triggerCmd,
+		)
 	}
 
 	return m, cmd
@@ -473,6 +533,24 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizardSpinner, cmd = m.wizardSpinner.Update(msg)
 		return m, cmd
 
+	case backupVerifyResultMsg:
+		if msg.err != nil {
+			m.flash = fmt.Sprintf("Backup verification failed: %v", msg.err)
+			ret, _ := m.rollbackBackup()
+			return ret, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+				return flashMsg{}
+			})
+		}
+		if msg.folderID != "" {
+			cfg := m.svc.Config()
+			ensureBackup(cfg)
+			if cfg.Backup.GDrive == nil {
+				cfg.Backup.GDrive = &config.GDriveConfig{}
+			}
+			cfg.Backup.GDrive.FolderID = msg.folderID
+		}
+		return m.saveBackup()
+
 	case verifyResultMsg:
 		if msg.err != nil {
 			m.wizardError = fmt.Sprintf("%s verification failed: %v", msg.provider, msg.err)
@@ -491,6 +569,9 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
+			if m.wizardBackupSnapshot != nil {
+				return m.rollbackBackup()
+			}
 			m.state = stateBrowse
 			m.form = nil
 			m.viewport.SetContent(m.renderTree())
@@ -673,7 +754,8 @@ func (m model) renderTree() string {
 
 func (m model) View() string {
 	switch m.state {
-	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect:
+	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
+		stateBackupDest, stateBackupCreds:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {
@@ -686,6 +768,13 @@ func (m model) View() string {
 			return b.String()
 		}
 	case stateVerifying:
+		if m.wizardBackupDest != nil && *m.wizardBackupDest != "" {
+			label := "Verifying backup connection..."
+			if *m.wizardBackupDest == "gdrive" {
+				label = "Setting up Google Drive (check your browser)..."
+			}
+			return fmt.Sprintf("\n  %s %s\n", m.wizardSpinner.View(), label)
+		}
 		provName := ""
 		if m.wizardProvIdx < len(m.wizardProviders) {
 			provName = m.wizardProviders[m.wizardProvIdx]

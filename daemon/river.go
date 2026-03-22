@@ -42,26 +42,42 @@ func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotif
 	})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
 	river.AddWorker(workers, &jobs.ScheduledTaskWorker{Cfg: cfg})
+	river.AddWorker(workers, &jobs.BackupWorker{Cfg: cfg})
 
 	period, err := time.ParseDuration(cfg.Daemon.GmailSyncPeriod)
 	if err != nil {
 		period = 15 * time.Minute
 	}
 
+	periodicJobs := []*river.PeriodicJob{
+		river.NewPeriodicJob(
+			river.PeriodicInterval(period),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return jobs.GmailSyncArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+	}
+
+	if cfg.Backup != nil && cfg.Backup.Enabled && cfg.Backup.Schedule != "" {
+		backupPeriod, err := time.ParseDuration(cfg.Backup.Schedule)
+		if err == nil {
+			periodicJobs = append(periodicJobs, river.NewPeriodicJob(
+				river.PeriodicInterval(backupPeriod),
+				func() (river.JobArgs, *river.InsertOpts) {
+					return jobs.BackupArgs{}, nil
+				},
+				&river.PeriodicJobOpts{RunOnStart: false},
+			))
+		}
+	}
+
 	riverCfg := &river.Config{
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 5},
 		},
-		Workers: workers,
-		PeriodicJobs: []*river.PeriodicJob{
-			river.NewPeriodicJob(
-				river.PeriodicInterval(period),
-				func() (river.JobArgs, *river.InsertOpts) {
-					return jobs.GmailSyncArgs{}, nil
-				},
-				&river.PeriodicJobOpts{RunOnStart: true},
-			),
-		},
+		Workers:      workers,
+		PeriodicJobs: periodicJobs,
 	}
 
 	client, err := river.NewClient(driver, riverCfg)

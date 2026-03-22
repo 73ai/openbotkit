@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/config"
+	backupsvc "github.com/73ai/openbotkit/service/backup"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/oauth/google"
@@ -72,6 +73,7 @@ var setupCmd = &cobra.Command{
 			huh.NewOption("Google Contacts", "people"),
 		}
 		sourceOptions = append(sourceOptions, huh.NewOption("Slack", "slack"))
+		sourceOptions = append(sourceOptions, huh.NewOption("Backup (Cloudflare R2 or Google Drive)", "backup"))
 		if runtime.GOOS == "darwin" {
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Notes", "applenotes"))
 			sourceOptions = append(sourceOptions, huh.NewOption("Apple Contacts", "applecontacts"))
@@ -181,6 +183,10 @@ var setupCmd = &cobra.Command{
 				if err := setupSlack(cfg); err != nil {
 					return err
 				}
+			case "backup":
+				if err := setupBackup(cfg); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -248,6 +254,8 @@ var setupCmd = &cobra.Command{
 				fmt.Println("    - Slack is ready! Try: obk slack channels")
 			case "telegram":
 				fmt.Println("    - Telegram bot is ready! Send it a message.")
+			case "backup":
+				fmt.Println("    - Backup configured! Run `obk backup now` for your first backup.")
 			}
 		}
 		return nil
@@ -713,6 +721,189 @@ func setupSlack(cfg *config.Config) error {
 	}
 
 	fmt.Println("  Run: obk slack auth login")
+	return nil
+}
+
+func setupBackup(cfg *config.Config) error {
+	fmt.Println("\n  -- Backup Setup --")
+
+	var destination string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Where would you like to back up to?").
+				Options(
+					huh.NewOption("Cloudflare R2 (S3-compatible)", "r2"),
+					huh.NewOption("Google Drive", "gdrive"),
+				).
+				Value(&destination),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if cfg.Backup == nil {
+		cfg.Backup = &config.BackupConfig{}
+	}
+	cfg.Backup.Destination = destination
+
+	switch destination {
+	case "r2":
+		if err := setupBackupR2(cfg); err != nil {
+			return err
+		}
+	case "gdrive":
+		if err := setupBackupGDrive(cfg); err != nil {
+			return err
+		}
+	}
+
+	cfg.Backup.Enabled = true
+	cfg.Backup.Schedule = "6h"
+
+	if err := config.EnsureSourceDir("backup"); err != nil {
+		return fmt.Errorf("create backup dir: %w", err)
+	}
+
+	if err := config.LinkSource("backup"); err != nil {
+		return fmt.Errorf("link source: %w", err)
+	}
+
+	fmt.Println("  Backup configured!")
+	return nil
+}
+
+func setupBackupR2(cfg *config.Config) error {
+	var bucket, endpoint, accessKey, secretKey string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("R2 Bucket name").
+				Description("Cloudflare Dashboard → R2 Object Storage → your bucket").
+				Value(&bucket),
+			huh.NewInput().
+				Title("R2 Endpoint").
+				Description("Bucket → Settings → S3 API → copy the endpoint URL").
+				Placeholder("https://<account-id>.r2.cloudflarestorage.com").
+				Value(&endpoint),
+			huh.NewInput().
+				Title("Access Key ID").
+				Description("R2 → Manage R2 API Tokens → Create API Token").
+				Value(&accessKey),
+			huh.NewInput().
+				Title("Secret Access Key").
+				Description("Shown once when you create the API token above").
+				EchoMode(huh.EchoModePassword).
+				Value(&secretKey),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	bucket = strings.TrimSpace(bucket)
+	endpoint = strings.TrimSpace(endpoint)
+	accessKey = strings.TrimSpace(accessKey)
+	secretKey = strings.TrimSpace(secretKey)
+
+	if bucket == "" || endpoint == "" || accessKey == "" || secretKey == "" {
+		return fmt.Errorf("all R2 fields are required")
+	}
+
+	fmt.Print("  Validating R2 connection... ")
+	ctx := context.Background()
+	if err := backupsvc.ValidateR2(ctx, endpoint, accessKey, secretKey, bucket); err != nil {
+		fmt.Println("failed!")
+		return fmt.Errorf("R2 validation: %w", err)
+	}
+	fmt.Println("ok!")
+
+	accessKeyRef := "keychain:obk/r2-access-key"
+	secretKeyRef := "keychain:obk/r2-secret-key"
+
+	if err := provider.StoreCredential(accessKeyRef, accessKey); err != nil {
+		return fmt.Errorf("store R2 access key: %w", err)
+	}
+	if err := provider.StoreCredential(secretKeyRef, secretKey); err != nil {
+		return fmt.Errorf("store R2 secret key: %w", err)
+	}
+
+	if cfg.Backup.R2 == nil {
+		cfg.Backup.R2 = &config.R2Config{}
+	}
+	cfg.Backup.R2.Bucket = bucket
+	cfg.Backup.R2.Endpoint = endpoint
+	cfg.Backup.R2.AccessKeyRef = accessKeyRef
+	cfg.Backup.R2.SecretKeyRef = secretKeyRef
+
+	return nil
+}
+
+func setupBackupGDrive(cfg *config.Config) error {
+	gp := google.New(google.Config{
+		CredentialsFile: cfg.GoogleCredentialsFile(),
+		TokenDBPath:     cfg.GoogleTokenDBPath(),
+	})
+
+	ctx := context.Background()
+
+	accounts, _ := gp.Accounts(ctx)
+	var account string
+	if len(accounts) > 0 {
+		account = accounts[0]
+	}
+
+	scopes := []string{"https://www.googleapis.com/auth/drive.file"}
+
+	if account != "" {
+		granted, err := gp.GrantedScopes(ctx, account)
+		if err == nil {
+			hasDriveScope := false
+			for _, s := range granted {
+				if s == "https://www.googleapis.com/auth/drive.file" {
+					hasDriveScope = true
+					break
+				}
+			}
+			if !hasDriveScope {
+				fmt.Println("  Granting Google Drive file scope...")
+				_, err := gp.GrantScopes(ctx, account, scopes)
+				if err != nil {
+					return fmt.Errorf("grant Drive scope: %w", err)
+				}
+			}
+		}
+	} else {
+		fmt.Println("  No Google account found. Starting OAuth flow...")
+		email, err := gp.GrantScopes(ctx, "", scopes)
+		if err != nil {
+			return fmt.Errorf("Google auth: %w", err)
+		}
+		account = email
+		fmt.Printf("  Authenticated as %s\n", email)
+	}
+
+	folderName := "obk-backup"
+
+	httpClient, err := gp.Client(ctx, account, scopes)
+	if err != nil {
+		return fmt.Errorf("get Drive client: %w", err)
+	}
+
+	fmt.Print("  Finding or creating folder... ")
+	folderID, err := backupsvc.FindOrCreateDriveFolder(ctx, httpClient, folderName)
+	if err != nil {
+		fmt.Println("failed!")
+		return fmt.Errorf("create Drive folder: %w", err)
+	}
+	fmt.Printf("ok! (ID: %s)\n", folderID)
+
+	if cfg.Backup.GDrive == nil {
+		cfg.Backup.GDrive = &config.GDriveConfig{}
+	}
+	cfg.Backup.GDrive.FolderID = folderID
+
 	return nil
 }
 
