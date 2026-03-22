@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/73ai/openbotkit/config"
@@ -141,50 +142,34 @@ func triggerBackupNow(cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	var backend backupsvc.Backend
-	var err error
+	opts := backupsvc.ResolveBackendOpts{
+		ResolveCred: provider.ResolveAPIKey,
+		BackupDest:  cfg.Backup.Destination,
+		GoogleClient: func(ctx context.Context, gcfg backupsvc.GoogleClientConfig) (*http.Client, error) {
+			gp := google.New(google.Config{
+				CredentialsFile: cfg.GoogleCredentialsFile(),
+				TokenDBPath:     cfg.GoogleTokenDBPath(),
+			})
+			accounts, _ := gp.Accounts(ctx)
+			if len(accounts) == 0 {
+				return nil, fmt.Errorf("no Google account found")
+			}
+			return gp.Client(ctx, accounts[0], gcfg.Scopes)
+		},
+	}
+	if cfg.Backup.R2 != nil {
+		opts.R2Bucket = cfg.Backup.R2.Bucket
+		opts.R2Endpoint = cfg.Backup.R2.Endpoint
+		opts.R2AccessRef = cfg.Backup.R2.AccessKeyRef
+		opts.R2SecretRef = cfg.Backup.R2.SecretKeyRef
+	}
+	if cfg.Backup.GDrive != nil {
+		opts.GDriveFolderID = cfg.Backup.GDrive.FolderID
+	}
 
-	switch cfg.Backup.Destination {
-	case "r2":
-		r2 := cfg.Backup.R2
-		if r2 == nil {
-			return fmt.Errorf("R2 not configured")
-		}
-		accessKey, err := provider.LoadCredential(r2.AccessKeyRef)
-		if err != nil {
-			return fmt.Errorf("load R2 access key: %w", err)
-		}
-		secretKey, err := provider.LoadCredential(r2.SecretKeyRef)
-		if err != nil {
-			return fmt.Errorf("load R2 secret key: %w", err)
-		}
-		backend, err = backupsvc.NewR2Backend(r2.Endpoint, accessKey, secretKey, r2.Bucket)
-		if err != nil {
-			return fmt.Errorf("create R2 backend: %w", err)
-		}
-	case "gdrive":
-		gd := cfg.Backup.GDrive
-		if gd == nil || gd.FolderID == "" {
-			return fmt.Errorf("Google Drive not configured")
-		}
-		gp := google.New(google.Config{
-			CredentialsFile: cfg.GoogleCredentialsFile(),
-			TokenDBPath:     cfg.GoogleTokenDBPath(),
-		})
-		accounts, _ := gp.Accounts(ctx)
-		if len(accounts) == 0 {
-			return fmt.Errorf("no Google account found")
-		}
-		httpClient, err := gp.Client(ctx, accounts[0], []string{"https://www.googleapis.com/auth/drive.file"})
-		if err != nil {
-			return fmt.Errorf("get Drive client: %w", err)
-		}
-		backend, err = backupsvc.NewGDriveBackend(ctx, httpClient, gd.FolderID)
-		if err != nil {
-			return fmt.Errorf("create Drive backend: %w", err)
-		}
-	default:
-		return fmt.Errorf("unknown destination: %s", cfg.Backup.Destination)
+	backend, err := backupsvc.ResolveBackend(ctx, opts)
+	if err != nil {
+		return err
 	}
 
 	svc := backupsvc.New(backend, config.Dir())

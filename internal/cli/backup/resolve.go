@@ -3,7 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
-	"os"
+	"net/http"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/oauth/google"
@@ -16,63 +16,37 @@ func resolveBackend(ctx context.Context, cfg *config.Config) (backupsvc.Backend,
 		return nil, fmt.Errorf("backup not configured — run 'obk setup' and select Backup")
 	}
 
-	switch cfg.Backup.Destination {
-	case "r2":
-		return resolveR2Backend(ctx, cfg)
-	case "gdrive":
-		return resolveGDriveBackend(ctx, cfg)
-	default:
-		return nil, fmt.Errorf("unknown backup destination: %q", cfg.Backup.Destination)
-	}
+	return backupsvc.ResolveBackend(ctx, backendOpts(cfg))
 }
 
-func resolveR2Backend(_ context.Context, cfg *config.Config) (backupsvc.Backend, error) {
-	r2 := cfg.Backup.R2
-	if r2 == nil {
-		return nil, fmt.Errorf("R2 config missing")
+func backendOpts(cfg *config.Config) backupsvc.ResolveBackendOpts {
+	opts := backupsvc.ResolveBackendOpts{
+		ResolveCred:  provider.ResolveAPIKey,
+		BackupDest:   cfg.Backup.Destination,
+		GoogleClient: makeGoogleClient(cfg),
 	}
-
-	accessKey, err := provider.ResolveAPIKey(r2.AccessKeyRef, "OBK_R2_ACCESS_KEY")
-	if err != nil {
-		return nil, fmt.Errorf("resolve R2 access key: %w", err)
+	if cfg.Backup.R2 != nil {
+		opts.R2Bucket = cfg.Backup.R2.Bucket
+		opts.R2Endpoint = cfg.Backup.R2.Endpoint
+		opts.R2AccessRef = cfg.Backup.R2.AccessKeyRef
+		opts.R2SecretRef = cfg.Backup.R2.SecretKeyRef
 	}
-	secretKey, err := provider.ResolveAPIKey(r2.SecretKeyRef, "OBK_R2_SECRET_KEY")
-	if err != nil {
-		return nil, fmt.Errorf("resolve R2 secret key: %w", err)
+	if cfg.Backup.GDrive != nil {
+		opts.GDriveFolderID = cfg.Backup.GDrive.FolderID
 	}
-
-	endpoint := r2.Endpoint
-	if e := os.Getenv("OBK_R2_ENDPOINT"); e != "" {
-		endpoint = e
-	}
-	bucket := r2.Bucket
-	if b := os.Getenv("OBK_R2_BUCKET"); b != "" {
-		bucket = b
-	}
-
-	return backupsvc.NewR2Backend(endpoint, accessKey, secretKey, bucket)
+	return opts
 }
 
-func resolveGDriveBackend(ctx context.Context, cfg *config.Config) (backupsvc.Backend, error) {
-	gdrive := cfg.Backup.GDrive
-	if gdrive == nil || gdrive.FolderID == "" {
-		return nil, fmt.Errorf("Google Drive config missing — run 'obk setup' and select Backup")
+func makeGoogleClient(cfg *config.Config) backupsvc.GoogleClientFactory {
+	return func(ctx context.Context, gcfg backupsvc.GoogleClientConfig) (*http.Client, error) {
+		gp := google.New(google.Config{
+			CredentialsFile: cfg.GoogleCredentialsFile(),
+			TokenDBPath:     cfg.GoogleTokenDBPath(),
+		})
+		accounts, err := gp.Accounts(ctx)
+		if err != nil || len(accounts) == 0 {
+			return nil, fmt.Errorf("no Google account found — run 'obk setup'")
+		}
+		return gp.Client(ctx, accounts[0], gcfg.Scopes)
 	}
-
-	gp := google.New(google.Config{
-		CredentialsFile: cfg.GoogleCredentialsFile(),
-		TokenDBPath:     cfg.GoogleTokenDBPath(),
-	})
-
-	accounts, err := gp.Accounts(ctx)
-	if err != nil || len(accounts) == 0 {
-		return nil, fmt.Errorf("no Google account found — run 'obk setup'")
-	}
-
-	httpClient, err := gp.Client(ctx, accounts[0], []string{"https://www.googleapis.com/auth/drive.file"})
-	if err != nil {
-		return nil, fmt.Errorf("get Drive client: %w", err)
-	}
-
-	return backupsvc.NewGDriveBackend(ctx, httpClient, gdrive.FolderID)
 }
