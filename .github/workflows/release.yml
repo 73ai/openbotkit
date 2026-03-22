@@ -14,12 +14,14 @@ jobs:
         include:
           - arch: arm64
             runner: macos-latest
+            target: arm64-apple-macosx14.0
           - arch: amd64
-            runner: macos-13
+            runner: macos-latest
+            target: x86_64-apple-macosx13.0
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - run: swiftc -O -o obkmacos-darwin-${{ matrix.arch }} swift/obkmacos.swift
+      - run: swiftc -O -target ${{ matrix.target }} -o obkmacos-darwin-${{ matrix.arch }} swift/obkmacos.swift
       - uses: actions/upload-artifact@v4
         with:
           name: obkmacos-darwin-${{ matrix.arch }}
