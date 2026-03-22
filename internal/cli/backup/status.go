@@ -2,6 +2,7 @@ package backup
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
 	backupsvc "github.com/73ai/openbotkit/service/backup"
@@ -23,9 +24,9 @@ var statusCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("Last backup: %s\n", manifest.ID)
-		fmt.Printf("Timestamp:   %s\n", manifest.Timestamp.Format("2006-01-02 15:04:05 UTC"))
-		fmt.Printf("Hostname:    %s\n", manifest.Hostname)
+		ago := time.Since(manifest.Timestamp).Truncate(time.Second)
+		fmt.Printf("Last backup: %s (%s ago)\n", manifest.Timestamp.Local().Format("2006-01-02 15:04:05"), ago)
+		fmt.Printf("Snapshot:    %s\n", manifest.ID)
 		fmt.Printf("Files:       %d\n", len(manifest.Files))
 
 		var totalSize, totalCompressed int64
