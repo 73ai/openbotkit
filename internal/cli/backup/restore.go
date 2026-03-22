@@ -27,6 +27,23 @@ var restoreCmd = &cobra.Command{
 		}
 
 		svc := backupsvc.New(backend, config.Dir())
+
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			manifest, err := svc.GetManifest(ctx, snapshotID)
+			if err != nil {
+				return fmt.Errorf("fetch manifest: %w", err)
+			}
+			fmt.Printf("This will overwrite %d files in %s\n", len(manifest.Files), config.Dir())
+			fmt.Print("Continue? [y/N] ")
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("Cancelled.")
+				return nil
+			}
+		}
+
 		result, err := svc.Restore(ctx, snapshotID)
 		if err != nil {
 			return fmt.Errorf("restore failed: %w", err)
@@ -35,4 +52,8 @@ var restoreCmd = &cobra.Command{
 		fmt.Printf("Restored %d files from snapshot %s\n", result.Restored, snapshotID)
 		return nil
 	},
+}
+
+func init() {
+	restoreCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 }
