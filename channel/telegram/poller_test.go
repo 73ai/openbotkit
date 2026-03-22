@@ -364,6 +364,78 @@ func TestPoller_KillTaskCallback(t *testing.T) {
 	}
 }
 
+func TestPoller_KillTaskCallbackAll(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	inter := &mockInterrupter{
+		delegateTasks: []TaskSummary{
+			{ID: "t1", Task: "task one"},
+			{ID: "t2", Task: "task two"},
+		},
+	}
+	p := &Poller{ownerID: 123, channel: ch, interrupter: inter}
+
+	p.handleKillTaskCallback(callbackData{ID: "cb1", Data: "kill_task:all"})
+
+	texts := pollerSentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "Killed 2 task(s)") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'Killed 2 task(s)' message, got: %v", texts)
+	}
+}
+
+func TestPoller_KillTaskCallbackUnknown(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	inter := &mockInterrupter{}
+	p := &Poller{ownerID: 123, channel: ch, interrupter: inter}
+
+	p.handleKillTaskCallback(callbackData{ID: "cb1", Data: "kill_task:nonexistent"})
+
+	texts := pollerSentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "not found") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'not found' message, got: %v", texts)
+	}
+}
+
+func TestPoller_KillNilInterrupter(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	p := &Poller{ownerID: 123, channel: ch, interrupter: nil}
+
+	p.handleUpdate(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{ID: 123},
+			Text: "/kill",
+		},
+	})
+
+	texts := pollerSentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "Nothing running") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'Nothing running' message, got: %v", texts)
+	}
+}
+
 func TestPoller_NormalMessageWhenIdle(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)
