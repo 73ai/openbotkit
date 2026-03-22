@@ -20,6 +20,12 @@ const currentPath = Astro.url.pathname;
         Capabilities
       </a>
       <a
+        href="/changelog"
+        class:list={["text-[1.1rem] font-semibold transition-colors hover:text-heading", currentPath.startsWith("/changelog") ? "text-heading" : "text-muted"]}
+      >
+        Changelog
+      </a>
+      <a
         href="https://github.com/73ai/openbotkit"
         target="_blank"
         rel="noopener"
