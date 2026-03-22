@@ -2,6 +2,61 @@
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+interface ChangeItem {
+  title: string;
+  description: string;
+}
+
+interface Category {
+  name: string;
+  items: ChangeItem[];
+}
+
+interface Release {
+  date: string;
+  categories: Category[];
+}
+
+function parseChangelog(md: string): Release[] {
+  const releases: Release[] = [];
+  let current: Release | null = null;
+  let currentCat: Category | null = null;
+
+  for (const line of md.split('\n')) {
+    const dateMatch = line.match(/^## (\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      current = { date: dateMatch[1], categories: [] };
+      releases.push(current);
+      currentCat = null;
+      continue;
+    }
+
+    const catMatch = line.match(/^### (.+)/);
+    if (catMatch && current) {
+      currentCat = { name: catMatch[1], items: [] };
+      current.categories.push(currentCat);
+      continue;
+    }
+
+    const itemMatch = line.match(/^- \*\*(.+?)\*\*:\s*(.+)/);
+    if (itemMatch && currentCat) {
+      currentCat.items.push({ title: itemMatch[1], description: itemMatch[2] });
+    }
+  }
+
+  return releases;
+}
+
+function inlineMarkdown(text: string): string {
+  const codeClass = 'rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading';
+  return text.replace(/`([^`]+)`/g, `<code class="${codeClass}">$1</code>`);
+}
+
+const raw = fs.readFileSync(path.resolve(process.cwd(), '..', 'CHANGELOG.md'), 'utf-8');
+const releases = parseChangelog(raw);
 ---
 
 <Layout
@@ -15,219 +70,25 @@ import Footer from '../components/Footer.astro';
       Major user-facing changes, hand-curated from the commit history.
     </p>
 
-    <!-- 2026-03-22 -->
-    <section class="mt-16">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-22</h2>
+    {releases.map((release, i) => (
+      <section class={i === 0 ? 'mt-16' : 'mt-16 border-t border-border pt-12'}>
+        <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">{release.date}</h2>
 
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Backup system</span>: full backup and restore for
-          all SQLite databases, config, and learnings.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Cloud backends</span>: Cloudflare R2, any
-          S3-compatible storage, and Google Drive.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Backup wizard</span>: interactive setup in the
-          settings TUI walks through credentials and verification.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Backup daemon</span>: automatic scheduled backups
-          run in the background.
-        </li>
-        <li>
-          <span class="font-bold text-heading">CLI commands</span>:
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup now</code>,
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup list</code>,
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup status</code>,
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk backup restore</code>.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-20 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-20</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Cerebras provider</span>: new LLM provider with
-          fast inference.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Z.AI provider</span>: GLM models via Z.AI API.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Free tier</span>: Gemini + Cerebras profile with
-          zero API costs to get started.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Reactive scheduler</span>: triggers that fire in
-          response to data changes, not just cron schedules.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Budget tracking</span>: track and limit LLM
-          spending per session.
-        </li>
-      </ul>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Changed</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">History format</span>: migrated conversation
-          history from SQLite to JSONL files for portability.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Memory format</span>: migrated user memory from
-          SQLite to Markdown files.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-19 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-19</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Settings TUI</span>: interactive terminal UI for
-          configuring providers, profiles, sources, and backup.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Learnings system</span>: assistant extracts and
-          remembers facts about you across conversations, stored as local Markdown files, searchable
-          via CLI and tools.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Model cache</span>: providers now cache available
-          models locally for faster startup.
-        </li>
-      </ul>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Fixed</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Telegram WebView auth</span>: OAuth consent links
-          now open correctly inside Telegram's in-app browser.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-18 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-18</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Bash sandboxing</span>: bash commands run inside a
-          sandbox (Seatbelt on macOS, bwrap on Linux).
-        </li>
-        <li>
-          <span class="font-bold text-heading">File approval gates</span>:
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">file_write</code> and
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">file_edit</code>
-          require explicit user approval.
-        </li>
-        <li>
-          <span class="font-bold text-heading">sandbox_exec tool</span>: sandboxed code execution
-          for untrusted scripts.
-        </li>
-      </ul>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Changed</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Source and service refactor</span>: reorganized
-          source packages and unified service commands into
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">obk service</code>.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-17 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-17</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Website launch</span>: Astro + Tailwind site with
-          capabilities and mission pages at openbotkit.dev.
-        </li>
-        <li>
-          <span class="font-bold text-heading">macOS native integration</span>: Swift helper binary
-          for Apple Notes, Contacts, and iMessage.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Installer script</span>: one-command setup via
-          <code class="rounded bg-heading/10 px-1.5 py-0.5 text-[1rem] text-heading">curl -fsSL .../install.sh | sh</code>.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-15 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-15</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Google Workspace integration</span>: 15 services
-          (Calendar, Gmail, Docs, Sheets, Slides, Drive, Meet, Chat, Tasks, Keep, Forms, Classroom,
-          People, Admin Reports, Workflows) with progressive consent.
-        </li>
-        <li>
-          <span class="font-bold text-heading">LLM profiles</span>: starter, standard, and premium
-          tiers with cost guidance.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Groq provider</span>: fast open-source model
-          inference.
-        </li>
-        <li>
-          <span class="font-bold text-heading">OpenRouter provider</span>: access to 100+ models
-          through a single API key.
-        </li>
-      </ul>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Changed</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Delegation improvements</span>: file-based
-          delegation results, improved prompt guidance, and full-permission flags for delegate tasks.
-        </li>
-      </ul>
-    </section>
-
-    <!-- 2026-03-14 -->
-    <section class="mt-16 border-t border-border pt-12">
-      <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">2026-03-14</h2>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Added</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Tool output management</span>: structured tool
-          output handling with size limits and truncation.
-        </li>
-        <li>
-          <span class="font-bold text-heading">Nano tier</span>: ultra-cheap LLM tier for feedback
-          extraction and memory reconciliation.
-        </li>
-      </ul>
-
-      <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">Fixed</h3>
-      <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
-        <li>
-          <span class="font-bold text-heading">Provider timeouts</span>: added 60-second HTTP
-          timeouts to OpenAI, Anthropic, and Gemini providers to prevent hanging requests.
-        </li>
-      </ul>
-    </section>
+        {release.categories.map((cat) => (
+          <>
+            <h3 class="mt-6 text-[1.2rem] font-semibold leading-[1.7] text-heading">{cat.name}</h3>
+            <ul class="mt-2 list-disc pl-6 text-[1.25rem] leading-[1.7] text-paragraph">
+              {cat.items.map((item) => (
+                <li>
+                  <span class="font-bold text-heading">{item.title}</span>:
+                  <Fragment set:html={inlineMarkdown(item.description)} />
+                </li>
+              ))}
+            </ul>
+          </>
+        ))}
+      </section>
+    ))}
   </main>
   <Footer />
 </Layout>
