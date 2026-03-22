@@ -3,6 +3,24 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] (2026-03-22)
+
+### Added
+
+- **agent**: Check context cancellation at iteration boundary
+- **tools**: Add cancel support to TaskTracker
+- **tools**: Register cancel func in delegate task async
+- **telegram**: Add Interrupter interface
+- **telegram**: Implement kill switch in SessionManager
+- **telegram**: Add callback routing and interrupt channels
+- **telegram**: Add interrupt and kill handling to Poller
+
+### Fixed
+
+- **ci**: Remove [skip ci] that blocks release workflow
+- **server**: Wire Interrupter into Poller constructor
+- **telegram**: Send feedback when /kill races with agent completion
+
 ## [0.1.0] (2026-03-22)
 
 ### Added
