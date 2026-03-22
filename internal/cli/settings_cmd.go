@@ -115,11 +115,9 @@ func setupGDriveBackup(cfg *config.Config, folderName string) (string, error) {
 	}
 
 	scopes := []string{"https://www.googleapis.com/auth/drive.file"}
-	email, err := gp.GrantScopes(ctx, account, scopes)
-	if err != nil {
+	if _, err := gp.GrantScopes(ctx, account, scopes); err != nil {
 		return "", fmt.Errorf("Google auth: %w", err)
 	}
-	_ = email
 
 	httpClient, err := gp.Client(ctx, account, scopes)
 	if err != nil {
