@@ -801,7 +801,7 @@ func backupCategory(svc *Service) *Category {
 	}
 
 	// Only show R2 sub-category when destination is R2.
-	if backupDest(svc.cfg) == "r2" {
+	if BackupDest(svc.cfg) == "r2" {
 		children = append(children, Node{Category: &Category{
 			Key:   "backup.r2",
 			Label: "Cloudflare R2",
@@ -899,7 +899,7 @@ func backupCategory(svc *Service) *Category {
 	}
 }
 
-func backupDest(c *config.Config) string {
+func BackupDest(c *config.Config) string {
 	if c.Backup == nil {
 		return ""
 	}
@@ -922,7 +922,7 @@ func isGDriveConfigured(c *config.Config) bool {
 }
 
 func isBackupDestinationConfigured(c *config.Config) bool {
-	switch backupDest(c) {
+	switch BackupDest(c) {
 	case "r2":
 		return isR2Configured(c)
 	case "gdrive":
@@ -933,7 +933,7 @@ func isBackupDestinationConfigured(c *config.Config) bool {
 }
 
 func validateBackupReady(c *config.Config) error {
-	dest := backupDest(c)
+	dest := BackupDest(c)
 	if dest == "" {
 		return fmt.Errorf("select a destination first")
 	}

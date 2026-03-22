@@ -19,7 +19,7 @@ func (m model) enterBackupWizard() (model, tea.Cmd) {
 	m.wizardBackupSnapshot = cloneBackupConfig(m.svc.Config().Backup)
 
 	cfg := m.svc.Config()
-	dest := backupDest(cfg)
+	dest := settings.BackupDest(cfg)
 	if dest != "" && !m.svc.IsBackupDestConfigured(dest) {
 		// Destination set but not authenticated — skip picker, go to auth.
 		d := dest
@@ -353,13 +353,6 @@ func ensureBackup(c *config.Config) {
 	if c.Backup == nil {
 		c.Backup = &config.BackupConfig{}
 	}
-}
-
-func backupDest(c *config.Config) string {
-	if c.Backup == nil {
-		return ""
-	}
-	return c.Backup.Destination
 }
 
 func cloneBackupConfig(b *config.BackupConfig) *config.BackupConfig {

@@ -92,13 +92,13 @@ func TestParseSchedule(t *testing.T) {
 }
 
 func TestBackupDest(t *testing.T) {
-	if backupDest(config.Default()) != "" {
+	if settings.BackupDest(config.Default()) != "" {
 		t.Error("should return empty for nil backup")
 	}
 
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{Destination: "r2"}
-	if backupDest(cfg) != "r2" {
+	if settings.BackupDest(cfg) != "r2" {
 		t.Error("should return r2")
 	}
 }
