@@ -144,9 +144,10 @@ func (c *Channel) RequestApproval(action string) (bool, error) {
 	}
 	c.approvalMu.Lock()
 	c.approvalMsgID = sentMsg.MessageID
+	ch := c.approvalCh
 	c.approvalMu.Unlock()
 
-	resp := <-c.approvalCh
+	resp := <-ch
 	return resp.approved, resp.err
 }
 
@@ -179,6 +180,18 @@ func (c *Channel) HandleCallback(callbackID string, data string) {
 
 	if ch != nil {
 		ch <- approvalResponse{approved: approved}
+	}
+}
+
+// CancelPendingApproval sends a denial to unblock RequestApproval if the
+// agent is killed while waiting for user approval.
+func (c *Channel) CancelPendingApproval() {
+	c.approvalMu.Lock()
+	ch := c.approvalCh
+	c.approvalCh = nil
+	c.approvalMu.Unlock()
+	if ch != nil {
+		ch <- approvalResponse{approved: false}
 	}
 }
 
