@@ -133,7 +133,7 @@ func (b *GDriveBackend) resolveKey(ctx context.Context, key string) (string, err
 }
 
 func (b *GDriveBackend) findFile(ctx context.Context, parentID, name string) (string, error) {
-	q := fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", parentID, name)
+	q := fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", escapeDriveQuery(parentID), escapeDriveQuery(name))
 	list, err := b.srv.Files.List().
 		Q(q).
 		Fields("files(id)").
@@ -189,7 +189,7 @@ func (b *GDriveBackend) resolveFolderPath(ctx context.Context, parentID string, 
 
 func (b *GDriveBackend) listRecursive(ctx context.Context, folderID, prefix string) ([]string, error) {
 	var keys []string
-	q := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
+	q := fmt.Sprintf("'%s' in parents and trashed = false", escapeDriveQuery(folderID))
 	err := b.srv.Files.List().
 		Q(q).
 		Fields("files(id, name, mimeType)").
@@ -223,7 +223,7 @@ func FindOrCreateDriveFolder(ctx context.Context, httpClient *http.Client, folde
 		return "", fmt.Errorf("create drive service: %w", err)
 	}
 
-	q := fmt.Sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", folderName)
+	q := fmt.Sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", escapeDriveQuery(folderName))
 	list, err := srv.Files.List().Q(q).Fields("files(id)").PageSize(1).Context(ctx).Do()
 	if err != nil {
 		return "", fmt.Errorf("search for folder: %w", err)
@@ -240,6 +240,11 @@ func FindOrCreateDriveFolder(ctx context.Context, httpClient *http.Client, folde
 		return "", fmt.Errorf("create folder: %w", err)
 	}
 	return f.Id, nil
+}
+
+// escapeDriveQuery escapes single quotes for Drive API query strings.
+func escapeDriveQuery(s string) string {
+	return strings.ReplaceAll(s, "'", "\\'")
 }
 
 var _ Backend = (*GDriveBackend)(nil)
