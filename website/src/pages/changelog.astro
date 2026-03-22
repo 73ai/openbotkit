@@ -17,6 +17,7 @@ interface Category {
 
 interface Release {
   date: string;
+  version?: string;
   categories: Category[];
 }
 
@@ -26,7 +27,15 @@ function parseChangelog(md: string): Release[] {
   let currentCat: Category | null = null;
 
   for (const line of md.split('\n')) {
-    const dateMatch = line.match(/^## (\d{4}-\d{2}-\d{2})/);
+    const versionMatch = line.match(/^## \[?(\d+\.\d+\.\d+)\]?\(?.*?\)?\s*\((\d{4}-\d{2}-\d{2})\)/);
+    if (versionMatch) {
+      current = { date: versionMatch[2], version: versionMatch[1], categories: [] };
+      releases.push(current);
+      currentCat = null;
+      continue;
+    }
+
+    const dateMatch = line.match(/^## (\d{4}-\d{2}-\d{2})$/);
     if (dateMatch) {
       current = { date: dateMatch[1], categories: [] };
       releases.push(current);
@@ -41,9 +50,11 @@ function parseChangelog(md: string): Release[] {
       continue;
     }
 
-    const itemMatch = line.match(/^- \*\*(.+?)\*\*:\s*(.+)/);
+    const itemMatch = line.match(/^[*-] \*\*(.+?)\*\*:?\s*(.+)/);
     if (itemMatch && currentCat) {
-      currentCat.items.push({ title: itemMatch[1], description: itemMatch[2] });
+      let description = itemMatch[2];
+      description = description.replace(/\s*\(\[#\d+\]\([^)]+\)\)/g, '').replace(/\s*\(\[[a-f0-9]+\]\([^)]+\)\)/g, '').trim();
+      currentCat.items.push({ title: itemMatch[1], description });
     }
   }
 
@@ -72,7 +83,9 @@ const releases = parseChangelog(raw);
 
     {releases.map((release, i) => (
       <section class={i === 0 ? 'mt-16' : 'mt-16 border-t border-border pt-12'}>
-        <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">{release.date}</h2>
+        <h2 class="text-[1.4rem] font-semibold leading-[1.7] text-heading">
+          {release.version ? `v${release.version} — ${release.date}` : release.date}
+        </h2>
 
         {release.categories.map((cat) => (
           <>

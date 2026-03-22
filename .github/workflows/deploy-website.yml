@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - 'website/**'
+      - 'CHANGELOG.md'
 
 jobs:
   deploy:
