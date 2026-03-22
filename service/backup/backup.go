@@ -193,17 +193,18 @@ func hashFile(path string) (string, error) {
 }
 
 func compressFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	var buf bytes.Buffer
 	w, err := zstd.NewWriter(&buf)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := w.Write(data); err != nil {
+	if _, err := io.Copy(w, f); err != nil {
 		w.Close()
 		return nil, err
 	}
