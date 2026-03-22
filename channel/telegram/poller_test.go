@@ -83,6 +83,38 @@ func TestPoller_KillWhileAgentRunning(t *testing.T) {
 	}
 }
 
+// racyInterrupter simulates the agent finishing between IsAgentRunning and Kill.
+type racyInterrupter struct{ mockInterrupter }
+
+func (r *racyInterrupter) IsAgentRunning() bool { return true }
+func (r *racyInterrupter) Kill() bool            { return false }
+
+func TestPoller_KillAgentFinishesBetweenCheckAndKill(t *testing.T) {
+	bot := &mockBot{}
+	ch := NewChannel(bot, 123)
+	inter := &racyInterrupter{}
+	p := &Poller{ownerID: 123, channel: ch, interrupter: inter}
+
+	p.handleUpdate(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{ID: 123},
+			Text: "/kill",
+		},
+	})
+
+	texts := pollerSentTexts(bot)
+	found := false
+	for _, txt := range texts {
+		if strings.Contains(txt, "Already finished") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'Already finished' message, got: %v", texts)
+	}
+}
+
 func TestPoller_KillNothingRunning(t *testing.T) {
 	bot := &mockBot{}
 	ch := NewChannel(bot, 123)

@@ -104,7 +104,9 @@ func (p *Poller) handleKill() {
 	}
 
 	if p.interrupter.IsAgentRunning() {
-		p.interrupter.Kill()
+		if !p.interrupter.Kill() {
+			p.sendText("Already finished.")
+		}
 		return
 	}
 
