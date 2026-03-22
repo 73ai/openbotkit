@@ -2,6 +2,8 @@ package backup
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
 	backupsvc "github.com/73ai/openbotkit/service/backup"
@@ -35,8 +37,21 @@ var listCmd = &cobra.Command{
 		}
 
 		for _, id := range snapshots {
-			fmt.Println(id)
+			fmt.Printf("  %s  %s\n", formatSnapshotDate(id), id)
 		}
 		return nil
 	},
+}
+
+func formatSnapshotDate(id string) string {
+	// ID format: 20060102T150405Z-<hex>
+	ts := id
+	if idx := strings.Index(id, "-"); idx > 0 {
+		ts = id[:idx]
+	}
+	t, err := time.Parse("20060102T150405Z", ts)
+	if err != nil {
+		return "                   "
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
 }
