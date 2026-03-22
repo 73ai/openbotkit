@@ -1,9 +1,7 @@
 # Changelog
 
 All notable changes to OpenBotKit are documented here.
-
-Format follows [Keep a Changelog](https://keepachangelog.com/). Entries are date-based until
-versioning begins (no version tags exist yet).
+Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-03-22
 

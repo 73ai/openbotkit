@@ -1,19 +1,16 @@
-name: Manual Release
+name: Changelog
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version with v prefix (e.g., v0.2.0)'
-        required: true
-        type: string
+  push:
+    branches: [master]
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  changelog:
     runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,14 +18,20 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Generate changelog
+        id: cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --unreleased --tag ${{ github.event.inputs.version }} --prepend CHANGELOG.md
+          args: --bump --unreleased --prepend CHANGELOG.md
 
       - name: Commit and tag
+        if: steps.cliff.outputs.version != ''
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changelog changes"
+            exit 0
+          fi
+          VERSION="${{ steps.cliff.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
