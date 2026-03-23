@@ -3,6 +3,15 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] (2026-03-23)
+
+### Fixed
+
+- **ci**: Replace deprecated macos-13 runner with cross-compilation
+- **ci**: Only auto-bump patch version, not minor
+- **ci**: Prevent auto-bump of major version for breaking changes
+- **ci**: Restore default minor bump for feat commits
+
 ## [0.2.0] (2026-03-22)
 
 ### Added
