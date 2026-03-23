@@ -348,7 +348,8 @@ func TestGWSExecute_StructuredParams(t *testing.T) {
 func TestGWSExecute_StructuredBody(t *testing.T) {
 	tool, interactor, runner := setupGWSTest(t, false, nil)
 	interactor.approveAll = true
-	runner.outputs[`calendar +insert --json {"location":"Room 1","summary":"Team meeting"}`] = `{"id":"abc"}`
+	// Body for a helper command (+insert) is now expanded to individual flags (sorted keys).
+	runner.outputs[`calendar +insert --location Room 1 --summary Team meeting`] = `{"id":"abc"}`
 
 	input, _ := json.Marshal(map[string]any{
 		"command": "calendar +insert",
@@ -363,6 +364,17 @@ func TestGWSExecute_StructuredBody(t *testing.T) {
 	}
 	if result != `{"id":"abc"}` {
 		t.Errorf("result = %q", result)
+	}
+	// Verify expanded args directly.
+	args := runner.ran[0].args
+	expected := []string{"calendar", "+insert", "--location", "Room 1", "--summary", "Team meeting"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
 	}
 }
 
@@ -717,5 +729,255 @@ func TestGWSExecute_NoAuthRedirectDirectURL(t *testing.T) {
 
 	if !strings.HasPrefix(link.url, "https://accounts.google.com/") {
 		t.Fatalf("link should go directly to Google, got %q", link.url)
+	}
+}
+
+func TestGWSExecute_FlagsField(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, map[string]bool{
+		"https://www.googleapis.com/auth/documents": true,
+	})
+	interactor.approveAll = true
+
+	// Manifest entry for docs +write so it's treated as write.
+	tool.manifest.Skills["gws-docs-write"] = skills.SkillEntry{Source: "gws", Scopes: []string{"docs"}, Write: true}
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "docs +write",
+		"flags": map[string]any{
+			"document": "DOC_ID",
+			"text":     "Hello world",
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	expected := []string{"docs", "+write", "--document", "DOC_ID", "--text", "Hello world"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
+	}
+}
+
+func TestGWSExecute_BodyExpandedForHelper(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, nil)
+	interactor.approveAll = true
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "calendar +insert",
+		"body": map[string]any{
+			"summary": "Standup",
+			"start":   "2025-01-01T09:00:00Z",
+			"end":     "2025-01-01T09:30:00Z",
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	// Keys sorted: end, start, summary.
+	expected := []string{"calendar", "+insert", "--end", "2025-01-01T09:30:00Z", "--start", "2025-01-01T09:00:00Z", "--summary", "Standup"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
+	}
+}
+
+func TestGWSExecute_BodyJsonForRawAPI(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, map[string]bool{
+		"https://www.googleapis.com/auth/drive": true,
+	})
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "drive files create",
+		"body": map[string]any{
+			"name":     "test.txt",
+			"mimeType": "text/plain",
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	// No + command → body passed as --json.
+	jsonIdx := -1
+	for i, a := range args {
+		if a == "--json" {
+			jsonIdx = i
+			break
+		}
+	}
+	if jsonIdx < 0 || jsonIdx+1 >= len(args) {
+		t.Fatalf("expected --json flag in args: %v", args)
+	}
+	if !json.Valid([]byte(args[jsonIdx+1])) {
+		t.Errorf("--json value is not valid JSON: %s", args[jsonIdx+1])
+	}
+}
+
+func TestGWSExecute_FlagsArrayRepeated(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, nil)
+	interactor.approveAll = true
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "calendar +insert",
+		"flags": map[string]any{
+			"attendee": []string{"alice@example.com", "bob@example.com"},
+			"summary":  "Team sync",
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	// Keys sorted: attendee (repeated), summary.
+	expected := []string{"calendar", "+insert", "--attendee", "alice@example.com", "--attendee", "bob@example.com", "--summary", "Team sync"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
+	}
+}
+
+func TestGWSExecute_FlagsBooleanBare(t *testing.T) {
+	tool, _, runner := setupGWSTest(t, false, nil)
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "calendar +agenda",
+		"flags": map[string]any{
+			"today":    true,
+			"verbose":  false,
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	// "today" true → bare flag, "verbose" false → omitted.
+	expected := []string{"calendar", "+agenda", "--today"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
+	}
+}
+
+func TestGWSExecute_FlagsHyphenatedKeys(t *testing.T) {
+	tool, interactor, runner := setupGWSTest(t, false, map[string]bool{
+		"https://www.googleapis.com/auth/spreadsheets": true,
+	})
+	interactor.approveAll = true
+
+	// Add manifest entry for sheets +append.
+	tool.manifest.Skills["gws-sheets-append"] = skills.SkillEntry{Source: "gws", Scopes: []string{"sheets"}, Write: true}
+
+	input, _ := json.Marshal(map[string]any{
+		"command": "sheets +append",
+		"flags": map[string]any{
+			"json-values": "[[1,2,3]]",
+			"spreadsheet": "SHEET_ID",
+		},
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	args := runner.ran[0].args
+	// Keys sorted: json-values, spreadsheet.
+	expected := []string{"sheets", "+append", "--json-values", "[[1,2,3]]", "--spreadsheet", "SHEET_ID"}
+	if len(args) != len(expected) {
+		t.Fatalf("args = %v, want %v", args, expected)
+	}
+	for i, a := range args {
+		if a != expected[i] {
+			t.Errorf("args[%d] = %q, want %q", i, a, expected[i])
+		}
+	}
+}
+
+func TestSplitCommand_Quoted(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{
+			input: `docs +write --text 'Hello world'`,
+			want:  []string{"docs", "+write", "--text", "Hello world"},
+		},
+		{
+			input: `docs +write --text "Hello world"`,
+			want:  []string{"docs", "+write", "--text", "Hello world"},
+		},
+		{
+			input: `drive +upload --name "my file.pdf" ./local.pdf`,
+			want:  []string{"drive", "+upload", "--name", "my file.pdf", "./local.pdf"},
+		},
+		{
+			input: `docs +write --document DOC_ID --text 'Line 1 and Line 2'`,
+			want:  []string{"docs", "+write", "--document", "DOC_ID", "--text", "Line 1 and Line 2"},
+		},
+	}
+	for _, tt := range tests {
+		got := splitCommand(tt.input)
+		if len(got) != len(tt.want) {
+			t.Errorf("splitCommand(%q) = %v, want %v", tt.input, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("splitCommand(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
+func TestSplitCommand_NoQuotes(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{
+			input: "calendar events list",
+			want:  []string{"calendar", "events", "list"},
+		},
+		{
+			input: "drive files list --id abc",
+			want:  []string{"drive", "files", "list", "--id", "abc"},
+		},
+		{
+			input: "  calendar  +agenda  ",
+			want:  []string{"calendar", "+agenda"},
+		},
+	}
+	for _, tt := range tests {
+		got := splitCommand(tt.input)
+		if len(got) != len(tt.want) {
+			t.Errorf("splitCommand(%q) = %v, want %v", tt.input, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("splitCommand(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+			}
+		}
 	}
 }

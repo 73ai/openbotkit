@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	neturl "net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -89,7 +90,11 @@ func (g *GWSExecuteTool) InputSchema() json.RawMessage {
 			},
 			"body": {
 				"type": "object",
-				"description": "Request body as a JSON object (becomes --json flag)"
+				"description": "Data for the command. For API methods, sent as --json. For helper commands (+write, +insert, etc.), each field is automatically expanded to individual --flags."
+			},
+			"flags": {
+				"type": "object",
+				"description": "Named CLI flags as key-value pairs. Each key becomes a --flag with its value. Use for helper commands (+write, +insert, etc.) that need specific flags like --document, --text, --summary."
 			}
 		},
 		"required": ["command"]
@@ -100,6 +105,7 @@ type gwsInput struct {
 	Command string          `json:"command"`
 	Params  json.RawMessage `json:"params,omitempty"`
 	Body    json.RawMessage `json:"body,omitempty"`
+	Flags   json.RawMessage `json:"flags,omitempty"`
 }
 
 func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -120,17 +126,34 @@ func (g *GWSExecuteTool) Execute(ctx context.Context, input json.RawMessage) (st
 	}
 
 	slog.Info("gws_execute called", "command", in.Command)
-	args := strings.Fields(in.Command)
+	args := splitCommand(in.Command)
 	// Strip leading "gws" if present.
 	if len(args) > 0 && args[0] == "gws" {
 		args = args[1:]
 	}
-	// Append structured params/body as flags.
+	// Append structured params.
 	if len(in.Params) > 0 && string(in.Params) != "null" {
 		args = append(args, "--params", string(in.Params))
 	}
+	// Smart body expansion: helpers get individual flags, raw API gets --json.
 	if len(in.Body) > 0 && string(in.Body) != "null" {
-		args = append(args, "--json", string(in.Body))
+		if isHelperCommand(args) {
+			expanded, err := expandBodyAsFlags(in.Body)
+			if err != nil {
+				return "", fmt.Errorf("expand body flags: %w", err)
+			}
+			args = append(args, expanded...)
+		} else {
+			args = append(args, "--json", string(in.Body))
+		}
+	}
+	// Explicit flags field — always expanded as --key value.
+	if len(in.Flags) > 0 && string(in.Flags) != "null" {
+		expanded, err := expandBodyAsFlags(in.Flags)
+		if err != nil {
+			return "", fmt.Errorf("expand flags: %w", err)
+		}
+		args = append(args, expanded...)
 	}
 	service := gwsServiceFromCommand(args)
 	isWrite := g.isWriteCommand(args)
@@ -301,6 +324,82 @@ func (g *GWSExecuteTool) scopesForService(service string) []string {
 		return []string{scope}
 	}
 	return nil
+}
+
+// splitCommand splits a command string on whitespace, respecting single and
+// double quotes so that quoted values stay as a single argument.
+func splitCommand(s string) []string {
+	if !strings.ContainsAny(s, `"'`) {
+		return strings.Fields(s)
+	}
+	var args []string
+	var current strings.Builder
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote != 0 && c == quote:
+			quote = 0
+		case quote != 0:
+			current.WriteByte(c)
+		case c == '\'' || c == '"':
+			quote = c
+		case c == ' ' || c == '\t':
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+	return args
+}
+
+// isHelperCommand returns true if any arg starts with "+".
+func isHelperCommand(args []string) bool {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "+") {
+			return true
+		}
+	}
+	return false
+}
+
+// expandBodyAsFlags converts a JSON object into --key value flag pairs.
+// Arrays become repeated flags, booleans become bare flags (true) or are
+// omitted (false), and everything else is stringified.
+func expandBodyAsFlags(body json.RawMessage) ([]string, error) {
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("body must be a JSON object: %w", err)
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var flags []string
+	for _, k := range keys {
+		flag := "--" + k
+		switch val := m[k].(type) {
+		case []any:
+			for _, item := range val {
+				flags = append(flags, flag, fmt.Sprint(item))
+			}
+		case bool:
+			if val {
+				flags = append(flags, flag)
+			}
+		default:
+			flags = append(flags, flag, fmt.Sprint(m[k]))
+		}
+	}
+	return flags, nil
 }
 
 // gwsServiceFromCommand extracts the service name from gws command args.
