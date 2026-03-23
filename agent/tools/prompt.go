@@ -81,8 +81,11 @@ Use the gws_execute tool for Google Workspace operations: Calendar, Drive, Docs,
 For Gmail/email operations, use the email-read and email-send skills via the bash tool (obk commands), NOT gws_execute.
 BEFORE your first gws_execute call, ALWAYS use load_skills to load the relevant gws skill for correct command syntax.
 For example, to list files load gws-drive; to read a doc load gws-docs; to check calendar load gws-calendar.
-The tool accepts structured input: "command" for the base command, "params" for query parameters (JSON object), and "body" for request bodies (JSON object).
+The tool accepts structured input: "command" for the base command, "params" for query parameters
+(JSON object), "body" for request bodies (JSON object), and "flags" for named CLI flags (JSON object).
 Do NOT put --params or --json in the command string — use the params and body fields instead.
+For helper commands (+write, +insert, +append, +read, +agenda, +upload), use the "flags" field
+to pass named parameters: {"document": "DOC_ID", "text": "content"}.
 Do NOT use bash to run gws commands — they will be rejected. Always use gws_execute instead.
 The tool handles authentication, scope checks, and approval for write operations automatically.
 When a tool result includes "user notified", keep your response brief — the user already got the details.
