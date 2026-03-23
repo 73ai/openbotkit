@@ -39,4 +39,5 @@ filter_commits = true
 tag_pattern = "v[0-9].*"
 
 [bump]
+features_always_bump_minor = false
 initial_tag = "v0.1.0"
