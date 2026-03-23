@@ -3,6 +3,12 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] (2026-03-23)
+
+### Added
+
+- **gws**: Add layered parameter passing for helper commands
+
 ## [0.2.1] (2026-03-23)
 
 ### Fixed
