@@ -31,6 +31,10 @@ func (m *mockPusher) Push(_ context.Context, message string) error {
 	return nil
 }
 
+func TestWhatsAppPusherImplementsInterface(t *testing.T) {
+	var _ Pusher = (*WhatsAppPusher)(nil)
+}
+
 func TestMockPusherImplementsInterface(t *testing.T) {
 	var p Pusher = &mockPusher{}
 	if err := p.Push(context.Background(), "test"); err != nil {
