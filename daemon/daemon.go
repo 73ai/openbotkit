@@ -88,10 +88,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 
-	var waErrCh, anErrCh, imErrCh, ctErrCh <-chan error
+	var waErrChs []<-chan error
 	if !d.skipWhatsApp {
-		waErrCh = runWhatsAppSync(ctx, d.cfg, notifier)
+		for _, acct := range d.cfg.WhatsAppAccountList() {
+			if acct.Role == "source" || acct.Role == "both" {
+				ch := runWhatsAppSyncForAccount(ctx, d.cfg, acct.Label, notifier)
+				waErrChs = append(waErrChs, ch)
+			}
+		}
 	}
+	var anErrCh, imErrCh, ctErrCh <-chan error
 	if !d.skipAppleNotes {
 		anErrCh = runAppleNotesSync(ctx, d.cfg, notifier)
 	}
@@ -107,7 +113,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	slog.Info("shutting down daemon")
 
 	// Drain sync errors.
-	if waErrCh != nil {
+	for _, waErrCh := range waErrChs {
 		if err := <-waErrCh; err != nil {
 			slog.Error("whatsapp error during shutdown", "error", err)
 		}
