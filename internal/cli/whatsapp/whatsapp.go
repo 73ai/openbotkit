@@ -31,4 +31,5 @@ func init() {
 	Cmd.AddCommand(messagesCmd)
 	Cmd.AddCommand(chatsCmd)
 	Cmd.AddCommand(contactsCmd)
+	Cmd.AddCommand(accountsCmd)
 }

@@ -15,12 +15,15 @@ import (
 var syncCmd = &cobra.Command{
 	Use:     "sync",
 	Short:   "Start WhatsApp message sync daemon",
-	Example: `  obk whatsapp sync`,
+	Example: `  obk whatsapp sync
+  obk whatsapp sync --account personal`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
+
+		account, _ := cmd.Flags().GetString("account")
 
 		if err := config.EnsureSourceDir("whatsapp"); err != nil {
 			return fmt.Errorf("create whatsapp dir: %w", err)
@@ -29,13 +32,13 @@ var syncCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(context.Background(), platform.ShutdownSignals...)
 		defer stop()
 
-		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
+		client, err := wasrc.NewClient(ctx, cfg.WhatsAppAccountSessionDBPath(account))
 		if err != nil {
 			return fmt.Errorf("create client: %w", err)
 		}
 
 		if !client.IsAuthenticated() {
-			return fmt.Errorf("not authenticated; run 'obk whatsapp auth login' first")
+			return fmt.Errorf("not authenticated; run 'obk whatsapp auth login --account %s' first", account)
 		}
 
 		dsn := cfg.WhatsAppDataDSN()
@@ -48,11 +51,11 @@ var syncCmd = &cobra.Command{
 		}
 		defer db.Close()
 
-		if err := config.LinkSource("whatsapp"); err != nil {
-			return fmt.Errorf("link source: %w", err)
+		if err := config.LinkWhatsAppAccount(account); err != nil {
+			return fmt.Errorf("link account: %w", err)
 		}
 
-		fmt.Println("Starting WhatsApp sync (Ctrl+C to stop)...")
+		fmt.Printf("Starting WhatsApp sync (account: %s, Ctrl+C to stop)...\n", account)
 
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{Follow: true})
 		if err != nil {
@@ -66,4 +69,8 @@ var syncCmd = &cobra.Command{
 		fmt.Println()
 		return nil
 	},
+}
+
+func init() {
+	syncCmd.Flags().String("account", "default", "Account label")
 }

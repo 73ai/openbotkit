@@ -13,10 +13,12 @@ import (
 var messagesSendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Send a text message to a WhatsApp chat",
-	Example: `  obk whatsapp messages send --to 1234567890@s.whatsapp.net --text "Hello!"`,
+	Example: `  obk whatsapp messages send --to 1234567890@s.whatsapp.net --text "Hello!"
+  obk whatsapp messages send --account assistant --to 1234567890@s.whatsapp.net --text "Hello!"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		to, _ := cmd.Flags().GetString("to")
 		text, _ := cmd.Flags().GetString("text")
+		account, _ := cmd.Flags().GetString("account")
 
 		if to == "" {
 			return fmt.Errorf("--to flag is required")
@@ -49,14 +51,14 @@ var messagesSendCmd = &cobra.Command{
 
 		ctx := context.Background()
 
-		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
+		client, err := wasrc.NewClient(ctx, cfg.WhatsAppAccountSessionDBPath(account))
 		if err != nil {
 			return fmt.Errorf("create client: %w", err)
 		}
 		defer client.Disconnect()
 
 		if !client.IsAuthenticated() {
-			return fmt.Errorf("not authenticated; run 'obk whatsapp auth login' first")
+			return fmt.Errorf("not authenticated; run 'obk whatsapp auth login --account %s' first", account)
 		}
 
 		db, err := store.Open(store.Config{
@@ -88,4 +90,5 @@ var messagesSendCmd = &cobra.Command{
 func init() {
 	messagesSendCmd.Flags().String("to", "", "Recipient JID (required)")
 	messagesSendCmd.Flags().String("text", "", "Message text (required)")
+	messagesSendCmd.Flags().String("account", "default", "Account label")
 }
