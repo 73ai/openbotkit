@@ -16,6 +16,7 @@ import (
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/channel"
 	tgchannel "github.com/73ai/openbotkit/channel/telegram"
+	wachannel "github.com/73ai/openbotkit/channel/whatsapp"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
 	learningssvc "github.com/73ai/openbotkit/service/learnings"
@@ -100,6 +101,9 @@ func (s *Server) Run(ctx context.Context) error {
 		slog.Warn("telegram not started", "error", err)
 	}
 
+	// Start WhatsApp channel(s) if configured.
+	s.startWhatsAppChannels(ctx)
+
 	select {
 	case err := <-errCh:
 		return fmt.Errorf("server error: %w", err)
@@ -174,6 +178,103 @@ func (s *Server) startTelegram(ctx context.Context) error {
 
 	slog.Info("telegram bot started", "owner_id", ownerID)
 	return nil
+}
+
+func (s *Server) startWhatsAppChannels(ctx context.Context) {
+	if s.cfg.Models == nil || s.cfg.Models.Default == "" {
+		return
+	}
+
+	registry, err := provider.NewRegistry(s.cfg.Models)
+	if err != nil {
+		slog.Warn("whatsapp channel: create provider registry", "error", err)
+		return
+	}
+
+	providerName, modelName, err := provider.ParseModelSpec(s.cfg.Models.Default)
+	if err != nil {
+		slog.Warn("whatsapp channel: parse model spec", "error", err)
+		return
+	}
+	p, ok := registry.Get(providerName)
+	if !ok {
+		slog.Warn("whatsapp channel: provider not found", "provider", providerName)
+		return
+	}
+
+	for _, acct := range s.cfg.WhatsAppAccountList() {
+		if acct.Role != "channel" && acct.Role != "both" {
+			continue
+		}
+		if acct.OwnerJID == "" {
+			slog.Warn("whatsapp channel: no owner_jid configured", "account", acct.Label)
+			continue
+		}
+		if !config.IsWhatsAppAccountLinked(acct.Label) {
+			slog.Info("whatsapp channel: not linked, skipping", "account", acct.Label)
+			continue
+		}
+
+		sessionDBPath := s.cfg.WhatsAppAccountSessionDBPath(acct.Label)
+		client, err := wasrc.NewClient(ctx, sessionDBPath)
+		if err != nil {
+			slog.Warn("whatsapp channel: create client", "account", acct.Label, "error", err)
+			continue
+		}
+		if !client.IsAuthenticated() {
+			slog.Warn("whatsapp channel: not authenticated", "account", acct.Label)
+			continue
+		}
+		if err := client.Connect(ctx); err != nil {
+			slog.Warn("whatsapp channel: connect", "account", acct.Label, "error", err)
+			continue
+		}
+
+		db, err := store.Open(store.Config{
+			Driver: s.cfg.WhatsApp.Storage.Driver,
+			DSN:    s.cfg.WhatsAppDataDSN(),
+		})
+		if err != nil {
+			slog.Warn("whatsapp channel: open data db", "account", acct.Label, "error", err)
+			continue
+		}
+
+		sender := &whatsAppSender{client: client, db: db}
+		ch := wachannel.NewChannel(sender, acct.OwnerJID)
+
+		interactor := channel.NewInteractor(ch)
+		account := s.resolveAccount()
+		bridge := tools.NewTokenBridge(s.google, account)
+
+		sm := wachannel.NewSessionManager(s.cfg, ch, p, providerName, modelName, wachannel.SessionManagerDeps{
+			Interactor:   interactor,
+			ScopeWaiter:  s.scopeWaiter,
+			TokenBridge:  bridge,
+			GoogleAuth:   s.google,
+			Account:      account,
+			AccountLabel: acct.Label,
+			OwnerJID:     acct.OwnerJID,
+		})
+
+		wachannel.RegisterEventHandler(client.WM(), ch, acct.OwnerJID)
+		go sm.Run(ctx)
+
+		slog.Info("whatsapp channel started", "account", acct.Label, "owner_jid", acct.OwnerJID)
+	}
+}
+
+// whatsAppSender implements wachannel.messageSender using the real whatsmeow client.
+type whatsAppSender struct {
+	client *wasrc.Client
+	db     *store.DB
+}
+
+func (s *whatsAppSender) SendText(ctx context.Context, jid, text string) error {
+	_, err := wasrc.SendText(ctx, s.client, s.db, wasrc.SendInput{
+		ChatJID: jid,
+		Text:    text,
+	})
+	return err
 }
 
 // migrateDBs runs database migrations once at startup for all configured sources.
