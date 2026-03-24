@@ -673,6 +673,97 @@ func TestGmailSyncDays_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestWhatsAppAccountList_LegacyMode(t *testing.T) {
+	cfg := Default()
+	entries := cfg.WhatsAppAccountList()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Label != "default" {
+		t.Fatalf("expected label 'default', got %q", entries[0].Label)
+	}
+	if entries[0].Role != "source" {
+		t.Fatalf("expected role 'source', got %q", entries[0].Role)
+	}
+}
+
+func TestWhatsAppAccountList_MultiAccount(t *testing.T) {
+	cfg := Default()
+	cfg.WhatsApp.Accounts = map[string]*WhatsAppAccount{
+		"personal": {Role: "source"},
+		"assistant": {Role: "channel", OwnerJID: "123@s.whatsapp.net"},
+	}
+	entries := cfg.WhatsAppAccountList()
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	found := map[string]WhatsAppAccountEntry{}
+	for _, e := range entries {
+		found[e.Label] = e
+	}
+	if found["personal"].Role != "source" {
+		t.Fatalf("personal role = %q, want source", found["personal"].Role)
+	}
+	if found["assistant"].Role != "channel" {
+		t.Fatalf("assistant role = %q, want channel", found["assistant"].Role)
+	}
+	if found["assistant"].OwnerJID != "123@s.whatsapp.net" {
+		t.Fatalf("assistant owner_jid = %q", found["assistant"].OwnerJID)
+	}
+}
+
+func TestWhatsAppAccountSessionDBPath(t *testing.T) {
+	cfg := Default()
+	path := cfg.WhatsAppAccountSessionDBPath("myaccount")
+	if !strings.HasSuffix(path, filepath.Join("whatsapp", "myaccount", "session.db")) {
+		t.Fatalf("expected path ending in whatsapp/myaccount/session.db, got %q", path)
+	}
+}
+
+func TestWhatsAppAccountSessionDBPath_Default(t *testing.T) {
+	cfg := Default()
+	path := cfg.WhatsAppAccountSessionDBPath("default")
+	if path != cfg.WhatsAppSessionDBPath() {
+		t.Fatalf("default label should use legacy path, got %q vs %q", path, cfg.WhatsAppSessionDBPath())
+	}
+}
+
+func TestWhatsAppAccountDir(t *testing.T) {
+	cfg := Default()
+	dir := cfg.WhatsAppAccountDir("myaccount")
+	if !strings.HasSuffix(dir, filepath.Join("whatsapp", "myaccount")) {
+		t.Fatalf("expected path ending in whatsapp/myaccount, got %q", dir)
+	}
+}
+
+func TestWhatsAppConfig_YAMLRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.WhatsApp.Accounts = map[string]*WhatsAppAccount{
+		"personal":  {Role: "source"},
+		"assistant": {Role: "channel", OwnerJID: "123@s.whatsapp.net"},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(loaded.WhatsApp.Accounts) != 2 {
+		t.Fatalf("expected 2 accounts, got %d", len(loaded.WhatsApp.Accounts))
+	}
+	if loaded.WhatsApp.Accounts["assistant"].OwnerJID != "123@s.whatsapp.net" {
+		t.Fatalf("owner_jid not preserved: %q", loaded.WhatsApp.Accounts["assistant"].OwnerJID)
+	}
+	if loaded.WhatsApp.Accounts["personal"].Role != "source" {
+		t.Fatalf("role not preserved: %q", loaded.WhatsApp.Accounts["personal"].Role)
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
