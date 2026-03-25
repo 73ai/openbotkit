@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/73ai/openbotkit/channel"
 )
+
+// Compile-time interface check.
+var _ channel.Channel = (*Channel)(nil)
 
 // messageSender abstracts WhatsApp message sending for testing.
 type messageSender interface {
