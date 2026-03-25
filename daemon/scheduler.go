@@ -16,6 +16,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/daemon/jobs"
+	backupsvc "github.com/73ai/openbotkit/service/backup"
 	"github.com/73ai/openbotkit/service/scheduler"
 	"github.com/73ai/openbotkit/store"
 )
@@ -56,12 +57,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.cron = cron.New(cron.WithLocation(time.UTC))
 	s.cron.Start()
 
-	if err := s.loadSchedules(); err != nil {
-		slog.Error("scheduler: initial load failed", "error", err)
-	}
+	s.tick(ctx)
 
-	go s.reloadLoop(ctx)
-	go s.oneShotLoop(ctx)
+	go s.tickLoop(ctx)
 	if s.notifier != nil {
 		go s.reactiveCheckLoop(ctx)
 	}
@@ -77,7 +75,7 @@ func (s *Scheduler) Stop() {
 	slog.Info("scheduler stopped")
 }
 
-func (s *Scheduler) reloadLoop(ctx context.Context) {
+func (s *Scheduler) tickLoop(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -85,26 +83,20 @@ func (s *Scheduler) reloadLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.loadSchedules(); err != nil {
-				slog.Error("scheduler: reload failed", "error", err)
-			}
+			s.tick(ctx)
 		}
 	}
 }
 
-func (s *Scheduler) oneShotLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := s.pollOneShot(ctx); err != nil {
-				slog.Error("scheduler: one-shot poll failed", "error", err)
-			}
-		}
+func (s *Scheduler) tick(ctx context.Context) {
+	if err := s.loadSchedules(); err != nil {
+		slog.Error("scheduler: reload failed", "error", err)
 	}
+	s.checkOverdueRecurring()
+	if err := s.pollOneShot(ctx); err != nil {
+		slog.Error("scheduler: one-shot poll failed", "error", err)
+	}
+	s.checkOverdueBackup()
 }
 
 func (s *Scheduler) loadSchedules() error {
@@ -156,32 +148,31 @@ func (s *Scheduler) loadSchedules() error {
 }
 
 func (s *Scheduler) addCronEntry(sched scheduler.Schedule) (cron.EntryID, error) {
-	metaJSON, _ := json.Marshal(sched.ChannelMeta)
-	args := jobs.ScheduledTaskArgs{
-		ScheduleID:   sched.ID,
-		Task:         sched.Task,
-		Channel:      sched.Channel,
-		ChannelMeta:  string(metaJSON),
-		ModelTier:    sched.ModelTier,
-		MaxBudgetUSD: sched.MaxBudgetUSD,
-	}
-
+	schedID := sched.ID
 	return s.cron.AddFunc(sched.CronExpr, func() {
-		tx, err := s.jobsDB.Begin()
+		db, err := s.openDB()
 		if err != nil {
-			slog.Error("scheduler: begin tx", "error", err)
+			slog.Error("scheduler: cron open db", "error", err)
 			return
 		}
-		_, err = s.river.InsertTx(s.ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 3,
-		})
+		defer db.Close()
+
+		fresh, err := scheduler.Get(db, schedID)
 		if err != nil {
-			tx.Rollback()
-			slog.Error("scheduler: insert job", "schedule_id", sched.ID, "error", err)
+			slog.Error("scheduler: cron re-read schedule", "schedule_id", schedID, "error", err)
 			return
 		}
-		if err := tx.Commit(); err != nil {
-			slog.Error("scheduler: commit tx", "error", err)
+		if fresh.LastRunAt != nil && time.Since(*fresh.LastRunAt) < 5*time.Minute {
+			slog.Debug("scheduler: cron skip (recent stamp)", "schedule_id", schedID)
+			return
+		}
+
+		if err := s.enqueueScheduledTask(*fresh); err != nil {
+			slog.Error("scheduler: cron enqueue", "schedule_id", schedID, "error", err)
+			return
+		}
+		if err := scheduler.UpdateLastRun(db, schedID, time.Now().UTC(), ""); err != nil {
+			slog.Error("scheduler: cron stamp", "schedule_id", schedID, "error", err)
 		}
 	})
 }
@@ -199,31 +190,8 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 	}
 
 	for _, sched := range due {
-		metaJSON, _ := json.Marshal(sched.ChannelMeta)
-		args := jobs.ScheduledTaskArgs{
-			ScheduleID:   sched.ID,
-			Task:         sched.Task,
-			Channel:      sched.Channel,
-			ChannelMeta:  string(metaJSON),
-			ModelTier:    sched.ModelTier,
-			MaxBudgetUSD: sched.MaxBudgetUSD,
-		}
-
-		tx, err := s.jobsDB.Begin()
-		if err != nil {
-			slog.Error("scheduler: begin tx for one-shot", "error", err)
-			continue
-		}
-		_, err = s.river.InsertTx(ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 3,
-		})
-		if err != nil {
-			tx.Rollback()
-			slog.Error("scheduler: insert one-shot job", "schedule_id", sched.ID, "error", err)
-			continue
-		}
-		if err := tx.Commit(); err != nil {
-			slog.Error("scheduler: commit one-shot tx", "error", err)
+		if err := s.enqueueScheduledTask(sched); err != nil {
+			slog.Error("scheduler: one-shot enqueue", "schedule_id", sched.ID, "error", err)
 			continue
 		}
 
@@ -299,31 +267,10 @@ func (s *Scheduler) checkReactiveTriggersWithDB(ctx context.Context, schedDB *st
 			task += formatRow(row)
 		}
 
-		metaJSON, _ := json.Marshal(sched.ChannelMeta)
-		args := jobs.ScheduledTaskArgs{
-			ScheduleID:   sched.ID,
-			Task:         task,
-			Channel:      sched.Channel,
-			ChannelMeta:  string(metaJSON),
-			ModelTier:    sched.ModelTier,
-			MaxBudgetUSD: sched.MaxBudgetUSD,
-		}
-
-		tx, err := s.jobsDB.Begin()
-		if err != nil {
-			slog.Error("scheduler: begin tx for reactive", "error", err)
-			continue
-		}
-		_, err = s.river.InsertTx(ctx, tx, args, &river.InsertOpts{
-			MaxAttempts: 3,
-		})
-		if err != nil {
-			tx.Rollback()
-			slog.Error("scheduler: insert reactive job", "schedule_id", sched.ID, "error", err)
-			continue
-		}
-		if err := tx.Commit(); err != nil {
-			slog.Error("scheduler: commit reactive tx", "error", err)
+		augmented := sched
+		augmented.Task = task
+		if err := s.enqueueScheduledTask(augmented); err != nil {
+			slog.Error("scheduler: reactive enqueue", "schedule_id", sched.ID, "error", err)
 			continue
 		}
 
@@ -365,6 +312,128 @@ func formatRow(row map[string]string) string {
 		parts = append(parts, k+": "+row[k])
 	}
 	return "  " + strings.Join(parts, " | ") + "\n"
+}
+
+func (s *Scheduler) checkOverdueRecurring() {
+	db, err := s.openDB()
+	if err != nil {
+		slog.Error("scheduler: overdue-recurring open db", "error", err)
+		return
+	}
+	defer db.Close()
+
+	schedules, err := scheduler.ListEnabled(db)
+	if err != nil {
+		slog.Error("scheduler: overdue-recurring list", "error", err)
+		return
+	}
+
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	now := time.Now().UTC()
+
+	for _, sched := range schedules {
+		if sched.Type != scheduler.Recurring || sched.CronExpr == "" {
+			continue
+		}
+		if sched.LastRunAt == nil {
+			continue
+		}
+
+		cronSched, err := parser.Parse(sched.CronExpr)
+		if err != nil {
+			continue
+		}
+
+		nextExpected := cronSched.Next(*sched.LastRunAt)
+		if !nextExpected.Before(now) {
+			continue
+		}
+
+		slog.Info("scheduler: recurring overdue", "id", sched.ID, "last_run", sched.LastRunAt, "was_due", nextExpected)
+
+		if err := s.enqueueScheduledTask(sched); err != nil {
+			slog.Error("scheduler: overdue-recurring enqueue", "schedule_id", sched.ID, "error", err)
+			continue
+		}
+
+		if err := scheduler.UpdateLastRun(db, sched.ID, now, ""); err != nil {
+			slog.Error("scheduler: overdue-recurring stamp", "schedule_id", sched.ID, "error", err)
+		}
+	}
+}
+
+func (s *Scheduler) checkOverdueBackup() {
+	if s.cfg.Backup == nil || !s.cfg.Backup.Enabled || s.cfg.Backup.Schedule == "" {
+		return
+	}
+	if !config.IsSourceLinked("backup") {
+		return
+	}
+
+	schedule, err := time.ParseDuration(s.cfg.Backup.Schedule)
+	if err != nil || schedule <= 0 {
+		return
+	}
+
+	manifest, err := backupsvc.LoadManifest(config.BackupLastManifestPath())
+	if err != nil {
+		slog.Error("scheduler: backup manifest load", "error", err)
+		return
+	}
+
+	if manifest.ID != "" && time.Since(manifest.Timestamp) < schedule {
+		return
+	}
+
+	slog.Info("scheduler: backup overdue", "last", manifest.Timestamp, "schedule", schedule)
+
+	tx, err := s.jobsDB.Begin()
+	if err != nil {
+		slog.Error("scheduler: backup begin tx", "error", err)
+		return
+	}
+	_, err = s.river.InsertTx(s.ctx, tx, jobs.BackupArgs{}, &river.InsertOpts{
+		MaxAttempts: 3,
+		UniqueOpts: river.UniqueOpts{
+			ByPeriod: schedule,
+		},
+	})
+	if err != nil {
+		tx.Rollback()
+		slog.Error("scheduler: backup insert", "error", err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		slog.Error("scheduler: backup commit", "error", err)
+	}
+}
+
+func (s *Scheduler) enqueueScheduledTask(sched scheduler.Schedule) error {
+	metaJSON, _ := json.Marshal(sched.ChannelMeta)
+	args := jobs.ScheduledTaskArgs{
+		ScheduleID:   sched.ID,
+		Task:         sched.Task,
+		Channel:      sched.Channel,
+		ChannelMeta:  string(metaJSON),
+		ModelTier:    sched.ModelTier,
+		MaxBudgetUSD: sched.MaxBudgetUSD,
+	}
+
+	tx, err := s.jobsDB.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	_, err = s.river.InsertTx(s.ctx, tx, args, &river.InsertOpts{
+		MaxAttempts: 3,
+	})
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("insert: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }
 
 func (s *Scheduler) isValidFrequency(cronExpr string) bool {
