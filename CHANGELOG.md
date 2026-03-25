@@ -3,6 +3,22 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] (2026-03-25)
+
+### Added
+
+- **backup**: Notify via Telegram on final failure
+
+### Changed
+
+- **daemon**: Remove backup periodic job from River
+- **daemon**: Unified tick loop with sleep/wake catch-up
+
+### Fixed
+
+- **backup**: Handle nil Channels config in notifyFailure
+- **settings**: Call LinkSource("backup") in backup wizard
+
 ## [0.5.1] (2026-03-25)
 
 ### Fixed
