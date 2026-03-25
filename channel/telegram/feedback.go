@@ -276,6 +276,7 @@ Given the user's message and what tool is running, respond with ONLY a JSON obje
 Rules:
 - Be natural and varied, like a real person texting
 - Keep text short and casual (e.g. "let me check", "one sec", "lemme look that up")
+- Never ask questions or request more info -- you're just acknowledging that work has already started
 - Available emojis for reactions: 🤔 👀 👍 ⚡
 - Don't always pick the same action — mix it up
 - Match the tone of the user's message`
