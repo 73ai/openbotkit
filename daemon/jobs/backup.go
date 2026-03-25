@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/riverqueue/river"
 
+	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
@@ -34,6 +36,17 @@ func (w *BackupWorker) Work(ctx context.Context, job *river.Job[BackupArgs]) err
 		return nil
 	}
 
+	schedule, err := time.ParseDuration(w.Cfg.Backup.Schedule)
+	if err == nil && schedule > 0 {
+		manifest, mErr := backupsvc.LoadManifest(config.BackupLastManifestPath())
+		if mErr == nil && manifest.ID != "" && time.Since(manifest.Timestamp) < schedule {
+			slog.Info("backup: last backup is recent, skipping",
+				"age", time.Since(manifest.Timestamp).Round(time.Minute),
+				"schedule", schedule)
+			return nil
+		}
+	}
+
 	slog.Info("starting backup job")
 
 	backend, err := backupsvc.ResolveBackend(ctx, backendOpts(w.Cfg))
@@ -44,6 +57,9 @@ func (w *BackupWorker) Work(ctx context.Context, job *river.Job[BackupArgs]) err
 	svc := backupsvc.New(backend, config.Dir())
 	result, err := svc.Run(ctx)
 	if err != nil {
+		if job.Attempt >= job.MaxAttempts {
+			w.notifyFailure(ctx, err)
+		}
 		return fmt.Errorf("backup: %w", err)
 	}
 
@@ -54,6 +70,22 @@ func (w *BackupWorker) Work(ctx context.Context, job *river.Job[BackupArgs]) err
 		"duration", result.Duration,
 	)
 	return nil
+}
+
+func (w *BackupWorker) notifyFailure(ctx context.Context, backupErr error) {
+	tg := w.Cfg.Channels.Telegram
+	if tg == nil || tg.BotToken == "" {
+		return
+	}
+	pusher, err := channel.NewTelegramPusher(tg.BotToken, tg.OwnerID)
+	if err != nil {
+		slog.Error("backup: create telegram pusher", "error", err)
+		return
+	}
+	msg := fmt.Sprintf("Backup failed: %s", backupErr)
+	if err := pusher.Push(ctx, msg); err != nil {
+		slog.Error("backup: send failure alert", "error", err)
+	}
 }
 
 func backendOpts(cfg *config.Config) backupsvc.ResolveBackendOpts {
