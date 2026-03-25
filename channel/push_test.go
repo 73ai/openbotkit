@@ -35,6 +35,19 @@ func TestWhatsAppPusherImplementsInterface(t *testing.T) {
 	var _ Pusher = (*WhatsAppPusher)(nil)
 }
 
+func TestNewPusher_WhatsApp(t *testing.T) {
+	// Cannot fully construct without a real session DB, but verify
+	// the factory routes to the whatsapp case (will fail on missing
+	// config dir, which confirms routing works).
+	_, err := NewPusher("whatsapp", scheduler.ChannelMeta{
+		WAAccountLabel: "test",
+		WAOwnerJID:     "123@s.whatsapp.net",
+	})
+	if err == nil {
+		t.Fatal("expected error (no config dir), but got nil")
+	}
+}
+
 func TestMockPusherImplementsInterface(t *testing.T) {
 	var p Pusher = &mockPusher{}
 	if err := p.Push(context.Background(), "test"); err != nil {
