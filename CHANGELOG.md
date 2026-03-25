@@ -3,6 +3,25 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] (2026-03-25)
+
+### Added
+
+- **config**: Add multi-account WhatsApp config types and helpers
+- **config**: Add per-account WhatsApp linked state helpers
+- **channel**: Add WhatsApp channel with text-based approval flow
+- **channel**: Add WhatsApp event handler with message filtering
+- **scheduler**: Add WhatsApp fields to ChannelMeta
+- **channel**: Add WhatsApp session manager
+- **channel**: Add WhatsApp pusher for scheduled notifications
+- **daemon**: Add multi-account WhatsApp sync support
+- **server**: Add WhatsApp channel startup in server mode
+- **cli**: Add --account flag and accounts list command
+
+### Fixed
+
+- **channel**: Add compile-time Channel interface check
+
 ## [0.3.0] (2026-03-23)
 
 ### Added
