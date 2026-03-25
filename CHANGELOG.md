@@ -3,6 +3,13 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.1] (2026-03-25)
+
+### Fixed
+
+- **ci**: Skip tag creation when version tag already exists
+- **ci**: Skip changelog release when version tag already exists
+
 ## [0.5.0] (2026-03-25)
 
 ### Added
