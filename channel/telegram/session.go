@@ -482,6 +482,9 @@ Talk like a helpful human, not a robot. Be casual, warm, and direct.
 	if recorder != nil {
 		opts = append(opts, agent.WithUsageRecorder(recorder))
 	}
+	opts = append(opts, agent.WithOnIntermediateText(func(text string) {
+		sm.channel.Send(text)
+	}))
 	var executor agent.ToolExecutor = toolReg
 	if onToolStart != nil {
 		executor = &notifyingExecutor{delegate: toolReg, onToolStart: onToolStart}

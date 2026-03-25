@@ -41,6 +41,7 @@ type Agent struct {
 	rateLimiter         *provider.RateLimiter
 	usageRecorder       UsageRecorder
 	budgetChecker       BudgetChecker
+	onIntermediateText  func(string)
 }
 
 // Option configures an Agent.
@@ -99,6 +100,12 @@ func WithSummarizer(s Summarizer) Option {
 // WithBudgetChecker sets a budget checker that is called after each LLM call.
 func WithBudgetChecker(bc BudgetChecker) Option {
 	return func(a *Agent) { a.budgetChecker = bc }
+}
+
+// WithOnIntermediateText sets a callback for text the LLM produces mid-loop
+// (i.e. when stop reason is tool_use but the response also contains text).
+func WithOnIntermediateText(fn func(string)) Option {
+	return func(a *Agent) { a.onIntermediateText = fn }
 }
 
 // New creates a new Agent.
@@ -168,6 +175,12 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 			Role:    provider.RoleAssistant,
 			Content: resp.Content,
 		})
+
+		if resp.StopReason == provider.StopToolUse {
+			if text := resp.TextContent(); text != "" && a.onIntermediateText != nil {
+				a.onIntermediateText(text)
+			}
+		}
 
 		if resp.StopReason != provider.StopToolUse {
 			return resp.TextContent(), nil

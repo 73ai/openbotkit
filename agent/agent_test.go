@@ -773,3 +773,89 @@ func (h *hookProvider) Chat(_ context.Context, _ provider.ChatRequest) (*provide
 func (h *hookProvider) StreamChat(_ context.Context, _ provider.ChatRequest) (<-chan provider.StreamEvent, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+
+func TestLoop_IntermediateTextCallback(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{Type: provider.ContentText, Text: "Timed out, retrying..."},
+					{
+						Type: provider.ContentToolUse,
+						ToolCall: &provider.ToolCall{
+							ID:    "call_1",
+							Name:  "bash",
+							Input: json.RawMessage(`{"command":"echo hello"}`),
+						},
+					},
+				},
+				StopReason: provider.StopToolUse,
+			},
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "All done"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{"bash": "hello\n"}}
+
+	var captured []string
+	a := New(mp, "test-model", exec, WithOnIntermediateText(func(text string) {
+		captured = append(captured, text)
+	}))
+
+	result, err := a.Run(context.Background(), "retry test")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result != "All done" {
+		t.Errorf("result = %q, want %q", result, "All done")
+	}
+	if len(captured) != 1 {
+		t.Fatalf("expected 1 intermediate callback, got %d", len(captured))
+	}
+	if captured[0] != "Timed out, retrying..." {
+		t.Errorf("intermediate text = %q, want %q", captured[0], "Timed out, retrying...")
+	}
+}
+
+func TestLoop_IntermediateTextCallback_NoText(t *testing.T) {
+	mp := &mockProvider{
+		responses: []*provider.ChatResponse{
+			{
+				Content: []provider.ContentBlock{
+					{
+						Type: provider.ContentToolUse,
+						ToolCall: &provider.ToolCall{
+							ID:    "call_1",
+							Name:  "bash",
+							Input: json.RawMessage(`{"command":"echo hello"}`),
+						},
+					},
+				},
+				StopReason: provider.StopToolUse,
+			},
+			{
+				Content:    []provider.ContentBlock{{Type: provider.ContentText, Text: "Done"}},
+				StopReason: provider.StopEndTurn,
+			},
+		},
+	}
+	exec := &mockExecutor{results: map[string]string{"bash": "hello\n"}}
+
+	called := false
+	a := New(mp, "test-model", exec, WithOnIntermediateText(func(text string) {
+		called = true
+	}))
+
+	result, err := a.Run(context.Background(), "no text test")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result != "Done" {
+		t.Errorf("result = %q, want %q", result, "Done")
+	}
+	if called {
+		t.Error("callback should not have been called when no text blocks present")
+	}
+}

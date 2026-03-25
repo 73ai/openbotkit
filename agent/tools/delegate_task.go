@@ -16,7 +16,7 @@ import (
 	"github.com/73ai/openbotkit/agent/audit"
 )
 
-const defaultDelegateTimeout = 5 * time.Minute
+const defaultDelegateTimeout = 15 * time.Minute
 
 // DelegateTaskConfig configures the delegate_task tool.
 type DelegateTaskConfig struct {
