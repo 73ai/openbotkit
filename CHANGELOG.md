@@ -3,6 +3,19 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] (2026-03-25)
+
+### Added
+
+- **agent**: Add WithOnIntermediateText callback for tool-use loops
+- **telegram**: Send intermediate LLM text to user
+- **whatsapp**: Send intermediate LLM text to user
+
+### Fixed
+
+- **telegram**: Prevent ack model from generating questions
+- **tools**: Increase delegate_task timeout to 15 minutes
+
 ## [0.4.0] (2026-03-25)
 
 ### Added
