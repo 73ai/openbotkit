@@ -51,6 +51,9 @@ func (w *BackupWorker) Work(ctx context.Context, job *river.Job[BackupArgs]) err
 
 	backend, err := backupsvc.ResolveBackend(ctx, backendOpts(w.Cfg))
 	if err != nil {
+		if job.Attempt >= job.MaxAttempts {
+			w.notifyFailure(ctx, err)
+		}
 		return fmt.Errorf("resolve backend: %w", err)
 	}
 
@@ -73,6 +76,9 @@ func (w *BackupWorker) Work(ctx context.Context, job *river.Job[BackupArgs]) err
 }
 
 func (w *BackupWorker) notifyFailure(ctx context.Context, backupErr error) {
+	if w.Cfg.Channels == nil {
+		return
+	}
 	tg := w.Cfg.Channels.Telegram
 	if tg == nil || tg.BotToken == "" {
 		return
