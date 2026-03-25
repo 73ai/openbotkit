@@ -310,6 +310,44 @@ func TestCheckOverdueBackupSkipsRecent(t *testing.T) {
 	}
 }
 
+func TestCheckOverdueBackupNoDuplicate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	obkDir := setTestConfigDir(t)
+	env := setupTestScheduler(t)
+
+	if err := config.LinkSource("backup"); err != nil {
+		t.Fatalf("link backup source: %v", err)
+	}
+
+	backupDir := filepath.Join(obkDir, "backup")
+	manifestPath := filepath.Join(backupDir, "last_manifest.json")
+	staleTime := time.Now().Add(-25 * time.Hour)
+	manifest := map[string]any{
+		"version":   1,
+		"id":        "old-backup",
+		"timestamp": staleTime.Format(time.RFC3339),
+		"hostname":  "test",
+		"files":     map[string]any{},
+	}
+	data, _ := json.Marshal(manifest)
+	os.WriteFile(manifestPath, data, 0o644)
+
+	env.cfg.Backup = &config.BackupConfig{
+		Enabled:  true,
+		Schedule: "24h",
+	}
+
+	env.scheduler.checkOverdueBackup()
+	env.scheduler.checkOverdueBackup()
+
+	if got := env.countJobs(t, "backup"); got != 1 {
+		t.Errorf("expected 1 backup job after two calls (UniqueOpts dedup), got %d", got)
+	}
+}
+
 func TestTickRunsAllChecks(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
