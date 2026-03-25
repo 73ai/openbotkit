@@ -59,19 +59,6 @@ func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotif
 		),
 	}
 
-	if cfg.Backup != nil && cfg.Backup.Enabled && cfg.Backup.Schedule != "" {
-		backupPeriod, err := time.ParseDuration(cfg.Backup.Schedule)
-		if err == nil {
-			periodicJobs = append(periodicJobs, river.NewPeriodicJob(
-				river.PeriodicInterval(backupPeriod),
-				func() (river.JobArgs, *river.InsertOpts) {
-					return jobs.BackupArgs{}, nil
-				},
-				&river.PeriodicJobOpts{RunOnStart: false},
-			))
-		}
-	}
-
 	riverCfg := &river.Config{
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 5},

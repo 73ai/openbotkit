@@ -114,6 +114,11 @@ func (m model) commitDestinationSwap(dest string) (model, tea.Cmd) {
 		return m.rollbackBackup()
 	}
 
+	if err := config.LinkSource("backup"); err != nil {
+		m.flash = fmt.Sprintf("Error linking backup: %v", err)
+		return m.rollbackBackup()
+	}
+
 	m.flash = "Destination updated!"
 	m.wizardBackupSnapshot = nil
 	m.state = stateBrowse
@@ -260,6 +265,11 @@ func (m model) saveBackup() (model, tea.Cmd) {
 
 	if err := m.svc.Save(); err != nil {
 		m.flash = fmt.Sprintf("Error saving: %v", err)
+		return m.rollbackBackup()
+	}
+
+	if err := config.LinkSource("backup"); err != nil {
+		m.flash = fmt.Sprintf("Error linking backup: %v", err)
 		return m.rollbackBackup()
 	}
 

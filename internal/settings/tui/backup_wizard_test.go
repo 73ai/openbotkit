@@ -183,6 +183,8 @@ func TestEnterBackupWizardShowsDestWhenEmpty(t *testing.T) {
 }
 
 func TestCommitDestinationSwapSetsConfig(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{
 		Enabled:     true,
@@ -211,9 +213,14 @@ func TestCommitDestinationSwapSetsConfig(t *testing.T) {
 	if m.wizardBackupSnapshot != nil {
 		t.Error("snapshot should be cleared on commit")
 	}
+	if !config.IsSourceLinked("backup") {
+		t.Error("backup source should be linked after destination swap")
+	}
 }
 
 func TestSaveBackupSetsDefaults(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{
 		Destination: "r2",
@@ -233,9 +240,14 @@ func TestSaveBackupSetsDefaults(t *testing.T) {
 	if cfg.Backup.Schedule != "6h" {
 		t.Errorf("saveBackup should default schedule to 6h, got %q", cfg.Backup.Schedule)
 	}
+	if !config.IsSourceLinked("backup") {
+		t.Error("backup source should be linked after save")
+	}
 }
 
 func TestSaveBackupPreservesExistingSchedule(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
 	cfg := config.Default()
 	cfg.Backup = &config.BackupConfig{
 		Destination: "r2",
