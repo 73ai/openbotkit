@@ -146,8 +146,55 @@ type DaemonConfig struct {
 	JobsStorage     StorageConfig `yaml:"jobs_storage,omitempty"`
 }
 
+type WhatsAppAccount struct {
+	Role     string `yaml:"role"`                // "source", "channel", "both"
+	OwnerJID string `yaml:"owner_jid,omitempty"` // owner's JID for channel filtering
+}
+
 type WhatsAppConfig struct {
-	Storage StorageConfig `yaml:"storage,omitempty"`
+	Storage  StorageConfig                `yaml:"storage,omitempty"`
+	Accounts map[string]*WhatsAppAccount  `yaml:"accounts,omitempty"`
+}
+
+// WhatsAppAccountEntry is a unified entry for iterating accounts.
+type WhatsAppAccountEntry struct {
+	Label    string
+	Role     string // "source", "channel", "both"
+	OwnerJID string
+}
+
+// WhatsAppAccountList returns a unified list of accounts. When Accounts is
+// empty (legacy mode), it synthesizes a single entry with label "default".
+func (c *Config) WhatsAppAccountList() []WhatsAppAccountEntry {
+	if c.WhatsApp == nil || len(c.WhatsApp.Accounts) == 0 {
+		return []WhatsAppAccountEntry{{Label: "default", Role: "source"}}
+	}
+	entries := make([]WhatsAppAccountEntry, 0, len(c.WhatsApp.Accounts))
+	for label, acct := range c.WhatsApp.Accounts {
+		role := acct.Role
+		if role == "" {
+			role = "source"
+		}
+		entries = append(entries, WhatsAppAccountEntry{
+			Label:    label,
+			Role:     role,
+			OwnerJID: acct.OwnerJID,
+		})
+	}
+	return entries
+}
+
+// WhatsAppAccountDir returns the directory for an account's state files.
+func (c *Config) WhatsAppAccountDir(label string) string {
+	return filepath.Join(SourceDir("whatsapp"), label)
+}
+
+// WhatsAppAccountSessionDBPath returns the session DB path for an account.
+func (c *Config) WhatsAppAccountSessionDBPath(label string) string {
+	if label == "default" {
+		return c.WhatsAppSessionDBPath()
+	}
+	return filepath.Join(SourceDir("whatsapp"), label, "session.db")
 }
 
 type GmailConfig struct {

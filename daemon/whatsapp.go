@@ -13,25 +13,31 @@ import (
 // runWhatsAppSync starts a WhatsApp sync goroutine that runs until ctx is cancelled.
 // Errors are sent on the returned channel (non-blocking).
 func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) <-chan error {
+	return runWhatsAppSyncForAccount(ctx, cfg, "default", notifier)
+}
+
+// runWhatsAppSyncForAccount runs sync for a specific account label.
+func runWhatsAppSyncForAccount(ctx context.Context, cfg *config.Config, label string, notifier *SyncNotifier) <-chan error {
 	errCh := make(chan error, 1)
 
 	go func() {
 		defer close(errCh)
 
-		if !config.IsSourceLinked("whatsapp") {
-			slog.Info("whatsapp: not linked, skipping sync")
+		if !config.IsWhatsAppAccountLinked(label) {
+			slog.Info("whatsapp: not linked, skipping sync", "account", label)
 			return
 		}
 
-		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
+		sessionDBPath := cfg.WhatsAppAccountSessionDBPath(label)
+		client, err := wasrc.NewClient(ctx, sessionDBPath)
 		if err != nil {
-			slog.Error("whatsapp: failed to create client", "error", err)
+			slog.Error("whatsapp: failed to create client", "account", label, "error", err)
 			errCh <- err
 			return
 		}
 
 		if !client.IsAuthenticated() {
-			slog.Warn("whatsapp: not authenticated, skipping sync (run 'obk whatsapp auth' first)")
+			slog.Warn("whatsapp: not authenticated, skipping sync", "account", label)
 			return
 		}
 
@@ -40,14 +46,12 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNoti
 			DSN:    cfg.WhatsAppDataDSN(),
 		})
 		if err != nil {
-			slog.Error("whatsapp: failed to open db", "error", err)
+			slog.Error("whatsapp: failed to open db", "account", label, "error", err)
 			errCh <- err
 			return
 		}
 		defer db.Close()
 
-		// WhatsApp uses streaming sync (Follow: true), so notify periodically
-		// while messages arrive, matching the cadence of other sync sources.
 		if notifier != nil {
 			go func() {
 				ticker := time.NewTicker(30 * time.Second)
@@ -63,17 +67,18 @@ func runWhatsAppSync(ctx context.Context, cfg *config.Config, notifier *SyncNoti
 			}()
 		}
 
-		slog.Info("whatsapp: starting sync")
+		slog.Info("whatsapp: starting sync", "account", label)
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{
 			Follow: true,
 		})
 		if err != nil {
-			slog.Error("whatsapp: sync error", "error", err)
+			slog.Error("whatsapp: sync error", "account", label, "error", err)
 			errCh <- err
 			return
 		}
 
-		slog.Info("whatsapp: sync stopped", "received", result.Received, "history", result.HistoryMessages, "errors", result.Errors)
+		slog.Info("whatsapp: sync stopped", "account", label,
+			"received", result.Received, "history", result.HistoryMessages, "errors", result.Errors)
 	}()
 
 	return errCh

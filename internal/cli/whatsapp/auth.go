@@ -22,7 +22,8 @@ var authCmd = &cobra.Command{
 var authLoginCmd = &cobra.Command{
 	Use:     "login",
 	Short:   "Authenticate WhatsApp by scanning a QR code",
-	Example: `  obk whatsapp auth login`,
+	Example: `  obk whatsapp auth login
+  obk whatsapp auth login --account assistant`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -33,12 +34,20 @@ var authLoginCmd = &cobra.Command{
 			return authLoginRemote(cfg)
 		}
 
+		account, _ := cmd.Flags().GetString("account")
+
 		if err := config.EnsureSourceDir("whatsapp"); err != nil {
 			return fmt.Errorf("create whatsapp dir: %w", err)
 		}
+		if account != "default" {
+			dir := cfg.WhatsAppAccountDir(account)
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				return fmt.Errorf("create account dir: %w", err)
+			}
+		}
 
 		w := wasrc.New(wasrc.Config{
-			SessionDBPath: cfg.WhatsAppSessionDBPath(),
+			SessionDBPath: cfg.WhatsAppAccountSessionDBPath(account),
 			DataDSN:       cfg.WhatsAppDataDSN(),
 		})
 
@@ -47,11 +56,11 @@ var authLoginCmd = &cobra.Command{
 			return fmt.Errorf("login failed: %w", err)
 		}
 
-		if err := config.LinkSource("whatsapp"); err != nil {
-			return fmt.Errorf("link source: %w", err)
+		if err := config.LinkWhatsAppAccount(account); err != nil {
+			return fmt.Errorf("link account: %w", err)
 		}
 
-		fmt.Println("\nSuccessfully authenticated WhatsApp")
+		fmt.Printf("\nSuccessfully authenticated WhatsApp (account: %s)\n", account)
 		return nil
 	},
 }
@@ -60,11 +69,13 @@ var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Disconnect and clear WhatsApp session",
 	Example: `  obk whatsapp auth logout
-  obk whatsapp auth logout --force`,
+  obk whatsapp auth logout --force
+  obk whatsapp auth logout --account assistant`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
+		account, _ := cmd.Flags().GetString("account")
 		if !force {
-			fmt.Print("About to disconnect WhatsApp session. Continue? (y/N): ")
+			fmt.Printf("About to disconnect WhatsApp session (account: %s). Continue? (y/N): ", account)
 			var confirm string
 			fmt.Scanln(&confirm)
 			if confirm != "y" && confirm != "Y" {
@@ -79,7 +90,7 @@ var authLogoutCmd = &cobra.Command{
 		}
 
 		w := wasrc.New(wasrc.Config{
-			SessionDBPath: cfg.WhatsAppSessionDBPath(),
+			SessionDBPath: cfg.WhatsAppAccountSessionDBPath(account),
 		})
 
 		ctx := context.Background()
@@ -87,11 +98,11 @@ var authLogoutCmd = &cobra.Command{
 			return fmt.Errorf("logout failed: %w", err)
 		}
 
-		if err := config.UnlinkSource("whatsapp"); err != nil {
-			return fmt.Errorf("unlink source: %w", err)
+		if err := config.UnlinkWhatsAppAccount(account); err != nil {
+			return fmt.Errorf("unlink account: %w", err)
 		}
 
-		fmt.Println("Logged out of WhatsApp")
+		fmt.Printf("Logged out of WhatsApp (account: %s)\n", account)
 		return nil
 	},
 }
@@ -100,7 +111,8 @@ var authStatusCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List WhatsApp authentication status",
 	Example: `  obk whatsapp auth list
-  obk whatsapp auth list --json`,
+  obk whatsapp auth list --json
+  obk whatsapp auth list --account assistant`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -108,31 +120,32 @@ var authStatusCmd = &cobra.Command{
 		}
 
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
 		ctx := context.Background()
-		client, err := wasrc.NewClient(ctx, cfg.WhatsAppSessionDBPath())
+		client, err := wasrc.NewClient(ctx, cfg.WhatsAppAccountSessionDBPath(account))
 		if err != nil {
 			if jsonOut {
-				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false})
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false, "account": account})
 			}
-			fmt.Println("Not authenticated (no session found).")
+			fmt.Printf("Not authenticated (account: %s, no session found).\n", account)
 			return nil
 		}
 		defer client.Disconnect()
 
 		if !client.IsAuthenticated() {
 			if jsonOut {
-				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false})
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": false, "account": account})
 			}
-			fmt.Println("Not authenticated.")
+			fmt.Printf("Not authenticated (account: %s).\n", account)
 			return nil
 		}
 
 		user := client.WM().Store.ID.User
 		if jsonOut {
-			return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": true, "user": user})
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"authenticated": true, "user": user, "account": account})
 		}
-		fmt.Printf("Authenticated as %s\n", user)
+		fmt.Printf("Authenticated as %s (account: %s)\n", user, account)
 		return nil
 	},
 }
@@ -162,8 +175,11 @@ func authLoginRemote(cfg *config.Config) error {
 }
 
 func init() {
+	authLoginCmd.Flags().String("account", "default", "Account label")
 	authLogoutCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	authLogoutCmd.Flags().String("account", "default", "Account label")
 	authStatusCmd.Flags().Bool("json", false, "Output as JSON")
+	authStatusCmd.Flags().String("account", "default", "Account label")
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)

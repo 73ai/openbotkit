@@ -57,3 +57,53 @@ func LinkSource(name string) error {
 func UnlinkSource(name string) error {
 	return SaveSourceState(name, &SourceState{Linked: false})
 }
+
+// whatsAppAccountStatePath returns the config.json path for a WhatsApp account.
+func whatsAppAccountStatePath(label string) string {
+	return filepath.Join(SourceDir("whatsapp"), label, "config.json")
+}
+
+func IsWhatsAppAccountLinked(label string) bool {
+	if label == "default" {
+		return IsSourceLinked("whatsapp")
+	}
+	data, err := os.ReadFile(whatsAppAccountStatePath(label))
+	if err != nil {
+		return false
+	}
+	var s SourceState
+	if err := json.Unmarshal(data, &s); err != nil {
+		return false
+	}
+	return s.Linked
+}
+
+func LinkWhatsAppAccount(label string) error {
+	if label == "default" {
+		return LinkSource("whatsapp")
+	}
+	dir := filepath.Join(SourceDir("whatsapp"), label)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("create account dir: %w", err)
+	}
+	data, err := json.MarshalIndent(&SourceState{Linked: true}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(whatsAppAccountStatePath(label), data, 0600)
+}
+
+func UnlinkWhatsAppAccount(label string) error {
+	if label == "default" {
+		return UnlinkSource("whatsapp")
+	}
+	dir := filepath.Join(SourceDir("whatsapp"), label)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("create account dir: %w", err)
+	}
+	data, err := json.MarshalIndent(&SourceState{Linked: false}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(whatsAppAccountStatePath(label), data, 0600)
+}
