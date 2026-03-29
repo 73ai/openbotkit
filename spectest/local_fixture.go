@@ -328,6 +328,17 @@ func (f *LocalFixture) Agent(t *testing.T) *agent.Agent {
 	)
 }
 
+// Dir returns the temp directory for this test environment.
+func (f *LocalFixture) Dir() string { return f.dir }
+
+// NewEnv creates a test environment (dirs, DBs, skills, binary) without
+// binding to a provider. Caller must set Provider, Model, JudgeProvider,
+// JudgeModel before use.
+func NewEnv(t *testing.T) *LocalFixture {
+	t.Helper()
+	return newLocalFixtureWith(t, nil, "")
+}
+
 func (f *LocalFixture) GivenEmails(t *testing.T, emails []Email) {
 	t.Helper()
 
