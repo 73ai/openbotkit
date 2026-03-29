@@ -13,6 +13,7 @@ import (
 	"github.com/73ai/openbotkit/internal/testutil"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/service/scheduler"
+	"github.com/73ai/openbotkit/source/websearch"
 	"github.com/73ai/openbotkit/spectest"
 
 	_ "github.com/73ai/openbotkit/provider/anthropic"
@@ -107,15 +108,28 @@ func (f *Fixture) SchedDBPath() string {
 	return filepath.Join(f.Dir(), "scheduler", "data.db")
 }
 
+func (f *Fixture) webDeps() tools.WebToolDeps {
+	ws := websearch.New(websearch.Config{})
+	return tools.WebToolDeps{
+		WS:       ws,
+		Provider: f.mainProvider,
+		Model:    f.mainModel,
+	}
+}
+
 // Agent creates an agent using the profile's default provider and model.
 func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	t.Helper()
+
+	webDeps := f.webDeps()
 
 	toolReg := tools.NewRegistry()
 	toolReg.Register(tools.NewBashTool(30 * time.Second))
 	toolReg.Register(&tools.FileReadTool{})
 	toolReg.Register(&tools.LoadSkillsTool{})
 	toolReg.Register(&tools.SearchSkillsTool{})
+	toolReg.Register(tools.NewWebSearchTool(webDeps))
+	toolReg.Register(tools.NewWebFetchTool(webDeps))
 
 	identity := "You are a personal AI assistant powered by OpenBotKit.\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg)
@@ -130,7 +144,7 @@ func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 func (f *Fixture) ScheduleAgent(t *testing.T) *agent.Agent {
 	t.Helper()
 
-	deps := tools.ScheduleToolDeps{
+	schedDeps := tools.ScheduleToolDeps{
 		Cfg: &config.Config{
 			Scheduler: &config.SchedulerConfig{
 				Storage: config.StorageConfig{Driver: "sqlite", DSN: f.SchedDBPath()},
@@ -148,12 +162,14 @@ func (f *Fixture) ScheduleAgent(t *testing.T) *agent.Agent {
 	toolReg.Register(&tools.FileReadTool{})
 	toolReg.Register(&tools.LoadSkillsTool{})
 	toolReg.Register(&tools.SearchSkillsTool{})
-	toolReg.Register(tools.NewCreateScheduleTool(deps))
-	toolReg.Register(tools.NewListSchedulesTool(deps))
-	toolReg.Register(tools.NewDeleteScheduleTool(deps))
+	toolReg.Register(tools.NewCreateScheduleTool(schedDeps))
+	toolReg.Register(tools.NewListSchedulesTool(schedDeps))
+	toolReg.Register(tools.NewDeleteScheduleTool(schedDeps))
 
 	identity := "You are a personal AI assistant powered by OpenBotKit.\n"
-	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
+		"You are connected to the user via Telegram. Scheduled tasks will be delivered on Telegram automatically.\n" +
+		"When the user asks for something to happen regularly (every day, every morning, weekly, etc.) or at a specific future time, use the create_schedule tool.\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,
