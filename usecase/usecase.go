@@ -12,6 +12,7 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/testutil"
 	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/service/learnings"
 	"github.com/73ai/openbotkit/service/scheduler"
 	"github.com/73ai/openbotkit/source/websearch"
 	"github.com/73ai/openbotkit/spectest"
@@ -108,42 +109,16 @@ func (f *Fixture) SchedDBPath() string {
 	return filepath.Join(f.Dir(), "scheduler", "data.db")
 }
 
-func (f *Fixture) webDeps() tools.WebToolDeps {
-	ws := websearch.New(websearch.Config{})
-	return tools.WebToolDeps{
-		WS:       ws,
-		Provider: f.mainProvider,
-		Model:    f.mainModel,
-	}
-}
-
-// Agent creates an agent using the profile's default provider and model.
+// Agent creates an agent that mirrors the production Telegram agent setup:
+// standard tools + schedule + web + learnings.
 func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	t.Helper()
 
-	webDeps := f.webDeps()
+	// Standard tools: bash, file_read, file_write, file_edit,
+	// load_skills, search_skills, dir_explore, content_search, sandbox_exec
+	toolReg := tools.NewStandardRegistry(nil, nil)
 
-	toolReg := tools.NewRegistry()
-	toolReg.Register(tools.NewBashTool(30 * time.Second))
-	toolReg.Register(&tools.FileReadTool{})
-	toolReg.Register(&tools.LoadSkillsTool{})
-	toolReg.Register(&tools.SearchSkillsTool{})
-	toolReg.Register(tools.NewWebSearchTool(webDeps))
-	toolReg.Register(tools.NewWebFetchTool(webDeps))
-
-	identity := "You are a personal AI assistant powered by OpenBotKit.\n"
-	blocks := tools.BuildSystemBlocks(identity, toolReg)
-
-	return agent.New(f.mainProvider, f.mainModel, toolReg,
-		agent.WithSystemBlocks(blocks),
-		agent.WithMaxIterations(15),
-	)
-}
-
-// ScheduleAgent creates an agent with schedule tools registered.
-func (f *Fixture) ScheduleAgent(t *testing.T) *agent.Agent {
-	t.Helper()
-
+	// Schedule tools
 	schedDeps := tools.ScheduleToolDeps{
 		Cfg: &config.Config{
 			Scheduler: &config.SchedulerConfig{
@@ -156,20 +131,30 @@ func (f *Fixture) ScheduleAgent(t *testing.T) *agent.Agent {
 			OwnerID:  42,
 		},
 	}
-
-	toolReg := tools.NewRegistry()
-	toolReg.Register(tools.NewBashTool(30 * time.Second))
-	toolReg.Register(&tools.FileReadTool{})
-	toolReg.Register(&tools.LoadSkillsTool{})
-	toolReg.Register(&tools.SearchSkillsTool{})
 	toolReg.Register(tools.NewCreateScheduleTool(schedDeps))
 	toolReg.Register(tools.NewListSchedulesTool(schedDeps))
 	toolReg.Register(tools.NewDeleteScheduleTool(schedDeps))
 
-	identity := "You are a personal AI assistant powered by OpenBotKit.\n"
-	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
-		"You are connected to the user via Telegram. Scheduled tasks will be delivered on Telegram automatically.\n" +
-		"When the user asks for something to happen regularly (every day, every morning, weekly, etc.) or at a specific future time, use the create_schedule tool.\n"
+	// Web tools
+	ws := websearch.New(websearch.Config{})
+	webDeps := tools.WebToolDeps{
+		WS:       ws,
+		Provider: f.mainProvider,
+		Model:    f.mainModel,
+	}
+	toolReg.Register(tools.NewWebSearchTool(webDeps))
+	toolReg.Register(tools.NewWebFetchTool(webDeps))
+
+	// Learnings tools
+	learningsDir := filepath.Join(f.Dir(), "learnings")
+	os.MkdirAll(learningsDir, 0700)
+	learningsDeps := tools.LearningsDeps{Store: learnings.New(learningsDir)}
+	toolReg.Register(tools.NewLearningSaveTool(learningsDeps))
+	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
+	toolReg.Register(tools.NewLearningSearchTool(learningsDeps))
+
+	identity := "You are a personal AI assistant communicating via Telegram.\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,
