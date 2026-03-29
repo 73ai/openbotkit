@@ -49,10 +49,7 @@ func TestUseCase_OneShotReminder(t *testing.T) {
 		t.Fatal("expected at least one schedule in DB")
 	}
 
-	s := schedules[0]
-	if s.Type != scheduler.OneShot {
-		t.Errorf("expected one_shot, got %s", s.Type)
-	}
+	s := findByType(t, schedules, scheduler.OneShot)
 	if s.ScheduledAt == nil {
 		t.Error("expected scheduled_at to be set")
 	}
@@ -88,10 +85,7 @@ func TestUseCase_RecurringReminderExecution(t *testing.T) {
 		t.Fatal("expected at least one schedule in DB")
 	}
 
-	s := schedules[0]
-	if s.Type != scheduler.Recurring {
-		t.Errorf("expected recurring, got %s", s.Type)
-	}
+	s := findByType(t, schedules, scheduler.Recurring)
 	if s.CronExpr == "" {
 		t.Error("expected cron expression to be set")
 	}
@@ -112,4 +106,15 @@ func TestUseCase_RecurringReminderExecution(t *testing.T) {
 	spectest.AssertNotEmpty(t, taskResult)
 	fx.AssertJudge(t, "What is the current EUR/USD exchange rate?", taskResult,
 		"The response should mention EUR/USD or euro-dollar and include an exchange rate number.")
+}
+
+func findByType(t *testing.T, schedules []scheduler.Schedule, typ scheduler.ScheduleType) scheduler.Schedule {
+	t.Helper()
+	for _, s := range schedules {
+		if s.Type == typ {
+			return s
+		}
+	}
+	t.Fatalf("no schedule with type %s found (have %d schedules)", typ, len(schedules))
+	return scheduler.Schedule{}
 }
