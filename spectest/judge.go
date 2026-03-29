@@ -42,7 +42,8 @@ Success criteria: ` + criteria
 		Messages: []provider.Message{
 			provider.NewTextMessage(provider.RoleUser, judgePrompt),
 		},
-		MaxTokens: 256,
+		MaxTokens:       256,
+		DisableThinking: true,
 	})
 	if err != nil {
 		t.Fatalf("judge LLM call failed: %v", err)
