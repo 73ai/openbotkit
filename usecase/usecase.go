@@ -147,7 +147,9 @@ func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 
 	// Learnings tools
 	learningsDir := filepath.Join(f.Dir(), "learnings")
-	os.MkdirAll(learningsDir, 0700)
+	if err := os.MkdirAll(learningsDir, 0700); err != nil {
+		t.Fatalf("mkdir learnings: %v", err)
+	}
 	learningsDeps := tools.LearningsDeps{Store: learnings.New(learningsDir)}
 	toolReg.Register(tools.NewLearningSaveTool(learningsDeps))
 	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
