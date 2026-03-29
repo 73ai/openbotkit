@@ -9,6 +9,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
+	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
 
 func BuildTree(svc *Service) []Node {
@@ -640,6 +641,65 @@ func dataSourcesCategory() *Category {
 								c.WebSearch = &config.WebSearchConfig{}
 							}
 							c.WebSearch.CacheTTL = v
+							return nil
+						},
+					}},
+				},
+			}},
+			{Category: &Category{
+				Key:   "datasources.x",
+				Label: "X",
+				Children: []Node{
+					{Field: &Field{
+						Key:   "x.auth_status",
+						Label: "Auth Status",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							if _, err := xclient.LoadSession(); err != nil {
+								return "Not connected — run 'obk x auth login'"
+							}
+							return "Connected"
+						},
+						Set:      func(c *config.Config, v string) error { return nil },
+						ReadOnly: func(c *config.Config) bool { return true },
+					}},
+					{Field: &Field{
+						Key:   "x.storage.driver",
+						Label: "Storage Driver",
+						Type:  TypeSelect,
+						Get: func(c *config.Config) string {
+							if c.X == nil {
+								return "sqlite"
+							}
+							return c.X.Storage.Driver
+						},
+						Set: func(c *config.Config, v string) error {
+							if c.X == nil {
+								c.X = &config.XConfig{}
+							}
+							c.X.Storage.Driver = v
+							return nil
+						},
+						Options: []Option{
+							{Label: "SQLite", Value: "sqlite"},
+							{Label: "PostgreSQL", Value: "postgres"},
+						},
+					}},
+					{Field: &Field{
+						Key:   "x.storage.dsn",
+						Label: "Storage DSN",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							if c.X == nil {
+								return ""
+							}
+							return c.X.Storage.DSN
+						},
+						Set: func(c *config.Config, v string) error {
+							if c.X == nil {
+								c.X = &config.XConfig{}
+							}
+							c.X.Storage.DSN = v
 							return nil
 						},
 					}},
