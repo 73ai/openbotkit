@@ -3,6 +3,33 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] (2026-03-29)
+
+### Added
+
+- **spectest**: Export NewEnv and Dir for fixture reuse
+- **usecase**: Add profile-based use case test framework
+- **usecase**: Add ScheduleAgent and SchedDBPath helpers
+- **spectest**: Install schedule-task and web skills in test fixture
+- **usecase**: Add web tools and scheduling context to agents
+
+### Changed
+
+- **usecase**: Use full production-like agent with all tools
+
+### Fixed
+
+- **spectest**: Disable thinking for judge LLM calls
+- **spectest**: Increase judge MaxTokens for thinking models
+- **usecase**: Use same agent for execution simulation in reminders test
+- **usecase**: Handle MkdirAll error and update README
+- **usecase**: Guard against missing profile in config.Profiles
+- **usecase**: Find schedule by type instead of assuming index order
+
+### Performance
+
+- **spectest**: Cache obk binary build across test fixtures
+
 ## [0.6.0] (2026-03-25)
 
 ### Added
