@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -271,25 +272,48 @@ func generateIndex(t *testing.T) {
 	}
 }
 
+var (
+	cachedBinaryPath string
+	cachedBinaryOnce sync.Once
+	cachedBinaryErr  error
+)
+
 func buildBinary(t *testing.T, dir string) {
 	t.Helper()
+
+	cachedBinaryOnce.Do(func() {
+		root, err := findProjectRoot()
+		if err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		tmp, err := os.MkdirTemp("", "obk-test-bin-*")
+		if err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		out := filepath.Join(tmp, "obk")
+		cmd := exec.Command("go", "build", "-o", out, ".")
+		cmd.Dir = root
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		cachedBinaryPath = out
+	})
+	if cachedBinaryErr != nil {
+		t.Fatalf("build obk binary: %v", cachedBinaryErr)
+	}
+
 	binDir := filepath.Join(dir, "bin")
 	if err := os.MkdirAll(binDir, 0700); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
-
-	// Find project root (where go.mod lives).
-	root, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("find project root: %v", err)
-	}
-
-	cmd := exec.Command("go", "build", "-o", filepath.Join(binDir, "obk"), ".")
-	cmd.Dir = root
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("go build: %v", err)
+	dest := filepath.Join(binDir, "obk")
+	if err := os.Symlink(cachedBinaryPath, dest); err != nil {
+		t.Fatalf("symlink obk binary: %v", err)
 	}
 }
 
