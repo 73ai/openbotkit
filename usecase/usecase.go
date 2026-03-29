@@ -26,13 +26,12 @@ import (
 	_ "github.com/73ai/openbotkit/provider/zai"
 )
 
-// DefaultProfile is the profile used by use case tests.
-var DefaultProfile = config.Profiles["gemini"]
+// defaultProfileName is the profile used by use case tests.
+const defaultProfileName = "gemini"
 
 // Fixture wraps spectest.LocalFixture with profile-based provider setup.
 type Fixture struct {
 	*spectest.LocalFixture
-	ProfileName  string
 	mainProvider provider.Provider
 	mainModel    string
 }
@@ -47,7 +46,12 @@ func NewFixture(t *testing.T) *Fixture {
 
 	testutil.LoadEnv(t)
 
-	for _, name := range DefaultProfile.Providers {
+	profile, ok := config.Profiles[defaultProfileName]
+	if !ok {
+		t.Fatalf("profile %q not found in config.Profiles", defaultProfileName)
+	}
+
+	for _, name := range profile.Providers {
 		envVar := provider.ProviderEnvVars[name]
 		if envVar == "" {
 			continue
@@ -60,10 +64,10 @@ func NewFixture(t *testing.T) *Fixture {
 	env := spectest.NewEnv(t)
 
 	models := &config.ModelsConfig{
-		Default: DefaultProfile.Tiers.Default,
-		Complex: DefaultProfile.Tiers.Complex,
-		Fast:    DefaultProfile.Tiers.Fast,
-		Nano:    DefaultProfile.Tiers.Nano,
+		Default: profile.Tiers.Default,
+		Complex: profile.Tiers.Complex,
+		Fast:    profile.Tiers.Fast,
+		Nano:    profile.Tiers.Nano,
 	}
 
 	reg, err := provider.NewRegistry(models)
@@ -86,7 +90,6 @@ func NewFixture(t *testing.T) *Fixture {
 
 	return &Fixture{
 		LocalFixture: env,
-		ProfileName:  DefaultProfile.Name,
 		mainProvider: mainProvider,
 		mainModel:    mainModel,
 	}
