@@ -1099,7 +1099,7 @@ func TestXAuthStatusField(t *testing.T) {
 	}
 
 	got := svc.GetValue(field)
-	if got != "Not connected — run 'obk x auth login'" && got != "Connected" {
+	if !strings.Contains(got, "Not connected") && !strings.Contains(got, "Connected") {
 		t.Errorf("unexpected auth status: %q", got)
 	}
 }

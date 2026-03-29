@@ -652,11 +652,15 @@ func dataSourcesCategory() *Category {
 				Children: []Node{
 					{Field: &Field{
 						Key:   "x.auth_status",
-						Label: "Auth Status",
+						Label: "Account",
 						Type:  TypeString,
 						Get: func(c *config.Config) string {
-							if _, err := xclient.LoadSession(); err != nil {
-								return "Not connected — run 'obk x auth login'"
+							session, err := xclient.LoadSession()
+							if err != nil {
+								return "Not connected (press Enter to sign in)"
+							}
+							if session.Username != "" {
+								return "Connected as @" + session.Username
 							}
 							return "Connected"
 						},
