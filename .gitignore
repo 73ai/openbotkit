@@ -22,3 +22,6 @@ credentials.json
 
 # Skills symlink (machine-specific, created by make install)
 assistant/.claude/skills
+
+# Talks (local presentation files)
+talks/
