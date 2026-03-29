@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -240,7 +241,7 @@ func createContactsDB(t *testing.T, dir string) {
 func installSkills(t *testing.T, dir string) {
 	t.Helper()
 	skillsDir := filepath.Join(dir, "skills")
-	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save", "contacts-search", "whatsapp-send", "email-send"} {
+	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save", "contacts-search", "whatsapp-send", "email-send", "schedule-task", "web-search", "web-fetch"} {
 		destDir := filepath.Join(skillsDir, name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			t.Fatalf("mkdir skill %s: %v", name, err)
@@ -271,25 +272,48 @@ func generateIndex(t *testing.T) {
 	}
 }
 
+var (
+	cachedBinaryPath string
+	cachedBinaryOnce sync.Once
+	cachedBinaryErr  error
+)
+
 func buildBinary(t *testing.T, dir string) {
 	t.Helper()
+
+	cachedBinaryOnce.Do(func() {
+		root, err := findProjectRoot()
+		if err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		tmp, err := os.MkdirTemp("", "obk-test-bin-*")
+		if err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		out := filepath.Join(tmp, "obk")
+		cmd := exec.Command("go", "build", "-o", out, ".")
+		cmd.Dir = root
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			cachedBinaryErr = err
+			return
+		}
+		cachedBinaryPath = out
+	})
+	if cachedBinaryErr != nil {
+		t.Fatalf("build obk binary: %v", cachedBinaryErr)
+	}
+
 	binDir := filepath.Join(dir, "bin")
 	if err := os.MkdirAll(binDir, 0700); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
-
-	// Find project root (where go.mod lives).
-	root, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("find project root: %v", err)
-	}
-
-	cmd := exec.Command("go", "build", "-o", filepath.Join(binDir, "obk"), ".")
-	cmd.Dir = root
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("go build: %v", err)
+	dest := filepath.Join(binDir, "obk")
+	if err := os.Symlink(cachedBinaryPath, dest); err != nil {
+		t.Fatalf("symlink obk binary: %v", err)
 	}
 }
 
@@ -326,6 +350,17 @@ func (f *LocalFixture) Agent(t *testing.T) *agent.Agent {
 		agent.WithSystemBlocks(blocks),
 		agent.WithMaxIterations(15),
 	)
+}
+
+// Dir returns the temp directory for this test environment.
+func (f *LocalFixture) Dir() string { return f.dir }
+
+// NewEnv creates a test environment (dirs, DBs, skills, binary) without
+// binding to a provider. Caller must set Provider, Model, JudgeProvider,
+// JudgeModel before use.
+func NewEnv(t *testing.T) *LocalFixture {
+	t.Helper()
+	return newLocalFixtureWith(t, nil, "")
 }
 
 func (f *LocalFixture) GivenEmails(t *testing.T, emails []Email) {
