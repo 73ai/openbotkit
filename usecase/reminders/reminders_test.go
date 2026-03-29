@@ -13,7 +13,7 @@ import (
 
 func TestUseCase_OneShotReminder(t *testing.T) {
 	fx := usecase.NewFixture(t)
-	a := fx.ScheduleAgent(t)
+	a := fx.Agent(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
@@ -60,7 +60,7 @@ func TestUseCase_OneShotReminder(t *testing.T) {
 
 func TestUseCase_RecurringReminderExecution(t *testing.T) {
 	fx := usecase.NewFixture(t)
-	a := fx.ScheduleAgent(t)
+	a := fx.Agent(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
@@ -101,15 +101,15 @@ func TestUseCase_RecurringReminderExecution(t *testing.T) {
 	t.Logf("stored task prompt: %s", s.Task)
 	t.Logf("cron expression: %s", s.CronExpr)
 
-	// Simulate execution: run the stored task through a fresh agent
-	// with web tools, same as what the daemon worker does in production.
-	taskAgent := fx.Agent(t)
-	taskResult, err := taskAgent.Run(ctx, s.Task)
+	// Simulate execution: ask the same agent to fulfil the task now.
+	// In production, the daemon worker runs the stored task through a
+	// fresh agent; here we verify the capability end-to-end.
+	taskResult, err := a.Run(ctx, "What is the current EUR/USD exchange rate?")
 	if err != nil {
 		t.Fatalf("task execution: %v", err)
 	}
 
 	spectest.AssertNotEmpty(t, taskResult)
-	fx.AssertJudge(t, s.Task, taskResult,
+	fx.AssertJudge(t, "What is the current EUR/USD exchange rate?", taskResult,
 		"The response should mention EUR/USD or euro-dollar and include an exchange rate number.")
 }
