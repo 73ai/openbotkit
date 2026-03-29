@@ -32,3 +32,20 @@ func TestUseCase_RememberDoorCode(t *testing.T) {
 	fx.AssertJudge(t, "What's my door code?", result,
 		"The agent should recall that the door code is 4521.")
 }
+
+func TestUseCase_RecallWithoutSave(t *testing.T) {
+	fx := usecase.NewFixture(t)
+	a := fx.Agent(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	result, err := a.Run(ctx, "What's my door code?")
+	if err != nil {
+		t.Fatalf("recall without save: %v", err)
+	}
+
+	spectest.AssertNotEmpty(t, result)
+	fx.AssertJudge(t, "What's my door code?", result,
+		"The agent should indicate it does not know or has no record of a door code. It must NOT fabricate a code.")
+}
