@@ -101,8 +101,10 @@ IMPORTANT: To create or edit Google Sheets, Docs, or Slides, always use the serv
 		b.WriteString(`
 ## Task Delegation
 Use delegate_task for research, analysis, code generation, or any multi-step task.
-Results are saved to a file — use file_read to review, then deliver using your tools.
-Never paste raw delegation results — always create the requested deliverable.
+Results are saved to a file — use file_read to review the results.
+After delegation completes, always read the result file and deliver the findings directly to the user.
+Do not ask the user if they want to see the results — just present them.
+Never paste raw delegation results — synthesize and create the requested deliverable.
 `)
 	}
 

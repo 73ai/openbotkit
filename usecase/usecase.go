@@ -250,8 +250,7 @@ func (f *Fixture) AgentWithDelegation(t *testing.T, agents []tools.AgentInfo) *a
 
 	identity := "You are a personal AI assistant communicating via Telegram.\n"
 	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
-		"\nWorkspace directory: " + workspaceDir + "\n" +
-		"\nAlways deliver results directly. Do not ask the user if they want to see results — just present them.\n"
+		"\nWorkspace directory: " + workspaceDir + "\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,
