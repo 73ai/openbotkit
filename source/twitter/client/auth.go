@@ -23,6 +23,16 @@ func NewSession(authToken string) *Session {
 	}
 }
 
+func NewSessionWithCSRF(authToken, csrfToken string) *Session {
+	if csrfToken == "" {
+		csrfToken = generateCSRFToken()
+	}
+	return &Session{
+		AuthToken: authToken,
+		CSRFToken: csrfToken,
+	}
+}
+
 func ValidateAuthToken(token string) error {
 	if token == "" {
 		return fmt.Errorf("auth_token is empty")
