@@ -185,6 +185,66 @@ var showCmd = &cobra.Command{
 	},
 }
 
+var repliesCmd = &cobra.Command{
+	Use:     "replies [id]",
+	Short:   "Show replies to a post",
+	Example: "  obk x post replies 1234567890",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		jsonOut, _ := cmd.Flags().GetBool("json")
+		tweetID := args[0]
+
+		session, err := client.LoadSession()
+		if err != nil {
+			return fmt.Errorf("not authenticated — run 'obk x auth login' first")
+		}
+		xClient, err := client.NewClient(session, client.DefaultEndpointsPath())
+		if err != nil {
+			return fmt.Errorf("create client: %w", err)
+		}
+
+		ctx := context.Background()
+		raw, err := xClient.GetTweet(ctx, tweetID)
+		if err != nil {
+			return fmt.Errorf("fetch post: %w", err)
+		}
+
+		_, replies, err := twitter.ParseTweetDetail(raw)
+		if err != nil {
+			return fmt.Errorf("parse post: %w", err)
+		}
+
+		if len(replies) == 0 {
+			fmt.Println("No replies found.")
+			return nil
+		}
+
+		if jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(replies)
+		}
+
+		fmt.Printf("%d replies:\n\n", len(replies))
+		for _, r := range replies {
+			fmt.Printf("@%s (%s)\n", r.UserName, r.UserFullName)
+			fmt.Printf("%s\n", r.Text)
+			fmt.Printf("  %s", r.CreatedAt.Format("2006-01-02 15:04"))
+			var stats []string
+			if r.LikeCount > 0 {
+				stats = append(stats, fmt.Sprintf("%d likes", r.LikeCount))
+			}
+			if r.ReplyCount > 0 {
+				stats = append(stats, fmt.Sprintf("%d replies", r.ReplyCount))
+			}
+			if len(stats) > 0 {
+				fmt.Printf(" | %s", strings.Join(stats, " | "))
+			}
+			fmt.Println()
+			fmt.Println()
+		}
+		return nil
+	},
+}
+
 func printTweet(tw *twitter.Tweet, jsonOut bool) error {
 	if jsonOut {
 		return json.NewEncoder(os.Stdout).Encode(tw)
@@ -211,10 +271,12 @@ func printTweet(tw *twitter.Tweet, jsonOut bool) error {
 
 func init() {
 	showCmd.Flags().Bool("json", false, "Output as JSON")
+	repliesCmd.Flags().Bool("json", false, "Output as JSON")
 
 	tweetCmd.AddCommand(postCmd)
 	tweetCmd.AddCommand(replyCmd)
 	tweetCmd.AddCommand(likeCmd)
 	tweetCmd.AddCommand(repostCmd)
 	tweetCmd.AddCommand(showCmd)
+	tweetCmd.AddCommand(repliesCmd)
 }
