@@ -67,9 +67,10 @@ Use this instead of bash when the code doesn't need to modify files or access th
 		b.WriteString(`
 ## Sub-agents
 Use the subagent tool to delegate self-contained sub-tasks that don't need your conversation history.
-Good uses: independent research, file operations, or multi-step tasks that can run in isolation.
+Good uses: deep research combining web search with file analysis, multi-step investigations, data gathering and synthesis.
 Do not use subagent for simple single-tool calls — just call the tool directly.
-The sub-agent has its own tools (bash, file ops, skills) but cannot spawn further sub-agents.
+The sub-agent has the same tools as you (web search, file ops, learnings) but cannot spawn further sub-agents.
+Tools requiring user approval (slack_send, slack_edit, delegate_task) will fail in sub-agent context — use them yourself after the sub-agent returns.
 `)
 	}
 
