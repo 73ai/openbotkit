@@ -11,6 +11,8 @@ import (
 	"github.com/73ai/openbotkit/internal/browser"
 )
 
+const defaultJSInstURL = "https://x.com/i/js_inst?c_name=ui_metrics"
+
 const (
 	guestActivateURL = "https://api.x.com/1.1/guest/activate.json"
 	onboardingURL    = "https://api.x.com/1.1/onboarding/task.json"
@@ -25,6 +27,7 @@ type loginFlow struct {
 	httpClient *http.Client
 	guestToken string
 	flowToken  string
+	jsInstURL  string // overridable for testing; defaults to defaultJSInstURL
 }
 
 func Login(username, password string) (*LoginResult, error) {
@@ -173,11 +176,16 @@ func (f *loginFlow) initLoginFlow() error {
 }
 
 func (f *loginFlow) submitInstrumentation() error {
+	instrResponse, err := f.solveInstrumentation()
+	if err != nil {
+		return fmt.Errorf("solve JS instrumentation: %w", err)
+	}
+
 	resp, err := f.postSubtask([]any{
 		map[string]any{
 			"subtask_id": "LoginJsInstrumentationSubtask",
 			"js_instrumentation": map[string]any{
-				"response": "{}",
+				"response": instrResponse,
 				"link":     "next_link",
 			},
 		},
@@ -187,6 +195,35 @@ func (f *loginFlow) submitInstrumentation() error {
 	}
 	f.flowToken = resp.FlowToken
 	return nil
+}
+
+func (f *loginFlow) solveInstrumentation() (string, error) {
+	fetchURL := f.jsInstURL
+	if fetchURL == "" {
+		fetchURL = defaultJSInstURL
+	}
+	req, err := http.NewRequest("GET", fetchURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetch JS instrumentation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read JS instrumentation: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("JS instrumentation fetch failed (status %d)", resp.StatusCode)
+	}
+
+	return SolveUIMetrics(string(body))
 }
 
 func (f *loginFlow) submitUsername(username string) (string, error) {

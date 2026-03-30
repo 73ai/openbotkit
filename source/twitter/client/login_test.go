@@ -126,3 +126,58 @@ func TestExtractErrorMessage_NoSubtasks(t *testing.T) {
 		t.Errorf("expected empty, got %q", msg)
 	}
 }
+
+func TestSolveInstrumentation_MockServer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write([]byte(`function solve() {return "mock_response"}`))
+	}))
+	defer srv.Close()
+
+	flow := &loginFlow{
+		httpClient: srv.Client(),
+		jsInstURL:  srv.URL,
+	}
+
+	result, err := flow.solveInstrumentation()
+	if err != nil {
+		t.Fatalf("solveInstrumentation() error = %v", err)
+	}
+	if result != "mock_response" {
+		t.Errorf("solveInstrumentation() = %q, want %q", result, "mock_response")
+	}
+}
+
+func TestSolveInstrumentation_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	flow := &loginFlow{
+		httpClient: srv.Client(),
+		jsInstURL:  srv.URL,
+	}
+
+	_, err := flow.solveInstrumentation()
+	if err == nil {
+		t.Error("expected error for server error response")
+	}
+}
+
+func TestSolveInstrumentation_InvalidJS(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not valid js"))
+	}))
+	defer srv.Close()
+
+	flow := &loginFlow{
+		httpClient: srv.Client(),
+		jsInstURL:  srv.URL,
+	}
+
+	_, err := flow.solveInstrumentation()
+	if err == nil {
+		t.Error("expected error for invalid JS")
+	}
+}
