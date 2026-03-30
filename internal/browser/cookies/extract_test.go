@@ -1,11 +1,11 @@
 package cookies
 
 import (
+	"runtime"
 	"testing"
 )
 
 func TestExtractTwitterCookies_Variables(t *testing.T) {
-	// Verify the package-level host/name lists are correctly configured.
 	if len(twitterHosts) != 4 {
 		t.Errorf("twitterHosts has %d entries, want 4", len(twitterHosts))
 	}
@@ -48,5 +48,48 @@ func TestResult_Fields(t *testing.T) {
 	}
 	if r.Browser != "Safari" {
 		t.Errorf("Browser = %q", r.Browser)
+	}
+}
+
+func TestAvailableBrowsers(t *testing.T) {
+	browsers := AvailableBrowsers()
+
+	has := func(name string) bool {
+		for _, b := range browsers {
+			if b == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !has("Chrome") {
+		t.Error("Chrome should always be available")
+	}
+	if !has("Firefox") {
+		t.Error("Firefox should always be available")
+	}
+	if runtime.GOOS == "darwin" && !has("Safari") {
+		t.Error("Safari should be available on macOS")
+	}
+	if runtime.GOOS != "darwin" && has("Safari") {
+		t.Error("Safari should not be available on non-macOS")
+	}
+}
+
+func TestExtractTwitterCookiesFromBrowser_UnsupportedBrowser(t *testing.T) {
+	_, err := ExtractTwitterCookiesFromBrowser("Netscape")
+	if err == nil {
+		t.Fatal("expected error for unsupported browser")
+	}
+}
+
+func TestExtractTwitterCookiesFromBrowser_SafariOnNonDarwin(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("test only applies on non-macOS")
+	}
+	_, err := ExtractTwitterCookiesFromBrowser("Safari")
+	if err == nil {
+		t.Fatal("expected error for Safari on non-macOS")
 	}
 }
