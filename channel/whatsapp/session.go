@@ -413,15 +413,36 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 	sm.registerWebTools(toolReg)
 
 	scratchDir := config.ScratchDir(sid)
+	workspaceDir := sm.cfg.ResolvedWorkspaceDir()
+
+	subagentWebDeps := tools.WebToolDeps{
+		WS:       sm.webSearch,
+		Provider: sm.fastProvider,
+		Model:    sm.fastModel,
+	}
+	subagentLearningsDeps := tools.LearningsDeps{
+		Store: learnings.New(config.LearningsDir()),
+	}
+	subagentDeps := tools.SubagentRegistryDeps{
+		ScratchDir:    scratchDir,
+		WebDeps:       &subagentWebDeps,
+		LearningsDeps: &subagentLearningsDeps,
+	}
+	if sm.cfg.Slack != nil && sm.cfg.Slack.DefaultWorkspace != "" {
+		if creds, err := slacksrc.LoadCredentials(sm.cfg.Slack.DefaultWorkspace); err == nil {
+			subagentDeps.SlackClient = slacksrc.NewClient(creds.Token, creds.Cookie)
+		}
+	}
+	subagentDeps.Agents = tools.DetectAgents()
+
 	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
 		Provider: sm.provider,
 		Model:    sm.model,
 		ToolFactory: func() *tools.Registry {
-			r := tools.NewStandardRegistry(nil, nil)
-			r.SetScratchDir(scratchDir)
-			return r
+			return tools.NewSubagentRegistry(subagentDeps)
 		},
 		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Extras: []string{"\nWorkspace directory: " + workspaceDir + "\n"},
 	}))
 
 	identity := "You are a personal AI assistant communicating via WhatsApp.\n"
