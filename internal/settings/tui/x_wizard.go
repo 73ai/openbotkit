@@ -2,143 +2,35 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
 	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
 
-// --- X login wizard: username/password → spinner → optional 2FA → save ---
+// --- X login wizard: extract cookies from browser → spinner → save ---
 
 func (m model) enterXLogin() (model, tea.Cmd) {
-	m.state = stateXAuth
-
-	username := ""
-	password := ""
-	if m.wizardXUsername != nil {
-		username = *m.wizardXUsername
-	}
-	if m.wizardXPassword != nil {
-		password = *m.wizardXPassword
-	}
-	m.wizardXUsername = &username
-	m.wizardXPassword = &password
-
-	m.form = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Username, email, or phone").
-				Value(m.wizardXUsername),
-			huh.NewInput().
-				Title("Password").
-				EchoMode(huh.EchoModePassword).
-				Value(m.wizardXPassword),
-		),
+	m.state = stateVerifying
+	m.wizardError = ""
+	m.wizardXBrowser = true
+	return m, tea.Batch(
+		m.wizardSpinner.Tick,
+		xExtractCookiesCmd(),
 	)
-	return m, m.form.Init()
-}
-
-func (m model) updateXAuth(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			return m.exitXWizard("")
-		}
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	if m.form.State == huh.StateCompleted {
-		username := strings.TrimSpace(*m.wizardXUsername)
-		password := strings.TrimSpace(*m.wizardXPassword)
-
-		if username == "" || password == "" {
-			m.wizardError = "Username and password are required"
-			return m.enterXLogin()
-		}
-
-		m.state = stateVerifying
-		m.wizardError = ""
-		return m, tea.Batch(
-			m.wizardSpinner.Tick,
-			xLoginCmd(username, password),
-		)
-	}
-
-	return m, cmd
-}
-
-func (m model) enterXTFA() (model, tea.Cmd) {
-	m.state = stateXTFA
-
-	code := ""
-	m.wizardXTFACode = &code
-
-	m.form = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Verification code").
-				Description("Enter the code from your authenticator app").
-				Value(m.wizardXTFACode),
-		),
-	)
-	return m, m.form.Init()
-}
-
-func (m model) updateXTFA(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			return m.exitXWizard("")
-		}
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	if m.form.State == huh.StateCompleted {
-		code := strings.TrimSpace(*m.wizardXTFACode)
-		if code == "" {
-			m.wizardError = "Verification code is required"
-			return m.enterXTFA()
-		}
-
-		username := *m.wizardXUsername
-		password := *m.wizardXPassword
-
-		m.state = stateVerifying
-		m.wizardError = ""
-		return m, tea.Batch(
-			m.wizardSpinner.Tick,
-			xLoginTFACmd(username, password, code),
-		)
-	}
-
-	return m, cmd
 }
 
 func (m model) handleXLoginResult(msg xAuthResultMsg) (model, tea.Cmd) {
 	if msg.err != nil {
-		m.wizardError = fmt.Sprintf("Login failed: %v", msg.err)
-		return m.enterXLogin()
-	}
-
-	if msg.needsTFA {
-		return m.enterXTFA()
+		errMsg := fmt.Sprintf("No X session found: %v", msg.err)
+		errMsg += "\nSign in to x.com in your browser first, then try again."
+		return m.exitXWizard(errMsg)
 	}
 
 	if msg.session == nil {
-		m.wizardError = "Login failed: no session returned"
-		return m.enterXLogin()
+		return m.exitXWizard("Cookie extraction failed: no session returned")
 	}
 
 	if err := xclient.SaveSession(msg.session); err != nil {
@@ -158,20 +50,18 @@ func (m model) handleXLoginResult(msg xAuthResultMsg) (model, tea.Cmd) {
 		return m.exitXWizard(fmt.Sprintf("Link source failed: %v", err))
 	}
 
-	username := ""
-	if msg.session.Username != "" {
-		username = " as @" + msg.session.Username
+	browser := ""
+	if msg.browser != "" {
+		browser = " (from " + msg.browser + ")"
 	}
 
-	return m.exitXWizard(fmt.Sprintf("Connected to X%s!", username))
+	return m.exitXWizard(fmt.Sprintf("Connected to X%s!", browser))
 }
 
 func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 	m.state = stateBrowse
 	m.form = nil
-	m.wizardXUsername = nil
-	m.wizardXPassword = nil
-	m.wizardXTFACode = nil
+	m.wizardXBrowser = false
 	m.wizardError = ""
 	m.svc.RebuildTree()
 	m.rebuildRows()
@@ -194,44 +84,25 @@ func logXAudit(toolName, input, output, errMsg string) {
 	}
 	defer l.Close()
 	l.Log(audit.Entry{
-		Context:      "settings",
-		ToolName:     toolName,
-		InputSummary: input,
+		Context:       "settings",
+		ToolName:      toolName,
+		InputSummary:  input,
 		OutputSummary: output,
-		Error:        errMsg,
+		Error:         errMsg,
 	})
 }
 
-func xLoginCmd(username, password string) tea.Cmd {
+func xExtractCookiesCmd() tea.Cmd {
 	return func() tea.Msg {
-		logXAudit("x.auth.login", "username="+username, "attempting login", "")
+		logXAudit("x.auth.login_browser", "", "extracting cookies from browser", "")
 
-		result, err := xclient.Login(username, password)
+		session, browser, err := xclient.ExtractSessionFromBrowser()
 		if err != nil {
-			logXAudit("x.auth.login", "username="+username, "", err.Error())
-			return xAuthResultMsg{err: err}
-		}
-		if result.NeedsTFA {
-			logXAudit("x.auth.login", "username="+username, "2FA required", "")
-			return xAuthResultMsg{needsTFA: true}
-		}
-
-		logXAudit("x.auth.login", "username="+username, "login successful", "")
-		return xAuthResultMsg{session: result.Session}
-	}
-}
-
-func xLoginTFACmd(username, password, code string) tea.Cmd {
-	return func() tea.Msg {
-		logXAudit("x.auth.login_tfa", "username="+username, "submitting 2FA code", "")
-
-		result, err := xclient.LoginWithTFA(username, password, code)
-		if err != nil {
-			logXAudit("x.auth.login_tfa", "username="+username, "", err.Error())
+			logXAudit("x.auth.login_browser", "", "", err.Error())
 			return xAuthResultMsg{err: err}
 		}
 
-		logXAudit("x.auth.login_tfa", "username="+username, "2FA login successful", "")
-		return xAuthResultMsg{session: result.Session}
+		logXAudit("x.auth.login_browser", "", "browser login successful ("+browser+")", "")
+		return xAuthResultMsg{session: session, browser: browser}
 	}
 }

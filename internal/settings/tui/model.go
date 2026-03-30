@@ -59,11 +59,11 @@ type backupTriggeredMsg struct {
 	err error
 }
 
-// xAuthResultMsg is returned by async X login command.
+// xAuthResultMsg is returned by async X cookie extraction.
 type xAuthResultMsg struct {
-	session  *xclient.Session
-	needsTFA bool
-	err      error
+	session *xclient.Session
+	browser string
+	err     error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -108,9 +108,7 @@ type model struct {
 	wizardBackupSnapshot *config.BackupConfig // for transactional rollback
 
 	// X login wizard state
-	wizardXUsername *string
-	wizardXPassword *string
-	wizardXTFACode  *string
+	wizardXBrowser bool
 }
 
 func newModel(svc *settings.Service) model {
@@ -153,10 +151,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateBackupDest(msg)
 	case stateBackupCreds:
 		return m.updateBackupCreds(msg)
-	case stateXAuth:
-		return m.updateXAuth(msg)
-	case stateXTFA:
-		return m.updateXTFA(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -782,7 +776,7 @@ func (m model) renderTree() string {
 func (m model) View() string {
 	switch m.state {
 	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
-		stateBackupDest, stateBackupCreds, stateXAuth, stateXTFA:
+		stateBackupDest, stateBackupCreds:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {
@@ -795,8 +789,8 @@ func (m model) View() string {
 			return b.String()
 		}
 	case stateVerifying:
-		if m.wizardXUsername != nil {
-			return fmt.Sprintf("\n  %s Connecting to X...\n", m.wizardSpinner.View())
+		if m.wizardXBrowser {
+			return fmt.Sprintf("\n  %s Checking browsers...\n", m.wizardSpinner.View())
 		}
 		if m.wizardBackupDest != nil && *m.wizardBackupDest != "" {
 			label := "Verifying backup connection..."
