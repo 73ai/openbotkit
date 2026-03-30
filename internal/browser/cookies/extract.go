@@ -2,7 +2,6 @@ package cookies
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 )
 
@@ -23,13 +22,12 @@ func ExtractTwitterCookies() (*Result, error) {
 		fn   func([]string, []string) (map[string]string, error)
 	}
 
+	// Chrome and Firefox only. Safari cookies are sandboxed in
+	// ~/Library/Containers/ and require Full Disk Access to read,
+	// so we skip it (same approach as bird/birdclaw).
 	extractors := []extractor{
 		{"Chrome", ExtractChromeCookie},
 		{"Firefox", ExtractFirefoxCookie},
-	}
-
-	if runtime.GOOS == "darwin" {
-		extractors = append([]extractor{{"Safari", ExtractSafariCookie}}, extractors...)
 	}
 
 	var errs []string
