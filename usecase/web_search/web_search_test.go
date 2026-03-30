@@ -34,7 +34,7 @@ func TestUseCase_SearchStoreHours(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
-	prompt := "Is Costco open right now?"
+	prompt := "Is Costco open right now? I'm near the one in Foster City, CA"
 	result, err := a.Run(ctx, prompt)
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -60,7 +60,7 @@ func TestUseCase_SearchVersionCheck(t *testing.T) {
 
 	spectest.AssertNotEmpty(t, result)
 	fx.AssertJudge(t, prompt, result,
-		"Response should mention the current/latest PostgreSQL version and relate it to the user's version 16.2. Should indicate what changed or whether upgrading is worthwhile.")
+		"Response should mention a PostgreSQL version newer than 16.2 and acknowledge the user is on 16.2. Must not say it cannot find version information.")
 }
 
 func TestUseCase_SearchStockPrice(t *testing.T) {

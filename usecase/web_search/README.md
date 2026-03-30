@@ -13,7 +13,7 @@ User asks whether a store is open right now. The agent combines web
 search results with the current date/time from the system prompt.
 
 ### Steps
-1. User: "Is Costco open right now?"
+1. User: "Is Costco open right now? I'm near the one in Foster City, CA"
    → Agent searches for Costco hours and gives an actionable answer
 
 ## Scenario 3 — Version check with personalized reasoning
