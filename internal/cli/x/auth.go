@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/browser/cookies"
+	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/source/twitter/client"
 	"github.com/spf13/cobra"
 )
@@ -46,20 +49,37 @@ var authLoginCmd = &cobra.Command{
 }
 
 func authBrowserRun(cmd *cobra.Command, args []string) error {
-	fmt.Println("Checking browsers for X session...")
-	logXAudit("x.auth.login_browser", "", "extracting cookies from browser", "")
+	if err := tty.RequireInteractive("obk x auth login --token <token>"); err != nil {
+		return err
+	}
 
-	session, browser, err := client.ExtractSessionFromBrowser()
+	browser, err := selectBrowser()
 	if err != nil {
-		logXAudit("x.auth.login_browser", "", "", err.Error())
-		fmt.Println("No X session found in any browser.")
-		fmt.Println("Sign in to x.com in your browser first, then try again.")
-		fmt.Println("Or use: obk x auth login --token <token>")
-		return fmt.Errorf("browser cookie extraction failed: %w", err)
+		return err
+	}
+
+	if browser == "Safari" {
+		printSafariFDANote()
+	}
+
+	fmt.Printf("Extracting X session from %s...\n", browser)
+	logXAudit("x.auth.login_browser", "browser="+browser, "extracting cookies", "")
+
+	session, _, err := client.ExtractSessionFromBrowserByName(browser)
+	if err != nil {
+		logXAudit("x.auth.login_browser", "browser="+browser, "", err.Error())
+		if browser == "Safari" && isPermissionError(err) {
+			fmt.Println("\nSafari cookie access was denied.")
+			printSafariFDAInstructions()
+			return fmt.Errorf("Safari requires Full Disk Access")
+		}
+		fmt.Printf("Failed to extract X session from %s: %v\n", browser, err)
+		fmt.Println("Make sure you're signed in to x.com in that browser.")
+		return fmt.Errorf("cookie extraction failed: %w", err)
 	}
 
 	if err := client.SaveSession(session); err != nil {
-		logXAudit("x.auth.login_browser", "", "", err.Error())
+		logXAudit("x.auth.login_browser", "browser="+browser, "", err.Error())
 		return fmt.Errorf("save credentials: %w", err)
 	}
 
@@ -67,10 +87,59 @@ func authBrowserRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("link source: %w", err)
 	}
 
-	logXAudit("x.auth.login_browser", "", "browser login successful ("+browser+")", "")
+	logXAudit("x.auth.login_browser", "browser="+browser, "login successful", "")
 	fmt.Printf("Authenticated with X (from %s).\n", browser)
 	fmt.Println("Run 'obk x sync' to fetch your timeline.")
 	return nil
+}
+
+func selectBrowser() (string, error) {
+	available := cookies.AvailableBrowsers()
+
+	var opts []huh.Option[string]
+	for _, b := range available {
+		label := b
+		if b == "Safari" {
+			label = "Safari (requires Full Disk Access for terminal)"
+		}
+		opts = append(opts, huh.NewOption(label, b))
+	}
+
+	var browser string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Which browser are you signed in to x.com on?").
+				Options(opts...).
+				Value(&browser),
+		),
+	).Run()
+	if err != nil {
+		return "", err
+	}
+	return browser, nil
+}
+
+func printSafariFDANote() {
+	fmt.Println()
+	fmt.Println("  Note: Safari cookies are protected by macOS.")
+	fmt.Println("  Your terminal app needs Full Disk Access to read them.")
+	fmt.Println()
+}
+
+func printSafariFDAInstructions() {
+	fmt.Println()
+	fmt.Println("  To grant Full Disk Access:")
+	fmt.Println("  1. Open System Settings > Privacy & Security > Full Disk Access")
+	fmt.Println("  2. Click '+' and add your terminal app")
+	fmt.Println("  3. Restart your terminal and try again")
+	fmt.Println()
+}
+
+func isPermissionError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "operation not permitted") ||
+		strings.Contains(msg, "permission denied")
 }
 
 var authLogoutCmd = &cobra.Command{
