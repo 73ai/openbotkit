@@ -36,11 +36,7 @@ require (
 )
 
 require (
-	github.com/dlclark/regexp2 v1.11.4 // indirect
-	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
-	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
@@ -49,6 +45,7 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
