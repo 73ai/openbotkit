@@ -667,46 +667,6 @@ func dataSourcesCategory() *Category {
 						Set:      func(c *config.Config, v string) error { return nil },
 						ReadOnly: func(c *config.Config) bool { return true },
 					}},
-					{Field: &Field{
-						Key:   "x.storage.driver",
-						Label: "Storage Driver",
-						Type:  TypeSelect,
-						Get: func(c *config.Config) string {
-							if c.X == nil {
-								return "sqlite"
-							}
-							return c.X.Storage.Driver
-						},
-						Set: func(c *config.Config, v string) error {
-							if c.X == nil {
-								c.X = &config.XConfig{}
-							}
-							c.X.Storage.Driver = v
-							return nil
-						},
-						Options: []Option{
-							{Label: "SQLite", Value: "sqlite"},
-							{Label: "PostgreSQL", Value: "postgres"},
-						},
-					}},
-					{Field: &Field{
-						Key:   "x.storage.dsn",
-						Label: "Storage DSN",
-						Type:  TypeString,
-						Get: func(c *config.Config) string {
-							if c.X == nil {
-								return ""
-							}
-							return c.X.Storage.DSN
-						},
-						Set: func(c *config.Config, v string) error {
-							if c.X == nil {
-								c.X = &config.XConfig{}
-							}
-							c.X.Storage.DSN = v
-							return nil
-						},
-					}},
 				},
 			}},
 		},
