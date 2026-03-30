@@ -153,13 +153,9 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		guardOpts = append(guardOpts, WithApprovalRules(d.approvalRules, "delegate_task", input))
 	}
 
-	out, err := GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
+	return GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
 		return runner.Run(ctx, prompt, d.timeout, runOpts...)
 	}, guardOpts...)
-	if err == nil && out != "denied_by_user" {
-		out = d.writeResultFile(out, prompt)
-	}
-	return out, err
 }
 
 // buildPrompt combines task, steps, and output format into a single prompt.
