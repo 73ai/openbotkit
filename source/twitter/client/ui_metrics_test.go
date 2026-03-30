@@ -36,6 +36,14 @@ func TestExtractComputationFunc_NoFunction(t *testing.T) {
 	}
 }
 
+func TestReplaceNonTripleEquals_AlreadyTriple(t *testing.T) {
+	input := `(!(abcde)||fghij)===klmno`
+	got := replaceNonTripleEquals(input)
+	if got != `(!(abcde)||fghij)===klmno` {
+		t.Errorf("replaceNonTripleEquals() = %q, want unchanged", got)
+	}
+}
+
 func TestFixEqualityOperators(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -212,6 +220,44 @@ func TestSolveUIMetrics_RealXJS(t *testing.T) {
 	}
 	if _, ok := parsed["s"]; !ok {
 		t.Error("result missing 's' key")
+	}
+}
+
+func TestSolveUIMetrics_JSRuntimeError(t *testing.T) {
+	js := `function solve() {return nonExistentVar.property;}`
+	_, err := SolveUIMetrics(js)
+	if err == nil {
+		t.Error("expected error for JS runtime error")
+	}
+	if !strings.Contains(err.Error(), "execute JS instrumentation") {
+		t.Errorf("error = %q, want to contain 'execute JS instrumentation'", err.Error())
+	}
+}
+
+func TestSolveUIMetrics_ReturnsUndefined(t *testing.T) {
+	js := `function solve() {var x = 1; return undefined;}`
+	_, err := SolveUIMetrics(js)
+	if err == nil {
+		t.Error("expected error for undefined return")
+	}
+	if !strings.Contains(err.Error(), "returned nil") {
+		t.Errorf("error = %q, want to contain 'returned nil'", err.Error())
+	}
+}
+
+func TestExtractComputationFunc_FuncNameNotFound(t *testing.T) {
+	js := `var r = JSON.stringify(missingFunc()); function other() {return 1}`
+	body := extractComputationFunc(js)
+	if body != "{return 1}" {
+		t.Errorf("expected fallback extraction, got %q", body)
+	}
+}
+
+func TestExtractComputationFunc_UnbalancedBraces(t *testing.T) {
+	js := `var r = JSON.stringify(broken()); function broken() {unclosed`
+	body := extractComputationFunc(js)
+	if body != "" {
+		t.Errorf("expected empty for unbalanced braces, got %q", body)
 	}
 }
 

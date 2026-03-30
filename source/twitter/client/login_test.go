@@ -3,17 +3,22 @@ package client
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 )
 
-func TestLoginFlow_Success(t *testing.T) {
+func TestLoginFlow_FullFlow(t *testing.T) {
 	var step atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/1.1/guest/activate.json" {
+		if r.URL.Path == "/guest" {
 			json.NewEncoder(w).Encode(map[string]string{"guest_token": "gt123"})
+			return
+		}
+		if r.URL.Path == "/js_inst" {
+			w.Write([]byte(`function solve() {return {"rf": {"a": 1}, "s": "sig"}}`))
 			return
 		}
 
@@ -52,20 +57,92 @@ func TestLoginFlow_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Override URLs for testing
-	origGuest := guestActivateURL
-	origOnboard := onboardingURL
-	defer func() {
-		// Can't override package-level consts, so this test only verifies compilation
-		// and the flow structure. Real integration test needs the actual X API.
-		_ = origGuest
-		_ = origOnboard
-	}()
+	jar, _ := cookiejar.New(nil)
+	httpClient := srv.Client()
+	httpClient.Jar = jar
 
-	// Verify the flow compiles and the types are correct
-	result := &LoginResult{NeedsTFA: false}
-	if result.NeedsTFA {
-		t.Error("expected NeedsTFA=false")
+	flow := &loginFlow{
+		httpClient: httpClient,
+		guestURL:   srv.URL + "/guest",
+		onboardURL: srv.URL + "/onboard",
+		jsInstURL:  srv.URL + "/js_inst",
+	}
+
+	if err := flow.activateGuest(); err != nil {
+		t.Fatalf("activateGuest: %v", err)
+	}
+	if flow.guestToken != "gt123" {
+		t.Errorf("guestToken = %q, want gt123", flow.guestToken)
+	}
+
+	if err := flow.initLoginFlow(); err != nil {
+		t.Fatalf("initLoginFlow: %v", err)
+	}
+
+	if err := flow.submitInstrumentation(); err != nil {
+		t.Fatalf("submitInstrumentation: %v", err)
+	}
+
+	taskID, err := flow.submitUsername("testuser")
+	if err != nil {
+		t.Fatalf("submitUsername: %v", err)
+	}
+	if taskID != "LoginEnterPassword" {
+		t.Errorf("taskID after username = %q, want LoginEnterPassword", taskID)
+	}
+
+	taskID, err = flow.submitPassword("testpass")
+	if err != nil {
+		t.Fatalf("submitPassword: %v", err)
+	}
+	if taskID != "AccountDuplicationCheck" {
+		t.Errorf("taskID after password = %q, want AccountDuplicationCheck", taskID)
+	}
+
+	if err := flow.submitDuplicationCheck(); err != nil {
+		t.Fatalf("submitDuplicationCheck: %v", err)
+	}
+
+	if flow.flowToken != "ft5" {
+		t.Errorf("final flowToken = %q, want ft5", flow.flowToken)
+	}
+}
+
+func TestExtractSession_FromCookies(t *testing.T) {
+	jar, _ := cookiejar.New(nil)
+	u := mustParseURL("https://x.com")
+	jar.SetCookies(u, []*http.Cookie{
+		{Name: "auth_token", Value: "at-test-value-long-enough"},
+		{Name: "ct0", Value: "csrf-test"},
+	})
+
+	flow := &loginFlow{httpClient: &http.Client{Jar: jar}}
+	session, err := flow.extractSession()
+	if err != nil {
+		t.Fatalf("extractSession: %v", err)
+	}
+	if session.AuthToken != "at-test-value-long-enough" {
+		t.Errorf("AuthToken = %q, want at-test-value-long-enough", session.AuthToken)
+	}
+	if session.CSRFToken != "csrf-test" {
+		t.Errorf("CSRFToken = %q, want csrf-test", session.CSRFToken)
+	}
+}
+
+func TestExtractSession_NoCookieJar(t *testing.T) {
+	flow := &loginFlow{httpClient: &http.Client{}}
+	_, err := flow.extractSession()
+	if err == nil {
+		t.Error("expected error with no cookie jar")
+	}
+}
+
+func TestExtractSession_NoAuthToken(t *testing.T) {
+	jar, _ := cookiejar.New(nil)
+	flow := &loginFlow{httpClient: &http.Client{Jar: jar}}
+	_, err := flow.extractSession()
+	if err == nil {
+		t.Error("expected error with no auth_token cookie")
 	}
 }
 

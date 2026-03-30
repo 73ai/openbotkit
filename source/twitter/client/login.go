@@ -24,10 +24,12 @@ type LoginResult struct {
 }
 
 type loginFlow struct {
-	httpClient *http.Client
-	guestToken string
-	flowToken  string
-	jsInstURL  string // overridable for testing; defaults to defaultJSInstURL
+	httpClient   *http.Client
+	guestToken   string
+	flowToken    string
+	jsInstURL    string // overridable for testing; defaults to defaultJSInstURL
+	guestURL     string // overridable for testing; defaults to guestActivateURL
+	onboardURL   string // overridable for testing; defaults to onboardingURL
 }
 
 func Login(username, password string) (*LoginResult, error) {
@@ -128,7 +130,11 @@ func LoginWithTFA(username, password, code string) (*LoginResult, error) {
 }
 
 func (f *loginFlow) activateGuest() error {
-	req, err := http.NewRequest("POST", guestActivateURL, strings.NewReader("{}"))
+	u := f.guestURL
+	if u == "" {
+		u = guestActivateURL
+	}
+	req, err := http.NewRequest("POST", u, strings.NewReader("{}"))
 	if err != nil {
 		return err
 	}
@@ -347,13 +353,20 @@ func (r *taskResponse) TaskID() string {
 	return ""
 }
 
+func (f *loginFlow) onboardingBaseURL() string {
+	if f.onboardURL != "" {
+		return f.onboardURL
+	}
+	return onboardingURL
+}
+
 func (f *loginFlow) postTask(body any) (*taskResponse, error) {
 	bodyJSON, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", onboardingURL+"?flow_name=login", strings.NewReader(string(bodyJSON)))
+	req, err := http.NewRequest("POST", f.onboardingBaseURL()+"?flow_name=login", strings.NewReader(string(bodyJSON)))
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +385,7 @@ func (f *loginFlow) postSubtask(subtaskInputs []any) (*taskResponse, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", onboardingURL, strings.NewReader(string(bodyJSON)))
+	req, err := http.NewRequest("POST", f.onboardingBaseURL(), strings.NewReader(string(bodyJSON)))
 	if err != nil {
 		return nil, err
 	}

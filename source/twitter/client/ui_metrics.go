@@ -25,9 +25,7 @@ func SolveUIMetrics(jsCode string) (string, error) {
 
 	vm := goja.New()
 	cache := &jsCache{vm: vm, objects: make(map[*MockElement]*goja.Object)}
-	if err := injectMockDOM(vm, cache); err != nil {
-		return "", fmt.Errorf("inject mock DOM: %w", err)
-	}
+	injectMockDOM(vm, cache)
 
 	wrapped := "(function() " + funcBody + ")()"
 	val, err := vm.RunString(wrapped)
@@ -136,7 +134,7 @@ func (c *jsCache) getOrCreate(el *MockElement) *goja.Object {
 	return obj
 }
 
-func injectMockDOM(vm *goja.Runtime, cache *jsCache) error {
+func injectMockDOM(vm *goja.Runtime, cache *jsCache) {
 	doc := NewMockDocument()
 
 	docObj := vm.NewObject()
@@ -159,7 +157,6 @@ func injectMockDOM(vm *goja.Runtime, cache *jsCache) error {
 	})
 
 	vm.Set("document", docObj)
-	return nil
 }
 
 func bindElement(cache *jsCache, obj *goja.Object, el *MockElement) {
