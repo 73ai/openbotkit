@@ -34,6 +34,8 @@ type Fixture struct {
 	*spectest.LocalFixture
 	mainProvider provider.Provider
 	mainModel    string
+	fastProvider provider.Provider
+	fastModel    string
 }
 
 // NewFixture creates a use case test fixture with profile-based providers.
@@ -80,6 +82,8 @@ func NewFixture(t *testing.T) *Fixture {
 		t.Fatalf("resolve default model: %v", err)
 	}
 
+	fastProvider, fastModel := tools.ResolveFastProvider(models, reg, mainProvider, mainModel)
+
 	judgeProvider, judgeModel, err := resolveSpec(reg, models.Complex)
 	if err != nil {
 		t.Fatalf("resolve complex/judge model: %v", err)
@@ -92,6 +96,8 @@ func NewFixture(t *testing.T) *Fixture {
 		LocalFixture: env,
 		mainProvider: mainProvider,
 		mainModel:    mainModel,
+		fastProvider: fastProvider,
+		fastModel:    fastModel,
 	}
 }
 
@@ -112,8 +118,13 @@ func (f *Fixture) SchedDBPath() string {
 	return filepath.Join(f.Dir(), "scheduler", "data.db")
 }
 
+// WorkspaceDir returns the workspace directory for persistent research artifacts.
+func (f *Fixture) WorkspaceDir() string {
+	return filepath.Join(f.Dir(), "workspace")
+}
+
 // Agent creates an agent that mirrors the production Telegram agent setup:
-// standard tools + schedule + web + learnings.
+// standard tools + schedule + web + learnings + subagent.
 func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	t.Helper()
 
@@ -142,8 +153,8 @@ func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	ws := websearch.New(websearch.Config{})
 	webDeps := tools.WebToolDeps{
 		WS:       ws,
-		Provider: f.mainProvider,
-		Model:    f.mainModel,
+		Provider: f.fastProvider,
+		Model:    f.fastModel,
 	}
 	toolReg.Register(tools.NewWebSearchTool(webDeps))
 	toolReg.Register(tools.NewWebFetchTool(webDeps))
@@ -158,8 +169,31 @@ func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
 	toolReg.Register(tools.NewLearningSearchTool(learningsDeps))
 
+	// Workspace
+	workspaceDir := f.WorkspaceDir()
+	if err := os.MkdirAll(workspaceDir, 0700); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+
+	// Subagent with enriched tools
+	subagentDeps := tools.SubagentRegistryDeps{
+		WebDeps:       &webDeps,
+		LearningsDeps: &learningsDeps,
+		ScheduleDeps:  &schedDeps,
+	}
+	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
+		Provider: f.mainProvider,
+		Model:    f.mainModel,
+		ToolFactory: func() *tools.Registry {
+			return tools.NewSubagentRegistry(subagentDeps)
+		},
+		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Extras: []string{"\nWorkspace directory: " + workspaceDir + "\n"},
+	}))
+
 	identity := "You are a personal AI assistant communicating via Telegram.\n"
-	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
+		"\nWorkspace directory: " + workspaceDir + "\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,
