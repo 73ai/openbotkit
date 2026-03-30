@@ -16,8 +16,10 @@ import (
 	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
+	"github.com/73ai/openbotkit/internal/browser/cookies"
 	"github.com/73ai/openbotkit/remote"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
+	xclient "github.com/73ai/openbotkit/source/twitter/client"
 	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
 	slacksrc "github.com/73ai/openbotkit/source/slack"
@@ -72,6 +74,7 @@ var setupCmd = &cobra.Command{
 			huh.NewOption("Google Tasks", "tasks"),
 			huh.NewOption("Google Contacts", "people"),
 		}
+		sourceOptions = append(sourceOptions, huh.NewOption("X (Twitter)", "x"))
 		sourceOptions = append(sourceOptions, huh.NewOption("Slack", "slack"))
 		sourceOptions = append(sourceOptions, huh.NewOption("Backup (Cloudflare R2 or Google Drive)", "backup"))
 		if runtime.GOOS == "darwin" {
@@ -179,6 +182,10 @@ var setupCmd = &cobra.Command{
 				}
 				fmt.Println("\n  WhatsApp requires QR code login.")
 				fmt.Println("  Run after setup: obk whatsapp auth login")
+			case "x":
+				if err := setupX(cfg); err != nil {
+					return err
+				}
 			case "slack":
 				if err := setupSlack(cfg); err != nil {
 					return err
@@ -681,6 +688,86 @@ func setupIMessage(cfg *config.Config) error {
 
 	fmt.Printf("  Synced %d messages\n", result.Synced)
 	return nil
+}
+
+func setupX(cfg *config.Config) error {
+	fmt.Println("\n  -- X (Twitter) Setup --")
+
+	available := cookies.AvailableBrowsers()
+	var opts []huh.Option[string]
+	for _, b := range available {
+		label := b
+		if b == "Safari" {
+			label = "Safari (requires Full Disk Access for terminal)"
+		}
+		opts = append(opts, huh.NewOption(label, b))
+	}
+
+	var browser string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Which browser are you signed in to x.com on?").
+				Options(opts...).
+				Value(&browser),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if browser == "Safari" {
+		fmt.Println()
+		fmt.Println("  Note: Safari cookies are protected by macOS.")
+		fmt.Println("  Your terminal app needs Full Disk Access to read them.")
+		fmt.Println("  If this fails, grant access in System Settings > Privacy & Security > Full Disk Access.")
+		fmt.Println()
+	}
+
+	if browser == "Chrome" {
+		fmt.Println("  macOS will ask for permission to access \"Chrome Safe Storage\" in your keychain.")
+		fmt.Println("  Click \"Always Allow\" so you won't be prompted again.")
+		fmt.Println()
+	}
+
+	fmt.Printf("  Extracting X session from %s...\n", browser)
+
+	session, _, err := xclient.ExtractSessionFromBrowserByName(browser)
+	if err != nil {
+		if browser == "Safari" && isSetupPermissionError(err) {
+			fmt.Println()
+			fmt.Println("  Safari access was denied.")
+			fmt.Println("  To fix: System Settings > Privacy & Security > Full Disk Access")
+			fmt.Println("  Add your terminal app, restart it, and run setup again.")
+			fmt.Println()
+		} else {
+			fmt.Printf("  Failed: %v\n", err)
+			fmt.Println("  Make sure you're signed in to x.com in that browser.")
+		}
+		fmt.Println("  You can try again later: obk x auth login")
+		return nil
+	}
+
+	if err := xclient.SaveSession(session); err != nil {
+		return fmt.Errorf("save X credentials: %w", err)
+	}
+
+	if cfg.X == nil {
+		cfg.X = &config.XConfig{}
+	}
+
+	if err := config.LinkSource("x"); err != nil {
+		return fmt.Errorf("link X source: %w", err)
+	}
+
+	fmt.Printf("  Authenticated with X (from %s)!\n", browser)
+	return nil
+}
+
+func isSetupPermissionError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "operation not permitted") ||
+		strings.Contains(msg, "permission denied")
 }
 
 func setupSlack(cfg *config.Config) error {
