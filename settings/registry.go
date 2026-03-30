@@ -14,6 +14,7 @@ import (
 func BuildTree(svc *Service) []Node {
 	return []Node{
 		{Category: generalCategory()},
+		{Category: workspaceCategory()},
 		{Category: modelsCategory(svc)},
 		{Category: channelsCategory()},
 		{Category: dataSourcesCategory()},
@@ -65,6 +66,28 @@ func generalCategory() *Category {
 					if err != nil {
 						return fmt.Errorf("invalid timezone: %w", err)
 					}
+					return nil
+				},
+			}},
+		},
+	}
+}
+
+func workspaceCategory() *Category {
+	return &Category{
+		Key:   "workspace",
+		Label: "Workspace",
+		Children: []Node{
+			{Field: &Field{
+				Key:         "workspace",
+				Label:       "Directory",
+				Description: "Directory for persistent research artifacts (default: ~/.obk/workspace)",
+				Type:        TypeString,
+				Get: func(c *config.Config) string {
+					return c.ResolvedWorkspaceDir()
+				},
+				Set: func(c *config.Config, v string) error {
+					c.Workspace = v
 					return nil
 				},
 			}},
