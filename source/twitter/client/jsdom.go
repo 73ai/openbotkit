@@ -7,6 +7,7 @@ type MockElement struct {
 	Children         []*MockElement
 	LastElementChild *MockElement
 	Attributes       map[string]string
+	InnerText        string
 }
 
 func NewMockElement(tagName string) *MockElement {

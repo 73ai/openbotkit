@@ -130,7 +130,7 @@ func TestExtractErrorMessage_NoSubtasks(t *testing.T) {
 func TestSolveInstrumentation_MockServer(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
-		w.Write([]byte(`function solve() {return "mock_response"}`))
+		w.Write([]byte(`function solve() {return {"rf": {"a": 1}, "s": "sig"}}`))
 	}))
 	defer srv.Close()
 
@@ -143,8 +143,13 @@ func TestSolveInstrumentation_MockServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("solveInstrumentation() error = %v", err)
 	}
-	if result != "mock_response" {
-		t.Errorf("solveInstrumentation() = %q, want %q", result, "mock_response")
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result not valid JSON: %v", err)
+	}
+	if parsed["s"] != "sig" {
+		t.Errorf("result s = %v, want sig", parsed["s"])
 	}
 }
 

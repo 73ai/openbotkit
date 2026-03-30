@@ -1,32 +1,35 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/dop251/goja"
 )
 
 var (
-	funcBodyRe = regexp.MustCompile(`(?s)function\s+[a-zA-Z]+\(\)\s*(\{.+\})`)
-	eqFixRe    = regexp.MustCompile(`\(!\([a-zA-Z]{5}\)\|\|[a-zA-Z]{5}\)==[a-zA-Z]{5}`)
+	jsonStringifyRe = regexp.MustCompile(`JSON\.stringify\((\w+)\(\)\)`)
+	eqFixRe         = regexp.MustCompile(`\(!\([a-zA-Z]{5}\)\|\|[a-zA-Z]{5}\)==[a-zA-Z]{5}`)
 )
 
 // SolveUIMetrics executes X's JS instrumentation challenge and returns the response string.
 func SolveUIMetrics(jsCode string) (string, error) {
-	body := extractFunctionBody(jsCode)
-	if body == "" {
-		return "", fmt.Errorf("could not extract function body from JS instrumentation")
+	funcBody := extractComputationFunc(jsCode)
+	if funcBody == "" {
+		return "", fmt.Errorf("could not extract computation function from JS instrumentation")
 	}
 
-	body = fixEqualityOperators(body)
+	funcBody = fixEqualityOperators(funcBody)
 
 	vm := goja.New()
-	if err := injectMockDOM(vm); err != nil {
+	cache := &jsCache{vm: vm, objects: make(map[*MockElement]*goja.Object)}
+	if err := injectMockDOM(vm, cache); err != nil {
 		return "", fmt.Errorf("inject mock DOM: %w", err)
 	}
 
-	wrapped := "(function() " + body + ")()"
+	wrapped := "(function() " + funcBody + ")()"
 	val, err := vm.RunString(wrapped)
 	if err != nil {
 		return "", fmt.Errorf("execute JS instrumentation: %w", err)
@@ -36,19 +39,62 @@ func SolveUIMetrics(jsCode string) (string, error) {
 		return "", fmt.Errorf("JS instrumentation returned nil")
 	}
 
-	return val.String(), nil
+	result := val.Export()
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("marshal instrumentation result: %w", err)
+	}
+
+	return string(jsonBytes), nil
 }
 
+// extractComputationFunc finds the inner computation function that gets
+// JSON.stringified and returns its body (including braces).
+func extractComputationFunc(js string) string {
+	m := jsonStringifyRe.FindStringSubmatch(js)
+	if len(m) < 2 {
+		return extractFunctionBody(js)
+	}
+
+	funcName := m[1]
+	prefix := "function " + funcName + "()"
+	idx := strings.Index(js, prefix)
+	if idx < 0 {
+		return extractFunctionBody(js)
+	}
+
+	braceStart := strings.Index(js[idx:], "{")
+	if braceStart < 0 {
+		return extractFunctionBody(js)
+	}
+	braceStart += idx
+
+	depth := 0
+	for i := braceStart; i < len(js); i++ {
+		switch js[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return js[braceStart : i+1]
+			}
+		}
+	}
+
+	return extractFunctionBody(js)
+}
+
+var simpleFuncBodyRe = regexp.MustCompile(`(?s)function\s+[a-zA-Z]+\(\)\s*(\{.+\})`)
+
 func extractFunctionBody(js string) string {
-	m := funcBodyRe.FindStringSubmatch(js)
+	m := simpleFuncBodyRe.FindStringSubmatch(js)
 	if len(m) < 2 {
 		return ""
 	}
 	return m[1]
 }
 
-// fixEqualityOperators replaces == with === for the specific pattern X uses,
-// matching twikit's approach to fix JS strict equality checks.
 func fixEqualityOperators(js string) string {
 	return eqFixRe.ReplaceAllStringFunc(js, func(match string) string {
 		return replaceNonTripleEquals(match)
@@ -73,7 +119,24 @@ func replaceNonTripleEquals(s string) string {
 	return string(result)
 }
 
-func injectMockDOM(vm *goja.Runtime) error {
+// jsCache maintains a mapping from MockElement to goja Object so that
+// JS identity comparisons (el1 == el2) work correctly.
+type jsCache struct {
+	vm      *goja.Runtime
+	objects map[*MockElement]*goja.Object
+}
+
+func (c *jsCache) getOrCreate(el *MockElement) *goja.Object {
+	if obj, ok := c.objects[el]; ok {
+		return obj
+	}
+	obj := c.vm.NewObject()
+	c.objects[el] = obj
+	bindElement(c, obj, el)
+	return obj
+}
+
+func injectMockDOM(vm *goja.Runtime, cache *jsCache) error {
 	doc := NewMockDocument()
 
 	docObj := vm.NewObject()
@@ -81,7 +144,7 @@ func injectMockDOM(vm *goja.Runtime) error {
 	docObj.Set("createElement", func(call goja.FunctionCall) goja.Value {
 		tagName := call.Argument(0).String()
 		el := doc.CreateElement(tagName)
-		return elementToJS(vm, el)
+		return cache.getOrCreate(el)
 	})
 
 	docObj.Set("getElementsByTagName", func(call goja.FunctionCall) goja.Value {
@@ -89,7 +152,7 @@ func injectMockDOM(vm *goja.Runtime) error {
 		elements := doc.GetElementsByTagName(tagName)
 		arr := vm.NewArray()
 		for i, el := range elements {
-			arr.Set(fmt.Sprintf("%d", i), elementToJS(vm, el))
+			arr.Set(fmt.Sprintf("%d", i), cache.getOrCreate(el))
 		}
 		arr.Set("length", len(elements))
 		return arr
@@ -99,15 +162,25 @@ func injectMockDOM(vm *goja.Runtime) error {
 	return nil
 }
 
-func elementToJS(vm *goja.Runtime, el *MockElement) *goja.Object {
-	obj := vm.NewObject()
+func bindElement(cache *jsCache, obj *goja.Object, el *MockElement) {
+	vm := cache.vm
+
 	obj.Set("tagName", el.TagName)
 
 	obj.Set("appendChild", func(call goja.FunctionCall) goja.Value {
 		childObj := call.Argument(0).ToObject(vm)
-		childEl, ok := childObj.Get("_native").Export().(*MockElement)
-		if ok {
+		childEl := nativeElement(childObj)
+		if childEl != nil {
 			el.AppendChild(childEl)
+		}
+		return call.Argument(0)
+	})
+
+	obj.Set("removeChild", func(call goja.FunctionCall) goja.Value {
+		childObj := call.Argument(0).ToObject(vm)
+		childEl := nativeElement(childObj)
+		if childEl != nil {
+			el.RemoveChild(childEl)
 		}
 		return call.Argument(0)
 	})
@@ -117,15 +190,6 @@ func elementToJS(vm *goja.Runtime, el *MockElement) *goja.Object {
 		return goja.Undefined()
 	})
 
-	obj.Set("removeChild", func(call goja.FunctionCall) goja.Value {
-		childObj := call.Argument(0).ToObject(vm)
-		childEl, ok := childObj.Get("_native").Export().(*MockElement)
-		if ok {
-			el.RemoveChild(childEl)
-		}
-		return call.Argument(0)
-	})
-
 	obj.Set("setAttribute", func(call goja.FunctionCall) goja.Value {
 		name := call.Argument(0).String()
 		value := call.Argument(1).String()
@@ -133,38 +197,18 @@ func elementToJS(vm *goja.Runtime, el *MockElement) *goja.Object {
 		return goja.Undefined()
 	})
 
-	// Dynamic property for children/lastElementChild since they change
 	obj.Set("_native", el)
 
-	defineChildrenProperties(vm, obj, el)
-
-	return obj
+	defineProperties(cache, obj, el)
 }
 
-func defineChildrenProperties(vm *goja.Runtime, obj *goja.Object, el *MockElement) {
-	// Use defineProperty for dynamic getters
-	vm.Set("__tempObj", obj)
-	vm.Set("__tempEl", el)
-
-	vm.RunString(`
-		Object.defineProperty(__tempObj, 'children', {
-			get: function() { return __tempObj._getChildren(); },
-			configurable: true
-		});
-		Object.defineProperty(__tempObj, 'lastElementChild', {
-			get: function() { return __tempObj._getLastElementChild(); },
-			configurable: true
-		});
-		Object.defineProperty(__tempObj, 'parentNode', {
-			get: function() { return __tempObj._getParentNode(); },
-			configurable: true
-		});
-	`)
+func defineProperties(cache *jsCache, obj *goja.Object, el *MockElement) {
+	vm := cache.vm
 
 	obj.Set("_getChildren", func(call goja.FunctionCall) goja.Value {
 		arr := vm.NewArray()
 		for i, child := range el.Children {
-			arr.Set(fmt.Sprintf("%d", i), elementToJS(vm, child))
+			arr.Set(fmt.Sprintf("%d", i), cache.getOrCreate(child))
 		}
 		arr.Set("length", len(el.Children))
 		return arr
@@ -174,16 +218,55 @@ func defineChildrenProperties(vm *goja.Runtime, obj *goja.Object, el *MockElemen
 		if el.LastElementChild == nil {
 			return goja.Null()
 		}
-		return elementToJS(vm, el.LastElementChild)
+		return cache.getOrCreate(el.LastElementChild)
 	})
 
 	obj.Set("_getParentNode", func(call goja.FunctionCall) goja.Value {
 		if el.ParentNode == nil {
 			return goja.Null()
 		}
-		return elementToJS(vm, el.ParentNode)
+		return cache.getOrCreate(el.ParentNode)
 	})
 
+	obj.Set("_getInnerText", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(el.InnerText)
+	})
+
+	obj.Set("_setInnerText", func(call goja.FunctionCall) goja.Value {
+		el.InnerText = call.Argument(0).String()
+		return goja.Undefined()
+	})
+
+	vm.Set("__tempObj", obj)
+	vm.RunString(`
+		(function(o) {
+			Object.defineProperty(o, 'children', {
+				get: function() { return o._getChildren(); },
+				configurable: true
+			});
+			Object.defineProperty(o, 'lastElementChild', {
+				get: function() { return o._getLastElementChild(); },
+				configurable: true
+			});
+			Object.defineProperty(o, 'parentNode', {
+				get: function() { return o._getParentNode(); },
+				configurable: true
+			});
+			Object.defineProperty(o, 'innerText', {
+				get: function() { return o._getInnerText(); },
+				set: function(v) { o._setInnerText(v); },
+				configurable: true
+			});
+		})(__tempObj);
+	`)
 	vm.Set("__tempObj", goja.Undefined())
-	vm.Set("__tempEl", goja.Undefined())
+}
+
+func nativeElement(obj *goja.Object) *MockElement {
+	v := obj.Get("_native")
+	if v == nil {
+		return nil
+	}
+	el, _ := v.Export().(*MockElement)
+	return el
 }

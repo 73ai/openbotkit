@@ -1,37 +1,38 @@
 package client
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+)
 
-func TestExtractFunctionBody(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "simple function",
-			input: `function abc() {return "hello"}`,
-			want:  `{return "hello"}`,
-		},
-		{
-			name:  "function with complex body",
-			input: `var x=1;function myFunc() {var a=1;return a+2}; other stuff`,
-			want:  `{var a=1;return a+2}`,
-		},
-		{
-			name:  "no function",
-			input: `var x = 1;`,
-			want:  "",
-		},
+func TestExtractComputationFunc_WithJSONStringify(t *testing.T) {
+	js := `
+	function outer() {
+		function compute() {var x = 1; return {"a": x};}
+		var r = JSON.stringify(compute());
 	}
+	outer();`
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := extractFunctionBody(tt.input)
-			if got != tt.want {
-				t.Errorf("extractFunctionBody() = %q, want %q", got, tt.want)
-			}
-		})
+	body := extractComputationFunc(js)
+	if !strings.Contains(body, `return {"a": x}`) {
+		t.Errorf("expected computation body, got %q", body)
+	}
+}
+
+func TestExtractComputationFunc_Fallback(t *testing.T) {
+	js := `function simple() {return "hello"}`
+	body := extractComputationFunc(js)
+	if body != `{return "hello"}` {
+		t.Errorf("extractComputationFunc() = %q, want {return \"hello\"}", body)
+	}
+}
+
+func TestExtractComputationFunc_NoFunction(t *testing.T) {
+	body := extractComputationFunc("var x = 1;")
+	if body != "" {
+		t.Errorf("expected empty, got %q", body)
 	}
 }
 
@@ -75,8 +76,25 @@ func TestSolveUIMetrics_SimpleJS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SolveUIMetrics() error = %v", err)
 	}
-	if result != "test_result" {
-		t.Errorf("SolveUIMetrics() = %q, want %q", result, "test_result")
+	if result != `"test_result"` {
+		t.Errorf("SolveUIMetrics() = %q, want %q", result, `"test_result"`)
+	}
+}
+
+func TestSolveUIMetrics_ReturnsObject(t *testing.T) {
+	js := `function solve() {return {"key": "value"}}`
+
+	result, err := SolveUIMetrics(js)
+	if err != nil {
+		t.Fatalf("SolveUIMetrics() error = %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result not valid JSON: %v", err)
+	}
+	if parsed["key"] != "value" {
+		t.Errorf("parsed[key] = %v, want value", parsed["key"])
 	}
 }
 
@@ -88,15 +106,15 @@ func TestSolveUIMetrics_WithDocumentAccess(t *testing.T) {
 		if (heads.length > 0) {
 			heads[0].appendChild(el);
 		}
-		return "instrumented";
+		return {"status": "ok"};
 	}`
 
 	result, err := SolveUIMetrics(js)
 	if err != nil {
 		t.Fatalf("SolveUIMetrics() error = %v", err)
 	}
-	if result != "instrumented" {
-		t.Errorf("SolveUIMetrics() = %q, want %q", result, "instrumented")
+	if !strings.Contains(result, `"ok"`) {
+		t.Errorf("result = %q, expected to contain ok", result)
 	}
 }
 
@@ -107,32 +125,115 @@ func TestSolveUIMetrics_NoFunction(t *testing.T) {
 	}
 }
 
-func TestSolveUIMetrics_StringConcat(t *testing.T) {
-	js := `function metrics() {var a = "rf"; var b = "123"; return a + b;}`
-
-	result, err := SolveUIMetrics(js)
-	if err != nil {
-		t.Fatalf("SolveUIMetrics() error = %v", err)
-	}
-	if result != "rf123" {
-		t.Errorf("SolveUIMetrics() = %q, want %q", result, "rf123")
-	}
-}
-
-func TestSolveUIMetrics_ElementRemove(t *testing.T) {
-	js := `function metrics() {
-		var el = document.createElement("script");
-		var head = document.getElementsByTagName("head")[0];
-		head.appendChild(el);
-		el.remove();
-		return "cleaned";
+func TestSolveUIMetrics_InnerText(t *testing.T) {
+	js := `function solve() {
+		var el = document.createElement("div");
+		el.innerText = 42;
+		return {"value": parseInt(el.innerText)};
 	}`
 
 	result, err := SolveUIMetrics(js)
 	if err != nil {
 		t.Fatalf("SolveUIMetrics() error = %v", err)
 	}
-	if result != "cleaned" {
-		t.Errorf("SolveUIMetrics() = %q, want %q", result, "cleaned")
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result not valid JSON: %v", err)
+	}
+	if parsed["value"] != float64(42) {
+		t.Errorf("value = %v, want 42", parsed["value"])
+	}
+}
+
+func TestSolveUIMetrics_DOMTreeManipulation(t *testing.T) {
+	js := `function solve() {
+		var root = document.createElement("div");
+		document.getElementsByTagName("body")[0].appendChild(root);
+		var child1 = document.createElement("div");
+		root.appendChild(child1);
+		child1.innerText = 10;
+		var child2 = document.createElement("div");
+		root.appendChild(child2);
+		child2.innerText = 20;
+		while (root.children.length > 0) {
+			root.removeChild(root.lastElementChild);
+		}
+		root.parentNode.removeChild(root);
+		return {"result": 30};
+	}`
+
+	result, err := SolveUIMetrics(js)
+	if err != nil {
+		t.Fatalf("SolveUIMetrics() error = %v", err)
+	}
+	if !strings.Contains(result, "30") {
+		t.Errorf("result = %q, expected 30", result)
+	}
+}
+
+func TestSolveUIMetrics_ElementIdentity(t *testing.T) {
+	js := `function solve() {
+		var root = document.createElement("div");
+		document.getElementsByTagName("body")[0].appendChild(root);
+		var child = document.createElement("div");
+		root.appendChild(child);
+		var same = (child.parentNode == root) ? "yes" : "no";
+		return {"same": same};
+	}`
+
+	result, err := SolveUIMetrics(js)
+	if err != nil {
+		t.Fatalf("SolveUIMetrics() error = %v", err)
+	}
+	if !strings.Contains(result, `"yes"`) {
+		t.Errorf("identity check failed, result = %q", result)
+	}
+}
+
+func TestSolveUIMetrics_RealXJS(t *testing.T) {
+	data, err := os.ReadFile("/tmp/x_js_inst.js")
+	if err != nil {
+		t.Skip("no cached X JS instrumentation at /tmp/x_js_inst.js")
+	}
+
+	result, err := SolveUIMetrics(string(data))
+	if err != nil {
+		t.Fatalf("SolveUIMetrics() error = %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result not valid JSON: %v\nraw: %s", err, result)
+	}
+
+	if _, ok := parsed["rf"]; !ok {
+		t.Error("result missing 'rf' key")
+	}
+	if _, ok := parsed["s"]; !ok {
+		t.Error("result missing 's' key")
+	}
+}
+
+func TestSolveUIMetrics_ExtractFromWrappedJS(t *testing.T) {
+	js := `function outer() {
+		function compute() {return {"rf": {"a": 1}, "s": "sig"}}
+		var r;
+		try { r = JSON.stringify(compute()); } catch(e) {}
+		return r;
+	};
+	outer();`
+
+	result, err := SolveUIMetrics(js)
+	if err != nil {
+		t.Fatalf("SolveUIMetrics() error = %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result not valid JSON: %v", err)
+	}
+	if parsed["s"] != "sig" {
+		t.Errorf("s = %v, want sig", parsed["s"])
 	}
 }
