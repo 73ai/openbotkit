@@ -46,7 +46,7 @@ func TestUseCase_DeepResearchDelegateTask(t *testing.T) {
 
 	prompt := "Research the current state of WebAssembly for server-side use cases. " +
 		"Which runtimes are popular (Wasmtime, Wasmer, WasmEdge), what languages compile " +
-		"to WASM well, and are there production use cases? Write a summary."
+		"to WASM well, and are there production use cases? Give me the full summary directly."
 	result, err := a.Run(ctx, prompt)
 	if err != nil {
 		t.Fatalf("run: %v", err)
