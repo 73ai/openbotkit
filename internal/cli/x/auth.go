@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
-	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/source/twitter/client"
 	"github.com/spf13/cobra"
 )
@@ -15,7 +13,7 @@ import (
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Manage X authentication",
-	RunE:  authInteractiveRun,
+	RunE:  authBrowserRun,
 }
 
 var authLoginCmd = &cobra.Command{
@@ -43,82 +41,25 @@ var authLoginCmd = &cobra.Command{
 			return nil
 		}
 
-		return authInteractiveRun(cmd, args)
+		return authBrowserRun(cmd, args)
 	},
 }
 
-func authInteractiveRun(cmd *cobra.Command, args []string) error {
-	if err := tty.RequireInteractive("obk x auth login --token <token>"); err != nil {
-		return err
-	}
+func authBrowserRun(cmd *cobra.Command, args []string) error {
+	fmt.Println("Checking browsers for X session...")
+	logXAudit("x.auth.login_browser", "", "extracting cookies from browser", "")
 
-	var username, password string
-
-	err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Username, email, or phone").
-				Value(&username),
-			huh.NewInput().
-				Title("Password").
-				EchoMode(huh.EchoModePassword).
-				Value(&password),
-		),
-	).Run()
+	session, browser, err := client.ExtractSessionFromBrowser()
 	if err != nil {
-		return err
+		logXAudit("x.auth.login_browser", "", "", err.Error())
+		fmt.Println("No X session found in any browser.")
+		fmt.Println("Sign in to x.com in your browser first, then try again.")
+		fmt.Println("Or use: obk x auth login --token <token>")
+		return fmt.Errorf("browser cookie extraction failed: %w", err)
 	}
 
-	username = strings.TrimSpace(username)
-	password = strings.TrimSpace(password)
-	if username == "" || password == "" {
-		return fmt.Errorf("username and password are required")
-	}
-
-	fmt.Println("Signing in to X...")
-	logXAudit("x.auth.login", "username="+username, "attempting login", "")
-
-	result, err := client.Login(username, password)
-	if err != nil {
-		logXAudit("x.auth.login", "username="+username, "", err.Error())
-		return fmt.Errorf("login failed: %w", err)
-	}
-
-	if result.NeedsTFA {
-		var code string
-		err := huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Verification code").
-					Description("Enter the code from your authenticator app").
-					Value(&code),
-			),
-		).Run()
-		if err != nil {
-			return err
-		}
-
-		code = strings.TrimSpace(code)
-		if code == "" {
-			return fmt.Errorf("verification code is required")
-		}
-
-		fmt.Println("Verifying...")
-		logXAudit("x.auth.login_tfa", "username="+username, "submitting 2FA code", "")
-		result, err = client.LoginWithTFA(username, password, code)
-		if err != nil {
-			logXAudit("x.auth.login_tfa", "username="+username, "", err.Error())
-			return fmt.Errorf("2FA verification failed: %w", err)
-		}
-	}
-
-	if result.Session == nil {
-		logXAudit("x.auth.login", "username="+username, "", "no session returned")
-		return fmt.Errorf("login failed: no session returned")
-	}
-
-	if err := client.SaveSession(result.Session); err != nil {
-		logXAudit("x.auth.login", "username="+username, "", err.Error())
+	if err := client.SaveSession(session); err != nil {
+		logXAudit("x.auth.login_browser", "", "", err.Error())
 		return fmt.Errorf("save credentials: %w", err)
 	}
 
@@ -126,8 +67,8 @@ func authInteractiveRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("link source: %w", err)
 	}
 
-	logXAudit("x.auth.login", "username="+username, "login successful", "")
-	fmt.Println("Signed in to X successfully!")
+	logXAudit("x.auth.login_browser", "", "browser login successful ("+browser+")", "")
+	fmt.Printf("Authenticated with X (from %s).\n", browser)
 	fmt.Println("Run 'obk x sync' to fetch your timeline.")
 	return nil
 }
