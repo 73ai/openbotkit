@@ -108,7 +108,8 @@ type model struct {
 	wizardBackupSnapshot *config.BackupConfig // for transactional rollback
 
 	// X login wizard state
-	wizardXBrowser bool
+	wizardXBrowser    bool
+	wizardXBrowserSel *string
 }
 
 func newModel(svc *settings.Service) model {
@@ -151,6 +152,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateBackupDest(msg)
 	case stateBackupCreds:
 		return m.updateBackupCreds(msg)
+	case stateXAuth:
+		return m.updateXAuth(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -776,7 +779,7 @@ func (m model) renderTree() string {
 func (m model) View() string {
 	switch m.state {
 	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
-		stateBackupDest, stateBackupCreds:
+		stateBackupDest, stateBackupCreds, stateXAuth:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {

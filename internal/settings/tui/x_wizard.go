@@ -2,30 +2,89 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/browser/cookies"
 	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
 
-// --- X login wizard: extract cookies from browser → spinner → save ---
+// --- X login wizard: browser select → spinner → save ---
 
 func (m model) enterXLogin() (model, tea.Cmd) {
-	m.state = stateVerifying
+	m.state = stateXAuth
 	m.wizardError = ""
-	m.wizardXBrowser = true
-	return m, tea.Batch(
-		m.wizardSpinner.Tick,
-		xExtractCookiesCmd(),
+
+	available := cookies.AvailableBrowsers()
+	var opts []huh.Option[string]
+	for _, b := range available {
+		label := b
+		if b == "Safari" {
+			label = "Safari (requires Full Disk Access for terminal)"
+		}
+		opts = append(opts, huh.NewOption(label, b))
+	}
+
+	selected := ""
+	m.wizardXBrowserSel = &selected
+
+	m.form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Which browser are you signed in to x.com on?").
+				Options(opts...).
+				Value(m.wizardXBrowserSel),
+		),
 	)
+	return m, m.form.Init()
+}
+
+func (m model) updateXAuth(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			return m.exitXWizard("")
+		}
+	}
+
+	form, cmd := m.form.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.form = f
+	}
+
+	if m.form.State == huh.StateCompleted {
+		browser := *m.wizardXBrowserSel
+
+		m.state = stateVerifying
+		m.wizardXBrowser = true
+		m.wizardError = ""
+		return m, tea.Batch(
+			m.wizardSpinner.Tick,
+			xExtractCookiesCmd(browser),
+		)
+	}
+
+	return m, cmd
 }
 
 func (m model) handleXLoginResult(msg xAuthResultMsg) (model, tea.Cmd) {
 	if msg.err != nil {
-		errMsg := fmt.Sprintf("No X session found: %v", msg.err)
-		errMsg += "\nSign in to x.com in your browser first, then try again."
+		browser := ""
+		if m.wizardXBrowserSel != nil {
+			browser = *m.wizardXBrowserSel
+		}
+
+		errMsg := fmt.Sprintf("Failed: %v", msg.err)
+		if browser == "Safari" && isPermissionErr(msg.err) {
+			errMsg = "Safari access denied. Grant Full Disk Access to your terminal:\n" +
+				"  System Settings > Privacy & Security > Full Disk Access"
+		} else {
+			errMsg += "\nMake sure you're signed in to x.com in that browser."
+		}
 		return m.exitXWizard(errMsg)
 	}
 
@@ -62,6 +121,7 @@ func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 	m.state = stateBrowse
 	m.form = nil
 	m.wizardXBrowser = false
+	m.wizardXBrowserSel = nil
 	m.wizardError = ""
 	m.svc.RebuildTree()
 	m.rebuildRows()
@@ -75,6 +135,12 @@ func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 		})
 	}
 	return m, nil
+}
+
+func isPermissionErr(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "operation not permitted") ||
+		strings.Contains(msg, "permission denied")
 }
 
 func logXAudit(toolName, input, output, errMsg string) {
@@ -92,17 +158,17 @@ func logXAudit(toolName, input, output, errMsg string) {
 	})
 }
 
-func xExtractCookiesCmd() tea.Cmd {
+func xExtractCookiesCmd(browser string) tea.Cmd {
 	return func() tea.Msg {
-		logXAudit("x.auth.login_browser", "", "extracting cookies from browser", "")
+		logXAudit("x.auth.login_browser", "browser="+browser, "extracting cookies", "")
 
-		session, browser, err := xclient.ExtractSessionFromBrowser()
+		session, b, err := xclient.ExtractSessionFromBrowserByName(browser)
 		if err != nil {
-			logXAudit("x.auth.login_browser", "", "", err.Error())
+			logXAudit("x.auth.login_browser", "browser="+browser, "", err.Error())
 			return xAuthResultMsg{err: err}
 		}
 
-		logXAudit("x.auth.login_browser", "", "browser login successful ("+browser+")", "")
-		return xAuthResultMsg{session: session, browser: browser}
+		logXAudit("x.auth.login_browser", "browser="+browser, "login successful ("+b+")", "")
+		return xAuthResultMsg{session: session, browser: b}
 	}
 }
