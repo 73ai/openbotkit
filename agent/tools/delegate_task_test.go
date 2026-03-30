@@ -864,8 +864,7 @@ func TestDelegateTask_MalformedJSON(t *testing.T) {
 	}
 }
 
-func TestDelegateTask_WritesResultFile(t *testing.T) {
-	scratchDir := t.TempDir()
+func TestDelegateTask_SyncReturnsRawOutput(t *testing.T) {
 	inter := &mockInteractor{approveAll: true}
 	longOutput := strings.Repeat("line of research output\n", 100)
 	runner := &mockAgentRunner{output: longOutput}
@@ -874,7 +873,7 @@ func TestDelegateTask_WritesResultFile(t *testing.T) {
 		Interactor: inter,
 		Agents:     agents,
 		Timeout:    5 * time.Second,
-		ScratchDir: scratchDir,
+		ScratchDir: t.TempDir(),
 	})
 	tool.runners[AgentClaude] = runner
 	tool.streamRunners[AgentClaude] = nil
@@ -885,31 +884,13 @@ func TestDelegateTask_WritesResultFile(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	if !strings.Contains(result, "Full results") {
-		t.Errorf("result should contain file reference: %q", result)
-	}
-	if !strings.Contains(result, scratchDir) {
-		t.Errorf("result should contain scratch dir path: %q", result)
-	}
-	if strings.Contains(result, strings.Repeat("line of research output\n", 50)) {
-		t.Error("full output should not be inline")
-	}
-
-	// Verify file was written.
-	files, _ := filepath.Glob(filepath.Join(scratchDir, "delegate_*.md"))
-	if len(files) != 1 {
-		t.Fatalf("expected 1 result file, got %d", len(files))
-	}
-	content, err := os.ReadFile(files[0])
-	if err != nil {
-		t.Fatalf("read result file: %v", err)
-	}
-	if string(content) != longOutput {
-		t.Errorf("file content mismatch: got %d bytes, want %d", len(content), len(longOutput))
+	// Sync path returns raw output; registry handles truncation/file fallback.
+	if result != longOutput {
+		t.Errorf("expected raw output (%d bytes), got %d bytes", len(longOutput), len(result))
 	}
 }
 
-func TestDelegateTask_NoScratchDir_FallsBack(t *testing.T) {
+func TestDelegateTask_SyncReturnsRawOutput_NoScratchDir(t *testing.T) {
 	tool, _, _ := setupDelegateTest(t, true) // no scratch dir
 	input, _ := json.Marshal(delegateTaskInput{Task: "research Go 1.23"})
 	result, err := tool.Execute(context.Background(), input)
@@ -917,11 +898,11 @@ func TestDelegateTask_NoScratchDir_FallsBack(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 	if result != "research result" {
-		t.Errorf("expected inline result, got %q", result)
+		t.Errorf("expected raw output, got %q", result)
 	}
 }
 
-func TestDelegateTask_EmptyOutput_ReturnsMessage(t *testing.T) {
+func TestDelegateTask_SyncEmptyOutput(t *testing.T) {
 	inter := &mockInteractor{approveAll: true}
 	runner := &mockAgentRunner{output: ""}
 	agents := []AgentInfo{{Kind: AgentClaude, Binary: "claude"}}
@@ -939,8 +920,8 @@ func TestDelegateTask_EmptyOutput_ReturnsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if result != "Task produced no output." {
-		t.Errorf("result = %q, want %q", result, "Task produced no output.")
+	if result != "" {
+		t.Errorf("result = %q, want empty string", result)
 	}
 }
 
