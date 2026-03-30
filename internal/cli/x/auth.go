@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/source/twitter/client"
@@ -27,13 +28,16 @@ var authLoginCmd = &cobra.Command{
 		token = strings.TrimSpace(token)
 
 		if token != "" {
+			logXAudit("x.auth.login_token", "", "token-based login", "")
 			session := client.NewSession(token)
 			if err := client.SaveSession(session); err != nil {
+				logXAudit("x.auth.login_token", "", "", err.Error())
 				return fmt.Errorf("save credentials: %w", err)
 			}
 			if err := config.LinkSource("x"); err != nil {
 				return fmt.Errorf("link source: %w", err)
 			}
+			logXAudit("x.auth.login_token", "", "token login successful", "")
 			fmt.Println("Authenticated with X successfully.")
 			fmt.Println("Run 'obk x sync' to fetch your timeline.")
 			return nil
@@ -72,9 +76,11 @@ func authInteractiveRun(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Signing in to X...")
+	logXAudit("x.auth.login", "username="+username, "attempting login", "")
 
 	result, err := client.Login(username, password)
 	if err != nil {
+		logXAudit("x.auth.login", "username="+username, "", err.Error())
 		return fmt.Errorf("login failed: %w", err)
 	}
 
@@ -98,17 +104,21 @@ func authInteractiveRun(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println("Verifying...")
+		logXAudit("x.auth.login_tfa", "username="+username, "submitting 2FA code", "")
 		result, err = client.LoginWithTFA(username, password, code)
 		if err != nil {
+			logXAudit("x.auth.login_tfa", "username="+username, "", err.Error())
 			return fmt.Errorf("2FA verification failed: %w", err)
 		}
 	}
 
 	if result.Session == nil {
+		logXAudit("x.auth.login", "username="+username, "", "no session returned")
 		return fmt.Errorf("login failed: no session returned")
 	}
 
 	if err := client.SaveSession(result.Session); err != nil {
+		logXAudit("x.auth.login", "username="+username, "", err.Error())
 		return fmt.Errorf("save credentials: %w", err)
 	}
 
@@ -116,6 +126,7 @@ func authInteractiveRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("link source: %w", err)
 	}
 
+	logXAudit("x.auth.login", "username="+username, "login successful", "")
 	fmt.Println("Signed in to X successfully!")
 	fmt.Println("Run 'obk x sync' to fetch your timeline.")
 	return nil
@@ -125,9 +136,12 @@ var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Sign out of X",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		logXAudit("x.auth.logout", "", "signing out", "")
 		if err := client.DeleteSession(); err != nil {
+			logXAudit("x.auth.logout", "", "", err.Error())
 			return fmt.Errorf("delete credentials: %w", err)
 		}
+		logXAudit("x.auth.logout", "", "signed out", "")
 		fmt.Println("Signed out of X.")
 		return nil
 	},
@@ -148,6 +162,21 @@ var authStatusCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func logXAudit(toolName, input, output, errMsg string) {
+	l := audit.OpenDefault(config.AuditJSONLPath())
+	if l == nil {
+		return
+	}
+	defer l.Close()
+	l.Log(audit.Entry{
+		Context:       "cli",
+		ToolName:      toolName,
+		InputSummary:  input,
+		OutputSummary: output,
+		Error:         errMsg,
+	})
 }
 
 func init() {

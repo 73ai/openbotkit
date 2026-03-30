@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/73ai/openbotkit/agent/audit"
 	"github.com/73ai/openbotkit/config"
 	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
@@ -15,10 +16,15 @@ import (
 
 func (m model) enterXLogin() (model, tea.Cmd) {
 	m.state = stateXAuth
-	m.wizardError = ""
 
 	username := ""
 	password := ""
+	if m.wizardXUsername != nil {
+		username = *m.wizardXUsername
+	}
+	if m.wizardXPassword != nil {
+		password = *m.wizardXPassword
+	}
 	m.wizardXUsername = &username
 	m.wizardXPassword = &password
 
@@ -71,7 +77,6 @@ func (m model) updateXAuth(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) enterXTFA() (model, tea.Cmd) {
 	m.state = stateXTFA
-	m.wizardError = ""
 
 	code := ""
 	m.wizardXTFACode = &code
@@ -123,7 +128,7 @@ func (m model) updateXTFA(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) handleXLoginResult(msg xAuthResultMsg) (model, tea.Cmd) {
 	if msg.err != nil {
-		m.wizardError = msg.err.Error()
+		m.wizardError = fmt.Sprintf("Login failed: %v", msg.err)
 		return m.enterXLogin()
 	}
 
@@ -182,25 +187,51 @@ func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 	return m, nil
 }
 
+func logXAudit(toolName, input, output, errMsg string) {
+	l := audit.OpenDefault(config.AuditJSONLPath())
+	if l == nil {
+		return
+	}
+	defer l.Close()
+	l.Log(audit.Entry{
+		Context:      "settings",
+		ToolName:     toolName,
+		InputSummary: input,
+		OutputSummary: output,
+		Error:        errMsg,
+	})
+}
+
 func xLoginCmd(username, password string) tea.Cmd {
 	return func() tea.Msg {
+		logXAudit("x.auth.login", "username="+username, "attempting login", "")
+
 		result, err := xclient.Login(username, password)
 		if err != nil {
+			logXAudit("x.auth.login", "username="+username, "", err.Error())
 			return xAuthResultMsg{err: err}
 		}
 		if result.NeedsTFA {
+			logXAudit("x.auth.login", "username="+username, "2FA required", "")
 			return xAuthResultMsg{needsTFA: true}
 		}
+
+		logXAudit("x.auth.login", "username="+username, "login successful", "")
 		return xAuthResultMsg{session: result.Session}
 	}
 }
 
 func xLoginTFACmd(username, password, code string) tea.Cmd {
 	return func() tea.Msg {
+		logXAudit("x.auth.login_tfa", "username="+username, "submitting 2FA code", "")
+
 		result, err := xclient.LoginWithTFA(username, password, code)
 		if err != nil {
+			logXAudit("x.auth.login_tfa", "username="+username, "", err.Error())
 			return xAuthResultMsg{err: err}
 		}
+
+		logXAudit("x.auth.login_tfa", "username="+username, "2FA login successful", "")
 		return xAuthResultMsg{session: result.Session}
 	}
 }
