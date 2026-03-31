@@ -45,6 +45,7 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (

@@ -16,6 +16,7 @@ import (
 	slackcli "github.com/73ai/openbotkit/internal/cli/slack"
 	websearchcli "github.com/73ai/openbotkit/internal/cli/websearch"
 	whatsappcli "github.com/73ai/openbotkit/internal/cli/whatsapp"
+	xcli "github.com/73ai/openbotkit/internal/cli/x"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(slackcli.Cmd)
 	rootCmd.AddCommand(websearchcli.Cmd)
 	rootCmd.AddCommand(whatsappcli.Cmd)
+	rootCmd.AddCommand(xcli.Cmd)
 }
 
 func Execute() {
