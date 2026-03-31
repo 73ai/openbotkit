@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -79,7 +78,7 @@ func (m model) handleXLoginResult(msg xAuthResultMsg) (model, tea.Cmd) {
 		}
 
 		errMsg := fmt.Sprintf("Failed: %v", msg.err)
-		if browser == "Safari" && isPermissionErr(msg.err) {
+		if browser == "Safari" && cookies.IsPermissionError(msg.err) {
 			errMsg = "Safari access denied. Grant Full Disk Access to your terminal:\n" +
 				"  System Settings > Privacy & Security > Full Disk Access"
 		} else {
@@ -137,11 +136,6 @@ func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 	return m, nil
 }
 
-func isPermissionErr(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "operation not permitted") ||
-		strings.Contains(msg, "permission denied")
-}
 
 func logXAudit(toolName, input, output, errMsg string) {
 	l := audit.OpenDefault(config.AuditJSONLPath())

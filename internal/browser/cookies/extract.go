@@ -41,6 +41,14 @@ func ExtractTwitterCookies() (*Result, error) {
 	return nil, fmt.Errorf("no X session found in any browser:\n  %s", strings.Join(errs, "\n  "))
 }
 
+// IsPermissionError returns true if the error looks like a macOS permission denial
+// (e.g. missing Full Disk Access).
+func IsPermissionError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "operation not permitted") ||
+		strings.Contains(msg, "permission denied")
+}
+
 // ExtractTwitterCookiesFromBrowser extracts cookies from a specific browser.
 func ExtractTwitterCookiesFromBrowser(browser string) (*Result, error) {
 	var fn func([]string, []string) (map[string]string, error)

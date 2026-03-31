@@ -75,7 +75,7 @@ func authBrowserRun(cmd *cobra.Command, args []string) error {
 	session, _, err := client.ExtractSessionFromBrowserByName(browser)
 	if err != nil {
 		logXAudit("x.auth.login_browser", "browser="+browser, "", err.Error())
-		if browser == "Safari" && isPermissionError(err) {
+		if browser == "Safari" && cookies.IsPermissionError(err) {
 			fmt.Println("\nSafari cookie access was denied.")
 			printSafariFDAInstructions()
 			return fmt.Errorf("Safari requires Full Disk Access")
@@ -151,11 +151,6 @@ func printSafariFDAInstructions() {
 	fmt.Println()
 }
 
-func isPermissionError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "operation not permitted") ||
-		strings.Contains(msg, "permission denied")
-}
 
 var authLogoutCmd = &cobra.Command{
 	Use:   "logout",

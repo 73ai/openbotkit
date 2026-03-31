@@ -734,7 +734,7 @@ func setupX(cfg *config.Config) error {
 
 	session, _, err := xclient.ExtractSessionFromBrowserByName(browser)
 	if err != nil {
-		if browser == "Safari" && isSetupPermissionError(err) {
+		if browser == "Safari" && cookies.IsPermissionError(err) {
 			fmt.Println()
 			fmt.Println("  Safari access was denied.")
 			fmt.Println("  To fix: System Settings > Privacy & Security > Full Disk Access")
@@ -764,11 +764,6 @@ func setupX(cfg *config.Config) error {
 	return nil
 }
 
-func isSetupPermissionError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "operation not permitted") ||
-		strings.Contains(msg, "permission denied")
-}
 
 func setupSlack(cfg *config.Config) error {
 	fmt.Println("\n  -- Slack Setup --")
