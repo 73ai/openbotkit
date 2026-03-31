@@ -92,6 +92,13 @@ func NewFixture(t *testing.T) *Fixture {
 	env.JudgeProvider = judgeProvider
 	env.JudgeModel = judgeModel
 
+	fastJudgeProvider, fastJudgeModel, err := resolveSpec(reg, models.Fast)
+	if err != nil {
+		t.Fatalf("resolve fast/judge model: %v", err)
+	}
+	env.JudgeFastProvider = fastJudgeProvider
+	env.JudgeFastModel = fastJudgeModel
+
 	return &Fixture{
 		LocalFixture: env,
 		mainProvider: mainProvider,
