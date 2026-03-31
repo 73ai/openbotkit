@@ -101,6 +101,7 @@ Answer each with the question number followed by YES or NO. Example:
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	judgeStart := time.Now()
 	resp, err := jp.Chat(ctx, provider.ChatRequest{
 		Model: jm,
 		Messages: []provider.Message{
@@ -111,6 +112,7 @@ Answer each with the question number followed by YES or NO. Example:
 	if err != nil {
 		t.Fatalf("checklist judge LLM call failed: %v", err)
 	}
+	t.Logf("checklist judge call took %s (model=%s, response_len=%d)", time.Since(judgeStart).Round(time.Millisecond), jm, len(response))
 
 	verdict := resp.TextContent()
 	if strings.TrimSpace(verdict) == "" {
