@@ -14,16 +14,16 @@ type Endpoint struct {
 }
 
 var defaultEndpoints = map[string]Endpoint{
-	"HomeTimeline":       {QueryID: "HCosKfLNW1AcOo3la3mMgg", Method: "GET"},
-	"HomeLatestTimeline": {QueryID: "DiTkXJgAqBPytnwAriHOhw", Method: "GET"},
-	"TweetDetail":        {QueryID: "nBS-WpgA6ZG0CyNHD517JQ", Method: "GET"},
-	"SearchTimeline":     {QueryID: "gkjsKepM6gl_HmFWoWKfgg", Method: "GET"},
-	"UserByScreenName":   {QueryID: "xmU6X_CKVnQ5lSrCbAmJsg", Method: "GET"},
-	"UserTweets":         {QueryID: "E3opETHurmVJflFsUBVuUQ", Method: "GET"},
-	"CreateTweet":        {QueryID: "a1p9RWpkYKBjWv_I3WzS-A", Method: "POST"},
-	"CreateRetweet":      {QueryID: "ojPdsZsimiJrUGLR1sjVsA", Method: "POST"},
+	"HomeTimeline":       {QueryID: "DXmgQYmIft1oLP6vMkJixw", Method: "GET"},
+	"HomeLatestTimeline": {QueryID: "SFxmNKWfN9ySJcXG_tjX8g", Method: "GET"},
+	"TweetDetail":        {QueryID: "iFEr5AcP121Og4wx9Yqo3w", Method: "GET"},
+	"SearchTimeline":     {QueryID: "4fpceYZ6-YQCx_JSl_Cn_A", Method: "GET"},
+	"UserByScreenName":   {QueryID: "ck5KkZ8t5cOmoLssopN99Q", Method: "GET"},
+	"UserTweets":         {QueryID: "E8Wq-_jFSaU7hxVcuOPR9g", Method: "GET"},
+	"CreateTweet":        {QueryID: "mGOM24dT4fPg08ByvrpP2A", Method: "POST"},
+	"CreateRetweet":      {QueryID: "ojPdsZsimiJrUGLR1sjUtA", Method: "POST"},
 	"FavoriteTweet":      {QueryID: "lI07N6Otwv1PhnEgXILM7A", Method: "POST"},
-	"Notifications":      {QueryID: "PsAvrHFgRwVBSRYAulPemA", Method: "GET"},
+	"Notifications":      {QueryID: "l6ovGrjBwVobgU4puBCycg", Method: "GET"},
 }
 
 func DefaultEndpointsPath() string {

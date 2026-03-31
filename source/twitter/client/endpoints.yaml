@@ -1,30 +1,30 @@
 CreateRetweet:
-  query_id: ojPdsZsimiJrUGLR1sjVsA
+  query_id: ojPdsZsimiJrUGLR1sjUtA
   method: POST
 CreateTweet:
-  query_id: a1p9RWpkYKBjWv_I3WzS-A
+  query_id: mGOM24dT4fPg08ByvrpP2A
   method: POST
 FavoriteTweet:
   query_id: lI07N6Otwv1PhnEgXILM7A
   method: POST
 HomeLatestTimeline:
-  query_id: DiTkXJgAqBPytnwAriHOhw
+  query_id: SFxmNKWfN9ySJcXG_tjX8g
   method: GET
 HomeTimeline:
-  query_id: HCosKfLNW1AcOo3la3mMgg
+  query_id: DXmgQYmIft1oLP6vMkJixw
   method: GET
 Notifications:
-  query_id: PsAvrHFgRwVBSRYAulPemA
+  query_id: l6ovGrjBwVobgU4puBCycg
   method: GET
 SearchTimeline:
-  query_id: gkjsKepM6gl_HmFWoWKfgg
+  query_id: 4fpceYZ6-YQCx_JSl_Cn_A
   method: GET
 TweetDetail:
-  query_id: nBS-WpgA6ZG0CyNHD517JQ
+  query_id: iFEr5AcP121Og4wx9Yqo3w
   method: GET
 UserByScreenName:
-  query_id: xmU6X_CKVnQ5lSrCbAmJsg
+  query_id: ck5KkZ8t5cOmoLssopN99Q
   method: GET
 UserTweets:
-  query_id: E3opETHurmVJflFsUBVuUQ
+  query_id: E8Wq-_jFSaU7hxVcuOPR9g
   method: GET
