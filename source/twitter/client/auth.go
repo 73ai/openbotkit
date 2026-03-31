@@ -99,7 +99,10 @@ func ValidateSession(ctx context.Context, session *Session) error {
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}
-	// Fetch 1 tweet from the timeline as a health check.
+	return validateWithClient(ctx, c)
+}
+
+func validateWithClient(ctx context.Context, c *Client) error {
 	if _, err := c.HomeLatestTimeline(ctx, 1, ""); err != nil {
 		return err
 	}

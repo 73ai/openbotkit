@@ -1,7 +1,10 @@
 package client
 
 import (
+	"context"
 	"encoding/hex"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -102,6 +105,34 @@ func TestSaveSession_RejectsEmptyToken(t *testing.T) {
 	session := &Session{AuthToken: "", CSRFToken: "x"}
 	if err := SaveSession(session); err == nil {
 		t.Fatal("expected error saving session with empty token")
+	}
+}
+
+func TestValidateWithClient_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"data":{"home":{"home_timeline_urt":{"instructions":[]}}}}`))
+	}))
+	defer srv.Close()
+
+	c := NewClientWithHTTP(testSession(), srv.Client(), allTestEndpoints(), srv.URL)
+	err := validateWithClient(context.Background(), c)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestValidateWithClient_Failure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"errors":[{"message":"bad token"}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClientWithHTTP(testSession(), srv.Client(), allTestEndpoints(), srv.URL)
+	err := validateWithClient(context.Background(), c)
+	if err == nil {
+		t.Fatal("expected error for forbidden response")
 	}
 }
 
