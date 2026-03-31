@@ -3,6 +3,63 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] (2026-03-31)
+
+### Added
+
+- **x**: Add query ID config loader with YAML support
+- **x**: Add credential storage with keyring and token validation
+- **x**: Add transaction ID generator stub
+- **x**: Add core GraphQL client with Chrome TLS fingerprinting
+- **x**: Add GraphQL endpoint methods for all 10 operations
+- **x**: Add domain types and dual SQLite/Postgres schema
+- **x**: Add store CRUD operations with upsert and search
+- **x**: Add URT response parsers for timeline, search, notifications
+- **x**: Add source interface implementation and sync engine
+- **x**: Add X config with storage settings and DSN helper
+- **x**: Add CLI commands and wire into root
+- **x**: Add query ID extractor tool
+- **x**: Add X to settings TUI data sources
+- **x**: Add programmatic login flow via username/password
+- **x**: Add login wizard to settings TUI
+- **x**: Update CLI auth to use username/password login
+- **x**: Add mock DOM for JS instrumentation execution
+- **x**: Add JS instrumentation solver using goja VM
+- **browser**: Add Chrome cookie decryption package
+- **browser**: Add Safari binary cookie parser
+- **browser**: Add Firefox cookie reader
+- **browser**: Add cookie extraction orchestrator
+- **x**: Add browser session extraction
+- **x**: Replace CLI login with cookie extraction
+- **x**: Replace TUI login wizard with cookie extraction
+- **browser**: Add single-browser extraction and AvailableBrowsers
+- **x**: Add ExtractSessionFromBrowserByName
+- **x**: Add browser selection to CLI auth login
+- **x**: Add browser selection to TUI settings wizard
+- **x**: Add X to setup wizard with browser selection
+- **x**: Add replies command to show replies to a post
+- **x**: Add x-read skill for timeline, search, and notifications
+- **x**: Add x-post skill for posting, replying, liking, reposting
+- **x**: Register x-read and x-post in builtin skills
+
+### Changed
+
+- **x**: Remove login flow code
+- **x**: Deduplicate isPermissionError into cookies.IsPermissionError
+- **audit**: Add LogQuick helper, simplify logXAudit in CLI and TUI
+
+### Fixed
+
+- **x**: Update settings TUI to show account status with sign-in prompt
+- **x**: Add audit logging to login flow and fix error display
+- **x**: Replace stub instrumentation with real JS execution
+- **x**: Improve JS solver with proper DOM mock and function extraction
+- **browser**: Remove Safari from cookie extraction priority
+- **settings**: Remove X-specific storage driver/DSN from settings TUI
+- **chrome**: Handle SHA256 hash prefix in Chrome v130+ cookie decryption
+- **x**: Validate session with real API call on login and status check
+- **chrome**: Validate all PKCS7 padding bytes before stripping
+
 ## [0.7.0] (2026-03-29)
 
 ### Added
