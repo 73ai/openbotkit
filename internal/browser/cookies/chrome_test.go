@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha1"
+	"crypto/sha256"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func TestDecryptChromeValue_RoundTrip(t *testing.T) {
 	plaintext := "my-secret-cookie-value"
 	encrypted := encryptForTest(t, []byte(plaintext), key)
 
-	got, err := DecryptChromeValue(encrypted, key)
+	got, err := DecryptChromeValue(encrypted, key, false)
 	if err != nil {
 		t.Fatalf("DecryptChromeValue: %v", err)
 	}
@@ -27,11 +28,29 @@ func TestDecryptChromeValue_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestDecryptChromeValue_HashPrefix(t *testing.T) {
+	password := "test-password"
+	key := pbkdf2.Key([]byte(password), []byte("saltysalt"), chromePBKDF2Iterations, chromePBKDF2KeyLen, sha1.New)
+
+	cookieValue := "abc123secret"
+	hostHash := sha256.Sum256([]byte(".x.com"))
+	prefixed := append(hostHash[:], []byte(cookieValue)...)
+	encrypted := encryptForTest(t, prefixed, key)
+
+	got, err := DecryptChromeValue(encrypted, key, true)
+	if err != nil {
+		t.Fatalf("DecryptChromeValue: %v", err)
+	}
+	if got != cookieValue {
+		t.Errorf("got %q, want %q", got, cookieValue)
+	}
+}
+
 func TestDecryptChromeValue_BadPrefix(t *testing.T) {
 	key := make([]byte, 16)
 	encrypted := []byte("v11" + "some-encrypted-data!")
 
-	_, err := DecryptChromeValue(encrypted, key)
+	_, err := DecryptChromeValue(encrypted, key, false)
 	if err == nil {
 		t.Fatal("expected error for bad version prefix")
 	}
@@ -43,7 +62,7 @@ func TestDecryptChromeValue_BadPrefix(t *testing.T) {
 func TestDecryptChromeValue_TooShort(t *testing.T) {
 	key := make([]byte, 16)
 
-	_, err := DecryptChromeValue([]byte("v1"), key)
+	_, err := DecryptChromeValue([]byte("v1"), key, false)
 	if err == nil {
 		t.Fatal("expected error for too-short input")
 	}
@@ -54,7 +73,7 @@ func TestDecryptChromeValue_BadCiphertextLength(t *testing.T) {
 	// v10 prefix + 5 bytes (not a multiple of block size)
 	encrypted := append([]byte("v10"), make([]byte, 5)...)
 
-	_, err := DecryptChromeValue(encrypted, key)
+	_, err := DecryptChromeValue(encrypted, key, false)
 	if err == nil {
 		t.Fatal("expected error for bad ciphertext length")
 	}
@@ -64,7 +83,7 @@ func TestExtractChromeCookiesFromDB(t *testing.T) {
 	password := "test-password"
 	key := pbkdf2.Key([]byte(password), []byte("saltysalt"), chromePBKDF2Iterations, chromePBKDF2KeyLen, sha1.New)
 
-	dbPath := createChromeCookieDB(t, key, []chromeCookieRow{
+	dbPath := createChromeCookieDB(t, key, 20, []chromeCookieRow{
 		{host: ".x.com", name: "auth_token", value: "abc123secret"},
 		{host: ".x.com", name: "ct0", value: "csrf456token"},
 		{host: ".google.com", name: "other", value: "irrelevant"},
@@ -86,9 +105,34 @@ func TestExtractChromeCookiesFromDB(t *testing.T) {
 	}
 }
 
+func TestExtractChromeCookiesFromDB_HashPrefix(t *testing.T) {
+	password := "test-password"
+	key := pbkdf2.Key([]byte(password), []byte("saltysalt"), chromePBKDF2Iterations, chromePBKDF2KeyLen, sha1.New)
+
+	dbPath := createChromeCookieDB(t, key, 24, []chromeCookieRow{
+		{host: ".x.com", name: "auth_token", value: "abc123secret"},
+		{host: ".x.com", name: "ct0", value: "csrf456token"},
+	})
+
+	hosts := []string{".x.com", "x.com"}
+	names := []string{"auth_token", "ct0"}
+
+	result, err := extractChromeCookiesFromDB(dbPath, key, hosts, names)
+	if err != nil {
+		t.Fatalf("extractChromeCookiesFromDB: %v", err)
+	}
+
+	if got := result["auth_token"]; got != "abc123secret" {
+		t.Errorf("auth_token = %q, want %q", got, "abc123secret")
+	}
+	if got := result["ct0"]; got != "csrf456token" {
+		t.Errorf("ct0 = %q, want %q", got, "csrf456token")
+	}
+}
+
 func TestExtractChromeCookiesFromDB_Empty(t *testing.T) {
 	key := make([]byte, 16)
-	dbPath := createChromeCookieDB(t, key, nil)
+	dbPath := createChromeCookieDB(t, key, 20, nil)
 
 	hosts := []string{".x.com"}
 	names := []string{"auth_token"}
@@ -106,7 +150,7 @@ func TestExtractChromeCookiesFromDB_MultipleHosts(t *testing.T) {
 	password := "test-password"
 	key := pbkdf2.Key([]byte(password), []byte("saltysalt"), chromePBKDF2Iterations, chromePBKDF2KeyLen, sha1.New)
 
-	dbPath := createChromeCookieDB(t, key, []chromeCookieRow{
+	dbPath := createChromeCookieDB(t, key, 20, []chromeCookieRow{
 		{host: ".twitter.com", name: "auth_token", value: "twitter-auth"},
 		{host: ".x.com", name: "ct0", value: "x-csrf"},
 	})
@@ -135,7 +179,7 @@ type chromeCookieRow struct {
 	value string
 }
 
-func createChromeCookieDB(t *testing.T, key []byte, rows []chromeCookieRow) string {
+func createChromeCookieDB(t *testing.T, key []byte, dbVersion int, rows []chromeCookieRow) string {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "Cookies")
@@ -144,6 +188,15 @@ func createChromeCookieDB(t *testing.T, key []byte, rows []chromeCookieRow) stri
 		t.Fatalf("open test db: %v", err)
 	}
 	defer db.Close()
+
+	_, err = db.Exec(`CREATE TABLE meta (key TEXT NOT NULL UNIQUE, value TEXT NOT NULL)`)
+	if err != nil {
+		t.Fatalf("create meta table: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO meta (key, value) VALUES ('version', ?)`, dbVersion)
+	if err != nil {
+		t.Fatalf("insert meta version: %v", err)
+	}
 
 	_, err = db.Exec(`CREATE TABLE cookies (
 		host_key TEXT NOT NULL,
@@ -155,8 +208,14 @@ func createChromeCookieDB(t *testing.T, key []byte, rows []chromeCookieRow) stri
 		t.Fatalf("create table: %v", err)
 	}
 
+	hashPrefix := dbVersion >= minHashPrefixVersion
 	for _, r := range rows {
-		enc := encryptForTest(t, []byte(r.value), key)
+		plaintext := []byte(r.value)
+		if hashPrefix {
+			h := sha256.Sum256([]byte(r.host))
+			plaintext = append(h[:], plaintext...)
+		}
+		enc := encryptForTest(t, plaintext, key)
 		_, err := db.Exec(`INSERT INTO cookies (host_key, name, encrypted_value, expires_utc) VALUES (?, ?, ?, ?)`,
 			r.host, r.name, enc, 13300000000000000)
 		if err != nil {

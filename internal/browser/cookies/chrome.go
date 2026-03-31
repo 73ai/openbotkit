@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha1"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"os"
@@ -17,10 +18,15 @@ import (
 )
 
 const (
-	chromeKeychainService = "Chrome Safe Storage"
-	chromeKeychainAccount = "Chrome"
+	chromeKeychainService  = "Chrome Safe Storage"
+	chromeKeychainAccount  = "Chrome"
 	chromePBKDF2Iterations = 1003
 	chromePBKDF2KeyLen     = 16
+
+	// Chrome DB version 24+ prepends SHA256(host_key) to the cookie
+	// value before encrypting. After decryption we must strip it.
+	minHashPrefixVersion = 24
+	sha256Len            = sha256.Size // 32
 )
 
 func GetChromeEncryptionKey() ([]byte, error) {
@@ -31,7 +37,7 @@ func GetChromeEncryptionKey() ([]byte, error) {
 	return pbkdf2.Key([]byte(password), []byte("saltysalt"), chromePBKDF2Iterations, chromePBKDF2KeyLen, sha1.New), nil
 }
 
-func DecryptChromeValue(encrypted, derivedKey []byte) (string, error) {
+func DecryptChromeValue(encrypted, derivedKey []byte, hashPrefix bool) (string, error) {
 	if len(encrypted) < 3 {
 		return "", fmt.Errorf("encrypted value too short (%d bytes)", len(encrypted))
 	}
@@ -64,6 +70,10 @@ func DecryptChromeValue(encrypted, derivedKey []byte) (string, error) {
 		if padLen > 0 && padLen <= aes.BlockSize && padLen <= len(plaintext) {
 			plaintext = plaintext[:len(plaintext)-padLen]
 		}
+	}
+
+	if hashPrefix && len(plaintext) >= sha256Len {
+		plaintext = plaintext[sha256Len:]
 	}
 
 	return string(plaintext), nil
@@ -119,6 +129,8 @@ func extractChromeCookiesFromDB(dbPath string, key []byte, hosts, names []string
 	}
 	defer db.Close()
 
+	hashPrefix := chromeDBVersion(db) >= minHashPrefixVersion
+
 	hostPlaceholders := make([]string, len(hosts))
 	hostArgs := make([]any, len(hosts))
 	for i, h := range hosts {
@@ -156,7 +168,7 @@ func extractChromeCookiesFromDB(dbPath string, key []byte, hosts, names []string
 		if _, exists := result[name]; exists {
 			continue
 		}
-		value, err := DecryptChromeValue(encValue, key)
+		value, err := DecryptChromeValue(encValue, key, hashPrefix)
 		if err != nil {
 			continue
 		}
@@ -166,6 +178,16 @@ func extractChromeCookiesFromDB(dbPath string, key []byte, hosts, names []string
 	}
 
 	return result, nil
+}
+
+// chromeDBVersion reads the schema version from Chrome's Cookies database.
+func chromeDBVersion(db *sql.DB) int {
+	var version int
+	err := db.QueryRow(`SELECT value FROM meta WHERE key = 'version'`).Scan(&version)
+	if err != nil {
+		return 0
+	}
+	return version
 }
 
 func findChromeProfileDirs() ([]string, error) {
