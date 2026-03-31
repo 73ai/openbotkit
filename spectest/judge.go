@@ -91,11 +91,18 @@ Answer each with the question number followed by YES or NO. Example:
 1. YES
 2. NO`
 
+	jp := f.JudgeFastProvider
+	jm := f.JudgeFastModel
+	if jp == nil {
+		jp = f.JudgeProvider
+		jm = f.JudgeModel
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	resp, err := f.JudgeProvider.Chat(ctx, provider.ChatRequest{
-		Model: f.JudgeModel,
+	resp, err := jp.Chat(ctx, provider.ChatRequest{
+		Model: jm,
 		Messages: []provider.Message{
 			provider.NewTextMessage(provider.RoleUser, judgePrompt),
 		},
@@ -106,6 +113,10 @@ Answer each with the question number followed by YES or NO. Example:
 	}
 
 	verdict := resp.TextContent()
+	if strings.TrimSpace(verdict) == "" {
+		t.Fatalf("checklist judge returned empty response (model may have filtered the content)")
+	}
+
 	var failed []string
 	for i, q := range questions {
 		prefix := fmt.Sprintf("%d.", i+1)
