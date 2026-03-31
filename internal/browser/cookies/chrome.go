@@ -245,6 +245,8 @@ func getChromeKeychainPassword() (string, error) {
 		if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 			return strings.TrimSpace(string(out)), nil
 		}
+		// Chrome falls back to "peanuts" when no system keyring is available.
+		// See chromium/src/components/os_crypt/sync/os_crypt_linux.cc
 		return "peanuts", nil
 	}
 
