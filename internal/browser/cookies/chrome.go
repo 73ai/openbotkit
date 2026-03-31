@@ -68,7 +68,16 @@ func DecryptChromeValue(encrypted, derivedKey []byte, hashPrefix bool) (string, 
 	if len(plaintext) > 0 {
 		padLen := int(plaintext[len(plaintext)-1])
 		if padLen > 0 && padLen <= aes.BlockSize && padLen <= len(plaintext) {
-			plaintext = plaintext[:len(plaintext)-padLen]
+			valid := true
+			for i := 0; i < padLen; i++ {
+				if plaintext[len(plaintext)-1-i] != byte(padLen) {
+					valid = false
+					break
+				}
+			}
+			if valid {
+				plaintext = plaintext[:len(plaintext)-padLen]
+			}
 		}
 	}
 
