@@ -12,6 +12,8 @@ import (
 
 const (
 	graphqlBase = "https://x.com/i/api/graphql"
+	// Public bearer token used by Twitter's web client. Not a secret —
+	// every reverse-engineered Twitter library uses the same value.
 	bearerToken = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 )
 
