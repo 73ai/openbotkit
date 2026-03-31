@@ -190,18 +190,7 @@ var authStatusCmd = &cobra.Command{
 }
 
 func logXAudit(toolName, input, output, errMsg string) {
-	l := audit.OpenDefault(config.AuditJSONLPath())
-	if l == nil {
-		return
-	}
-	defer l.Close()
-	l.Log(audit.Entry{
-		Context:       "cli",
-		ToolName:      toolName,
-		InputSummary:  input,
-		OutputSummary: output,
-		Error:         errMsg,
-	})
+	audit.LogQuick(config.AuditJSONLPath(), "cli", toolName, input, output, errMsg)
 }
 
 func init() {

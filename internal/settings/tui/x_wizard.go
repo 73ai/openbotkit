@@ -138,18 +138,7 @@ func (m model) exitXWizard(flash string) (model, tea.Cmd) {
 
 
 func logXAudit(toolName, input, output, errMsg string) {
-	l := audit.OpenDefault(config.AuditJSONLPath())
-	if l == nil {
-		return
-	}
-	defer l.Close()
-	l.Log(audit.Entry{
-		Context:       "settings",
-		ToolName:      toolName,
-		InputSummary:  input,
-		OutputSummary: output,
-		Error:         errMsg,
-	})
+	audit.LogQuick(config.AuditJSONLPath(), "settings", toolName, input, output, errMsg)
 }
 
 func xExtractCookiesCmd(browser string) tea.Cmd {

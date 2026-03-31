@@ -76,6 +76,22 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
+// LogQuick opens the default audit log, writes a single entry, and closes it.
+func LogQuick(path, ctx, toolName, input, output, errMsg string) {
+	l := OpenDefault(path)
+	if l == nil {
+		return
+	}
+	defer l.Close()
+	l.Log(Entry{
+		Context:       ctx,
+		ToolName:      toolName,
+		InputSummary:  input,
+		OutputSummary: output,
+		Error:         errMsg,
+	})
+}
+
 // Log writes an audit entry as a JSON line. It never returns an error
 // to the caller; failures are logged via slog.
 func (l *Logger) Log(e Entry) {
