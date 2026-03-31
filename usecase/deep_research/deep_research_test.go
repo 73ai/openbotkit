@@ -26,10 +26,13 @@ func TestUseCase_DeepResearchSubagent(t *testing.T) {
 	}
 
 	spectest.AssertNotEmpty(t, result)
-	fx.AssertJudge(t, prompt, result,
-		"Response contains a substantive comparison of at least Pinecone, Weaviate, and Qdrant. "+
-			"Must mention concrete details about at least two of: pricing, self-hosting, developer sentiment. "+
-			"Should read as a coherent analysis, not raw search snippets.")
+	spectest.AssertContains(t, result, "Pinecone", "Weaviate", "Qdrant")
+	fx.AssertChecklist(t, result, []string{
+		"Does the response compare at least three vector databases?",
+		"Does it discuss pricing or cost for at least one database?",
+		"Does it discuss self-hosting options for at least one database?",
+		"Is the response written as coherent analysis, not raw search result snippets?",
+	})
 }
 
 func TestUseCase_DeepResearchDelegateTask(t *testing.T) {
@@ -53,7 +56,10 @@ func TestUseCase_DeepResearchDelegateTask(t *testing.T) {
 	}
 
 	spectest.AssertNotEmpty(t, result)
-	fx.AssertJudge(t, prompt, result,
-		"Response should summarize WebAssembly server-side developments mentioning at least "+
-			"two runtimes and at least one language that compiles to WASM.")
+	spectest.AssertContains(t, result, "Wasmtime", "Wasmer")
+	fx.AssertChecklist(t, result, []string{
+		"Does the response mention at least two WebAssembly runtimes?",
+		"Does it mention at least one language that compiles to WASM?",
+		"Does it discuss server-side or backend use cases for WebAssembly?",
+	})
 }

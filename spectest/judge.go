@@ -2,6 +2,7 @@ package spectest
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -54,5 +55,79 @@ Success criteria: ` + criteria
 
 	if !strings.EqualFold(firstLine, "PASS") {
 		t.Errorf("judge FAIL for criteria %q\njudge said: %s\nagent response was:\n%s", criteria, verdict, response)
+	}
+}
+
+// AssertChecklist sends binary yes/no questions to the judge LLM and fails
+// the test for any question answered NO. This is more reliable than open-ended
+// criteria for complex, multi-dimension evaluation (CheckEval pattern).
+func (f *LocalFixture) AssertChecklist(t *testing.T, response string, questions []string) {
+	t.Helper()
+
+	if len(questions) == 0 {
+		t.Fatal("AssertChecklist: no questions provided")
+	}
+
+	// Truncate response to keep judge prompt fast and within budget.
+	const maxChars = 4000
+	truncated := response
+	if len(truncated) > maxChars {
+		truncated = truncated[:maxChars]
+	}
+
+	var numbered strings.Builder
+	for i, q := range questions {
+		fmt.Fprintf(&numbered, "%d. %s\n", i+1, q)
+	}
+
+	judgePrompt := `You are evaluating an AI assistant's response. Answer each question with YES or NO only.
+
+Response to evaluate:
+` + truncated + `
+
+Questions:
+` + numbered.String() + `
+Answer each with the question number followed by YES or NO. Example:
+1. YES
+2. NO`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	resp, err := f.JudgeProvider.Chat(ctx, provider.ChatRequest{
+		Model: f.JudgeModel,
+		Messages: []provider.Message{
+			provider.NewTextMessage(provider.RoleUser, judgePrompt),
+		},
+		MaxTokens: 256,
+	})
+	if err != nil {
+		t.Fatalf("checklist judge LLM call failed: %v", err)
+	}
+
+	verdict := resp.TextContent()
+	var failed []string
+	for i, q := range questions {
+		prefix := fmt.Sprintf("%d.", i+1)
+		found := false
+		for _, line := range strings.Split(verdict, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, prefix) {
+				found = true
+				answer := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+				if !strings.HasPrefix(strings.ToUpper(answer), "YES") {
+					failed = append(failed, fmt.Sprintf("  %d. %s → %s", i+1, q, answer))
+				}
+				break
+			}
+		}
+		if !found {
+			failed = append(failed, fmt.Sprintf("  %d. %s → (no answer from judge)", i+1, q))
+		}
+	}
+
+	if len(failed) > 0 {
+		t.Errorf("checklist judge failed:\n%s\njudge raw output:\n%s",
+			strings.Join(failed, "\n"), verdict)
 	}
 }
