@@ -37,12 +37,14 @@ func requireSpecEnv(t *testing.T) {
 }
 
 type LocalFixture struct {
-	dir           string
-	ProviderName  string
-	Provider      provider.Provider
-	Model         string
-	JudgeProvider provider.Provider
-	JudgeModel    string
+	dir               string
+	ProviderName      string
+	Provider          provider.Provider
+	Model             string
+	JudgeProvider     provider.Provider
+	JudgeModel        string
+	JudgeFastProvider provider.Provider
+	JudgeFastModel    string
 }
 
 type providerCase struct {
