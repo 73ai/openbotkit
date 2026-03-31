@@ -31,6 +31,13 @@ var authLoginCmd = &cobra.Command{
 		if token != "" {
 			logXAudit("x.auth.login_token", "", "token-based login", "")
 			session := client.NewSession(token)
+
+			fmt.Println("Verifying session...")
+			if err := client.ValidateSession(cmd.Context(), session); err != nil {
+				logXAudit("x.auth.login_token", "", "", err.Error())
+				return fmt.Errorf("token is not valid: %w", err)
+			}
+
 			if err := client.SaveSession(session); err != nil {
 				logXAudit("x.auth.login_token", "", "", err.Error())
 				return fmt.Errorf("save credentials: %w", err)
@@ -76,6 +83,14 @@ func authBrowserRun(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Failed to extract X session from %s: %v\n", browser, err)
 		fmt.Println("Make sure you're signed in to x.com in that browser.")
 		return fmt.Errorf("cookie extraction failed: %w", err)
+	}
+
+	fmt.Println("Verifying session...")
+	if err := client.ValidateSession(cmd.Context(), session); err != nil {
+		logXAudit("x.auth.login_browser", "browser="+browser, "", err.Error())
+		fmt.Printf("Session from %s is not valid: %v\n", browser, err)
+		fmt.Println("Make sure you're signed in to x.com in that browser.")
+		return fmt.Errorf("session validation failed: %w", err)
 	}
 
 	if err := client.SaveSession(session); err != nil {
@@ -164,6 +179,11 @@ var authStatusCmd = &cobra.Command{
 		session, err := client.LoadSession()
 		if err != nil {
 			fmt.Println("Not signed in. Run 'obk x auth login' to connect.")
+			return nil
+		}
+		if err := client.ValidateSession(cmd.Context(), session); err != nil {
+			fmt.Printf("Session expired or invalid: %v\n", err)
+			fmt.Println("Run 'obk x auth login' to re-authenticate.")
 			return nil
 		}
 		fmt.Println("Signed in to X.")

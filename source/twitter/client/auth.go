@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -87,6 +88,20 @@ func DeleteSession() error {
 	}
 	if len(errs) > 0 {
 		return errs[0]
+	}
+	return nil
+}
+
+// ValidateSession makes a lightweight API call to verify the session
+// tokens actually work. Returns nil if the session is valid.
+func ValidateSession(ctx context.Context, session *Session) error {
+	c, err := NewClient(session, "")
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+	// Fetch 1 tweet from the timeline as a health check.
+	if _, err := c.HomeLatestTimeline(ctx, 1, ""); err != nil {
+		return err
 	}
 	return nil
 }
