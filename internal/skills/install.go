@@ -28,6 +28,8 @@ var builtinSkills = map[string]SkillMeta{
 	"memory-save":     {},
 	"web-search":      {},
 	"web-fetch":       {},
+	"x-read":          {RequiresAuth: "x"},
+	"x-post":          {RequiresAuth: "x", Write: true},
 	"applenotes-read": {RequiresAuth: "applenotes"},
 	"contacts-search": {},
 }

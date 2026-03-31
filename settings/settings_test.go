@@ -1088,3 +1088,19 @@ func findFieldInNodes(nodes []Node, key string) *Field {
 	}
 	return nil
 }
+
+func TestXAuthStatusField(t *testing.T) {
+	cfg := config.Default()
+	svc := testService(cfg)
+
+	field := findField(svc, "x.auth_status")
+	if field == nil {
+		t.Fatal("x.auth_status field not found")
+	}
+
+	got := svc.GetValue(field)
+	if !strings.Contains(got, "Not connected") && !strings.Contains(got, "Connected") {
+		t.Errorf("unexpected auth status: %q", got)
+	}
+}
+

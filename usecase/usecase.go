@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,7 +140,7 @@ func (f *Fixture) WorkspaceDir() string {
 
 // Agent creates an agent that mirrors the production Telegram agent setup:
 // standard tools + schedule + web + learnings + subagent.
-func (f *Fixture) Agent(t *testing.T) *agent.Agent {
+func (f *Fixture) Agent(t *testing.T, skillExtras ...string) *agent.Agent {
 	t.Helper()
 
 	// Standard tools: bash, file_read, file_write, file_edit,
@@ -208,6 +209,7 @@ func (f *Fixture) Agent(t *testing.T) *agent.Agent {
 	identity := "You are a personal AI assistant communicating via Telegram.\n"
 	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
 		"\nWorkspace directory: " + workspaceDir + "\n"
+	extras += strings.Join(skillExtras, "\n")
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,
@@ -264,4 +266,20 @@ func (f *Fixture) AgentWithDelegation(t *testing.T, agents []tools.AgentInfo) *a
 		agent.WithSystemBlocks(blocks),
 		agent.WithMaxIterations(15),
 	)
+}
+
+// LoadSkillContent reads the REFERENCE.md (or SKILL.md fallback) for
+// the named skill from the installed skills directory. The returned
+// string is suitable for passing as a skillExtra to Agent.
+func (f *Fixture) LoadSkillContent(t *testing.T, skillName string) string {
+	t.Helper()
+	skillsDir := filepath.Join(f.Dir(), "skills", skillName)
+	for _, name := range []string{"REFERENCE.md", "SKILL.md"} {
+		data, err := os.ReadFile(filepath.Join(skillsDir, name))
+		if err == nil {
+			return fmt.Sprintf("\n## Skill: %s\n\n%s\n", skillName, string(data))
+		}
+	}
+	t.Fatalf("no skill content found for %s in %s", skillName, skillsDir)
+	return ""
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
+	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
 
 func BuildTree(svc *Service) []Node {
@@ -665,6 +666,29 @@ func dataSourcesCategory() *Category {
 							c.WebSearch.CacheTTL = v
 							return nil
 						},
+					}},
+				},
+			}},
+			{Category: &Category{
+				Key:   "datasources.x",
+				Label: "X",
+				Children: []Node{
+					{Field: &Field{
+						Key:   "x.auth_status",
+						Label: "Account",
+						Type:  TypeString,
+						Get: func(c *config.Config) string {
+							session, err := xclient.LoadSession()
+							if err != nil {
+								return "Not connected (press Enter to sign in)"
+							}
+							if session.Username != "" {
+								return "Connected as @" + session.Username
+							}
+							return "Connected"
+						},
+						Set:      func(c *config.Config, v string) error { return nil },
+						ReadOnly: func(c *config.Config) bool { return true },
 					}},
 				},
 			}},

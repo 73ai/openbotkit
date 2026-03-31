@@ -37,6 +37,7 @@ type Config struct {
 	WebSearch    *WebSearchConfig    `yaml:"websearch,omitempty"`
 	Contacts     *ContactsConfig     `yaml:"contacts,omitempty"`
 	Slack        *SlackConfig        `yaml:"slack,omitempty"`
+	X            *XConfig            `yaml:"x,omitempty"`
 	Scheduler    *SchedulerConfig    `yaml:"scheduler,omitempty"`
 	Tasks        *TasksConfig        `yaml:"tasks,omitempty"`
 	Backup       *BackupConfig       `yaml:"backup,omitempty"`
@@ -257,6 +258,10 @@ type SlackWorkspace struct {
 	AuthMode string `yaml:"auth_mode,omitempty"` // "desktop" or "token"
 }
 
+type XConfig struct {
+	Storage StorageConfig `yaml:"storage,omitempty"`
+}
+
 type SchedulerConfig struct {
 	Storage StorageConfig `yaml:"storage,omitempty"`
 }
@@ -313,8 +318,10 @@ func (c *Config) SourceDataDSN(source string) (string, error) {
 		return c.SchedulerDataDSN(), nil
 	case "tasks":
 		return c.TasksDataDSN(), nil
+	case "x":
+		return c.XDataDSN(), nil
 	default:
-		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage, websearch, contacts, scheduler, tasks)", source)
+		return "", fmt.Errorf("unknown source: %q (valid: gmail, whatsapp, history, user_memory, applenotes, imessage, usage, websearch, contacts, scheduler, tasks, x)", source)
 	}
 }
 
@@ -418,6 +425,11 @@ func Default() *Config {
 				Driver: "sqlite",
 			},
 		},
+		X: &XConfig{
+			Storage: StorageConfig{
+				Driver: "sqlite",
+			},
+		},
 	}
 	cfg.applyDefaults()
 	return cfg
@@ -498,6 +510,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Tasks.Storage.Driver == "" {
 		c.Tasks.Storage.Driver = "sqlite"
+	}
+	if c.X == nil {
+		c.X = &XConfig{}
+	}
+	if c.X.Storage.Driver == "" {
+		c.X.Storage.Driver = "sqlite"
 	}
 	if c.Daemon == nil {
 		c.Daemon = &DaemonConfig{}
@@ -586,6 +604,13 @@ func (c *Config) SchedulerDataDSN() string {
 		return c.Scheduler.Storage.DSN
 	}
 	return filepath.Join(SourceDir("scheduler"), "data.db")
+}
+
+func (c *Config) XDataDSN() string {
+	if c.X != nil && c.X.Storage.DSN != "" {
+		return c.X.Storage.DSN
+	}
+	return filepath.Join(SourceDir("x"), "data.db")
 }
 
 func (c *Config) JobsDBDSN() string {

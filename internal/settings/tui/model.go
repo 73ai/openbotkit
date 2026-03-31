@@ -15,6 +15,7 @@ import (
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/settings"
+	xclient "github.com/73ai/openbotkit/source/twitter/client"
 )
 
 type state int
@@ -28,6 +29,8 @@ const (
 	stateModelSelect
 	stateBackupDest
 	stateBackupCreds
+	stateXAuth
+	stateXTFA
 )
 
 type flashMsg struct{}
@@ -54,6 +57,13 @@ type backupVerifyResultMsg struct {
 // backupTriggeredMsg is returned after an async backup trigger attempt.
 type backupTriggeredMsg struct {
 	err error
+}
+
+// xAuthResultMsg is returned by async X cookie extraction.
+type xAuthResultMsg struct {
+	session *xclient.Session
+	browser string
+	err     error
 }
 
 // modelsLoadedMsg is returned when background model loading completes.
@@ -96,6 +106,10 @@ type model struct {
 	wizardBackupAK       *string
 	wizardBackupSK       *string
 	wizardBackupSnapshot *config.BackupConfig // for transactional rollback
+
+	// X login wizard state
+	wizardXBrowser    bool
+	wizardXBrowserSel *string
 }
 
 func newModel(svc *settings.Service) model {
@@ -138,6 +152,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateBackupDest(msg)
 	case stateBackupCreds:
 		return m.updateBackupCreds(msg)
+	case stateXAuth:
+		return m.updateXAuth(msg)
 	default:
 		return m.updateBrowse(msg)
 	}
@@ -228,6 +244,11 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 
 	if r.node.Field != nil {
 		f := r.node.Field
+
+		// X login wizard
+		if f.Key == "x.auth_status" {
+			return m.enterXLogin()
+		}
 
 		// Backup wizard — only when not yet configured.
 		if f.Key == "backup.enabled" && f.ReadOnly != nil && f.ReadOnly(m.svc.Config()) {
@@ -551,6 +572,9 @@ func (m model) updateVerifying(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.saveBackup()
 
+	case xAuthResultMsg:
+		return m.handleXLoginResult(msg)
+
 	case verifyResultMsg:
 		if msg.err != nil {
 			m.wizardError = fmt.Sprintf("%s verification failed: %v", msg.provider, msg.err)
@@ -755,7 +779,7 @@ func (m model) renderTree() string {
 func (m model) View() string {
 	switch m.state {
 	case stateEdit, stateProfileSelect, stateProviderAuth, stateModelSelect,
-		stateBackupDest, stateBackupCreds:
+		stateBackupDest, stateBackupCreds, stateXAuth:
 		if m.form != nil {
 			var b strings.Builder
 			if m.wizardError != "" {
@@ -768,6 +792,9 @@ func (m model) View() string {
 			return b.String()
 		}
 	case stateVerifying:
+		if m.wizardXBrowser {
+			return fmt.Sprintf("\n  %s Checking browsers...\n", m.wizardSpinner.View())
+		}
 		if m.wizardBackupDest != nil && *m.wizardBackupDest != "" {
 			label := "Verifying backup connection..."
 			if *m.wizardBackupDest == "gdrive" {
