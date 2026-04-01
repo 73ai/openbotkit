@@ -457,26 +457,18 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 	subagentLearningsDeps := tools.LearningsDeps{
 		Store: learnings.New(config.LearningsDir()),
 	}
-	subagentDeps := tools.SubagentRegistryDeps{
-		ScratchDir:    scratchDir,
-		WebDeps:       &subagentWebDeps,
-		LearningsDeps: &subagentLearningsDeps,
+	slackWS := ""
+	if sm.cfg.Slack != nil {
+		slackWS = sm.cfg.Slack.DefaultWorkspace
 	}
-	if sm.cfg.Slack != nil && sm.cfg.Slack.DefaultWorkspace != "" {
-		if creds, err := slacksrc.LoadCredentials(sm.cfg.Slack.DefaultWorkspace); err == nil {
-			subagentDeps.SlackClient = slacksrc.NewClient(creds.Token, creds.Cookie)
-		}
-	}
-	subagentDeps.Agents = tools.DetectAgents()
-
-	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-		Provider: sm.provider,
-		Model:    sm.model,
-		ToolFactory: func() *tools.Registry {
-			return tools.NewSubagentRegistry(subagentDeps)
-		},
-		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
-		Extras: []string{"\nWorkspace directory: " + workspaceDir + "\n"},
+	toolReg.Register(tools.BuildSubagentTool(tools.SubagentToolConfig{
+		Provider:       sm.provider,
+		Model:          sm.model,
+		WebDeps:        &subagentWebDeps,
+		LearningsDeps:  &subagentLearningsDeps,
+		ScratchDir:     scratchDir,
+		WorkspaceDir:   workspaceDir,
+		SlackWorkspace: slackWS,
 	}))
 
 	identity := "You are a personal AI assistant communicating via Telegram.\n"

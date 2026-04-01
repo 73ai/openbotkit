@@ -3,6 +3,7 @@ package tools
 import (
 	"errors"
 
+	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/source/slack"
 )
 
@@ -78,4 +79,44 @@ func NewSubagentRegistry(deps SubagentRegistryDeps) *Registry {
 
 	// NOT registered: subagent (no recursion)
 	return r
+}
+
+// SubagentToolConfig holds everything needed to create a subagent tool.
+// Use BuildSubagentTool to avoid duplicating setup across channels.
+type SubagentToolConfig struct {
+	Provider       provider.Provider
+	Model          string
+	WebDeps        *WebToolDeps
+	LearningsDeps  *LearningsDeps
+	ScheduleDeps   *ScheduleToolDeps
+	ScratchDir     string
+	WorkspaceDir   string
+	SlackWorkspace string // if non-empty, load Slack credentials
+}
+
+// BuildSubagentTool creates a fully-configured SubagentTool with enriched
+// tools, optional Slack, detected agents, and workspace extras.
+func BuildSubagentTool(cfg SubagentToolConfig) *SubagentTool {
+	deps := SubagentRegistryDeps{
+		ScratchDir:    cfg.ScratchDir,
+		WebDeps:       cfg.WebDeps,
+		LearningsDeps: cfg.LearningsDeps,
+		ScheduleDeps:  cfg.ScheduleDeps,
+	}
+	if cfg.SlackWorkspace != "" {
+		if creds, err := slack.LoadCredentials(cfg.SlackWorkspace); err == nil {
+			deps.SlackClient = slack.NewClient(creds.Token, creds.Cookie)
+		}
+	}
+	deps.Agents = DetectAgents()
+
+	return NewSubagentTool(SubagentConfig{
+		Provider: cfg.Provider,
+		Model:    cfg.Model,
+		ToolFactory: func() *Registry {
+			return NewSubagentRegistry(deps)
+		},
+		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Extras: []string{"\nWorkspace directory: " + cfg.WorkspaceDir + "\n"},
+	})
 }

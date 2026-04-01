@@ -94,26 +94,18 @@ var chatCmd = &cobra.Command{
 		subagentLearningsDeps := tools.LearningsDeps{
 			Store: learnings.New(config.LearningsDir()),
 		}
-		subagentDeps := tools.SubagentRegistryDeps{
-			ScratchDir:    scratchDir,
-			WebDeps:       &subagentWebDeps,
-			LearningsDeps: &subagentLearningsDeps,
+		slackWS := ""
+		if cfg.Slack != nil {
+			slackWS = cfg.Slack.DefaultWorkspace
 		}
-		if cfg.Slack != nil && cfg.Slack.DefaultWorkspace != "" {
-			if creds, err := slacksrc.LoadCredentials(cfg.Slack.DefaultWorkspace); err == nil {
-				subagentDeps.SlackClient = slacksrc.NewClient(creds.Token, creds.Cookie)
-			}
-		}
-		subagentDeps.Agents = tools.DetectAgents()
-
-		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-			Provider: p,
-			Model:    modelName,
-			ToolFactory: func() *tools.Registry {
-				return tools.NewSubagentRegistry(subagentDeps)
-			},
-			System: "You are a focused sub-agent. Complete the given task and return a concise result.",
-			Extras: []string{"\nWorkspace directory: " + workspaceDir + "\n"},
+		toolReg.Register(tools.BuildSubagentTool(tools.SubagentToolConfig{
+			Provider:       p,
+			Model:          modelName,
+			WebDeps:        &subagentWebDeps,
+			LearningsDeps:  &subagentLearningsDeps,
+			ScratchDir:     scratchDir,
+			WorkspaceDir:   workspaceDir,
+			SlackWorkspace: slackWS,
 		}))
 
 		// Register delegate_task if external AI CLIs are available.
