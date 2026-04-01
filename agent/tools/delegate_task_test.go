@@ -250,6 +250,54 @@ func TestDelegateTask_Timeout(t *testing.T) {
 	}
 }
 
+func TestDelegateTask_TimeoutMinutes(t *testing.T) {
+	tool, _, runner := setupDelegateTest(t, true)
+	input, _ := json.Marshal(delegateTaskInput{Task: "deep research", TimeoutMinutes: 30})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if runner.timeout != 30*time.Minute {
+		t.Errorf("timeout = %v, want 30m", runner.timeout)
+	}
+}
+
+func TestDelegateTask_TimeoutMinutesClamped(t *testing.T) {
+	tool, _, runner := setupDelegateTest(t, true)
+
+	// Below minimum: should clamp to 2 minutes.
+	input, _ := json.Marshal(delegateTaskInput{Task: "quick", TimeoutMinutes: 1})
+	tool.Execute(context.Background(), input)
+	if runner.timeout != 2*time.Minute {
+		t.Errorf("timeout = %v, want 2m (clamped from 1)", runner.timeout)
+	}
+
+	// Above maximum: should clamp to 60 minutes.
+	runner.called = false
+	input, _ = json.Marshal(delegateTaskInput{Task: "long", TimeoutMinutes: 120})
+	tool.Execute(context.Background(), input)
+	if runner.timeout != 60*time.Minute {
+		t.Errorf("timeout = %v, want 60m (clamped from 120)", runner.timeout)
+	}
+}
+
+func TestDelegateTask_TimeoutMinutesDefaultWhenZero(t *testing.T) {
+	tool, _, runner := setupDelegateTest(t, true)
+	input, _ := json.Marshal(delegateTaskInput{Task: "default timeout"})
+	tool.Execute(context.Background(), input)
+	if runner.timeout != 5*time.Second {
+		t.Errorf("timeout = %v, want 5s (test default)", runner.timeout)
+	}
+}
+
+func TestDelegateTask_TimeoutMinutesInSchema(t *testing.T) {
+	tool, _, _ := setupDelegateTest(t, true)
+	schema := string(tool.InputSchema())
+	if !strings.Contains(schema, "timeout_minutes") {
+		t.Errorf("schema missing timeout_minutes: %s", schema)
+	}
+}
+
 func TestDelegateTask_ApprovalDescription(t *testing.T) {
 	tool, inter, _ := setupDelegateTest(t, true)
 	longTask := strings.Repeat("a", 200)
