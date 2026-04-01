@@ -28,7 +28,9 @@ func classifyError(err error) FailureKind {
 	var se *StatusError
 	if errors.As(err, &se) {
 		switch {
-		case se.Code == 429 || se.Code == 202:
+		case se.Code == 429:
+			return FailureRateLimit
+		case se.Code == 202 && se.Engine == "duckduckgo":
 			return FailureRateLimit
 		case se.Code == 403:
 			return FailureAccessDenied
