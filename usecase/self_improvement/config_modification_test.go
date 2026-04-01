@@ -11,12 +11,13 @@ import (
 
 func TestUseCase_ModifyConfig(t *testing.T) {
 	fx := usecase.NewFixture(t)
-	a := fx.Agent(t)
+	configSkill := fx.LoadSkillContent(t, "config-manage")
+	a := fx.Agent(t, configSkill)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
-	_, err := a.Run(ctx, "Change the timezone to America/Los_Angeles using obk config set")
+	_, err := a.Run(ctx, "Change my timezone to America/Los_Angeles")
 	if err != nil {
 		t.Fatalf("agent run: %v", err)
 	}
@@ -32,12 +33,13 @@ func TestUseCase_ModifyConfig(t *testing.T) {
 
 func TestUseCase_ModifyWorkspace(t *testing.T) {
 	fx := usecase.NewFixture(t)
-	a := fx.Agent(t)
+	configSkill := fx.LoadSkillContent(t, "config-manage")
+	a := fx.Agent(t, configSkill)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
-	_, err := a.Run(ctx, "Set the workspace directory to /tmp/my-workspace using obk config set")
+	_, err := a.Run(ctx, "Set my workspace directory to /tmp/my-workspace")
 	if err != nil {
 		t.Fatalf("agent run: %v", err)
 	}

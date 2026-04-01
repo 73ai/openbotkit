@@ -24,44 +24,42 @@ func TestUseCase_InstallFromLocalRepo(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
-	_, err := a.Run(ctx, "Install skills from this local repo: "+repoDir+
-		". It has a Python script that converts CSV to JSON. "+
-		"Read the README to understand it, then create a skill for it.")
+	_, err := a.Run(ctx, "Check out this repo: "+repoDir+
+		" — it has a CSV to JSON converter. Read the README, understand what it does, and create a skill so you can use it in the future.")
 	if err != nil {
 		t.Fatalf("agent run: %v", err)
 	}
 
-	// Verify a skill was created (name may vary — agent decides the name).
+	// Verify a custom skill was created (agent decides the name).
 	m, err := skills.LoadManifest()
 	if err != nil {
 		t.Fatalf("load manifest: %v", err)
 	}
-	foundCustom := false
-	for _, entry := range m.Skills {
+	var skillName string
+	for name, entry := range m.Skills {
 		if entry.Source == "custom" || entry.Source == "external" {
-			foundCustom = true
+			skillName = name
 			break
 		}
 	}
-	if !foundCustom {
-		t.Error("expected at least one custom/external skill after install")
+	if skillName == "" {
+		t.Fatal("no custom/external skill was created after exploring the repo")
 	}
 
-	// Verify staging dir is cleaned up (agent should have cleaned it).
-	stagingDir := filepath.Join(fx.WorkspaceDir(), "staging")
-	entries, _ := os.ReadDir(stagingDir)
-	for _, e := range entries {
-		if e.IsDir() && e.Name() != "." {
-			// Repo clone should be removed.
-			t.Logf("note: staging dir still has %q (agent may not have cleaned up)", e.Name())
-		}
+	// Verify the skill has a REFERENCE.md with meaningful content.
+	refPath := filepath.Join(fx.Dir(), "skills", skillName, "REFERENCE.md")
+	refData, err := os.ReadFile(refPath)
+	if err != nil {
+		t.Fatalf("read REFERENCE.md for %s: %v", skillName, err)
+	}
+	if len(refData) < 50 {
+		t.Errorf("REFERENCE.md is too short (%d bytes) — should have real instructions", len(refData))
 	}
 }
 
 func setupLocalRepo(t *testing.T, dir string) {
 	t.Helper()
 
-	// Create README.
 	readme := `# CSV to JSON Converter
 
 A simple Python script that converts CSV files to JSON format.
@@ -80,7 +78,6 @@ python3 convert.py input.csv output.json
 		t.Fatal(err)
 	}
 
-	// Create Python script.
 	script := `#!/usr/bin/env python3
 import csv
 import json
@@ -104,7 +101,6 @@ if __name__ == "__main__":
 		t.Fatal(err)
 	}
 
-	// Initialize as a git repo.
 	cmds := [][]string{
 		{"git", "init"},
 		{"git", "add", "."},
