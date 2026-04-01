@@ -19,6 +19,7 @@ type SkillEntry struct {
 	Scopes       []string `yaml:"scopes,omitempty"`
 	RequiresAuth string   `yaml:"requires_auth,omitempty"`
 	Write        bool     `yaml:"write,omitempty"`
+	Repo         string   `yaml:"repo,omitempty"`
 }
 
 func ManifestPath() string {

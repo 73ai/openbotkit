@@ -32,6 +32,8 @@ var builtinSkills = map[string]SkillMeta{
 	"x-post":          {RequiresAuth: "x", Write: true},
 	"applenotes-read": {RequiresAuth: "applenotes"},
 	"contacts-search": {},
+	"skill-creator":   {},
+	"config-manage":   {},
 }
 
 // InstallResult tracks what changed during installation.
@@ -82,6 +84,13 @@ func Install(cfg *config.Config) (*InstallResult, error) {
 		result.Skipped = append(result.Skipped, gwsSkipped...)
 	}
 
+	// Carry forward custom/external skills — Install() must not wipe them.
+	for name, entry := range manifest.Skills {
+		if entry.Source == "custom" || entry.Source == "external" {
+			desired[name] = entry
+		}
+	}
+
 	// Diff: remove skills not in desired state.
 	for name := range manifest.Skills {
 		if _, ok := desired[name]; !ok {
@@ -124,6 +133,9 @@ func installSkill(name string, entry SkillEntry) error {
 		return installBuiltinSkill(name, destDir)
 	case "gws":
 		// gws skills are already copied from temp dir during resolve.
+		return nil
+	case "custom", "external":
+		// Custom/external skills are already on disk — nothing to install.
 		return nil
 	}
 	return nil

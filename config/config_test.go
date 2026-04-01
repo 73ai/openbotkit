@@ -764,6 +764,57 @@ func TestWhatsAppConfig_YAMLRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDefaultWorkspaceDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmp)
+
+	dir := WorkspaceDir()
+	want := filepath.Join(tmp, "workspace")
+	if dir != want {
+		t.Fatalf("WorkspaceDir() = %q, want %q", dir, want)
+	}
+}
+
+func TestResolvedWorkspaceDir_Default(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmp)
+
+	cfg := Default()
+	dir := cfg.ResolvedWorkspaceDir()
+	if !strings.HasSuffix(dir, "workspace") {
+		t.Fatalf("ResolvedWorkspaceDir() should end in 'workspace', got %q", dir)
+	}
+}
+
+func TestResolvedWorkspaceDir_Custom(t *testing.T) {
+	cfg := Default()
+	cfg.Workspace = "/custom/path"
+	dir := cfg.ResolvedWorkspaceDir()
+	if dir != "/custom/path" {
+		t.Fatalf("ResolvedWorkspaceDir() = %q, want /custom/path", dir)
+	}
+}
+
+func TestEnsureWorkspaceDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", tmp)
+
+	if err := EnsureWorkspaceDir(); err != nil {
+		t.Fatalf("EnsureWorkspaceDir: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(tmp, "workspace"))
+	if err != nil {
+		t.Fatalf("workspace dir not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("workspace should be a directory")
+	}
+	if info.Mode().Perm() != 0700 {
+		t.Fatalf("expected 0700 perms, got %o", info.Mode().Perm())
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
