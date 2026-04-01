@@ -25,4 +25,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	mux.Handle("GET /auth/whatsapp", auth(http.HandlerFunc(s.handleWhatsAppAuthPage)))
 	mux.Handle("GET /auth/whatsapp/api/qr", auth(http.HandlerFunc(s.handleWhatsAppAuthQR)))
+
+	mux.Handle("POST /api/credential/request", auth(http.HandlerFunc(s.handleCredentialRequest)))
+	mux.HandleFunc("GET /credential/{token}", s.handleCredentialForm)
+	mux.HandleFunc("POST /credential/{token}", s.handleCredentialSubmit)
 }

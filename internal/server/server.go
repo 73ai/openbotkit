@@ -49,10 +49,11 @@ type Server struct {
 	scopeWaiter *google.ScopeWaiter
 	google      *google.Google
 	learnings   *learningssvc.Store
+	credTokens  *credentialTokenStore
 }
 
 func New(cfg *config.Config, addr string) *Server {
-	return &Server{cfg: cfg, addr: addr}
+	return &Server{cfg: cfg, addr: addr, credTokens: newCredentialTokenStore()}
 }
 
 func (s *Server) Run(ctx context.Context) error {
