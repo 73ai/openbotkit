@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -105,5 +106,68 @@ func TestSetByPath_DeepNested(t *testing.T) {
 	}
 	if cfg.Providers.Google.CredentialsFile != "/path/to/creds.json" {
 		t.Fatalf("expected /path/to/creds.json, got %q", cfg.Providers.Google.CredentialsFile)
+	}
+}
+
+func TestConfigSetWorkspace_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	if err := SetByPath(cfg, "workspace", "/tmp/my-workspace"); err != nil {
+		t.Fatalf("SetByPath: %v", err)
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Workspace != "/tmp/my-workspace" {
+		t.Fatalf("expected /tmp/my-workspace, got %q", loaded.Workspace)
+	}
+}
+
+func TestConfigSetTimezone_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	if err := SetByPath(cfg, "timezone", "America/Los_Angeles"); err != nil {
+		t.Fatalf("SetByPath: %v", err)
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Timezone != "America/Los_Angeles" {
+		t.Fatalf("expected America/Los_Angeles, got %q", loaded.Timezone)
+	}
+}
+
+func TestConfigSetNested_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	if err := SetByPath(cfg, "gmail.storage.driver", "postgres"); err != nil {
+		t.Fatalf("SetByPath: %v", err)
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Gmail.Storage.Driver != "postgres" {
+		t.Fatalf("expected postgres, got %q", loaded.Gmail.Storage.Driver)
 	}
 }
