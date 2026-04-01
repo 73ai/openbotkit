@@ -10,10 +10,10 @@ import (
 // SetByPath sets a config field at the given dotted path (e.g., "gmail.storage.driver")
 // by walking the Config struct's YAML tags via reflection.
 func SetByPath(cfg *Config, path, value string) error {
-	segments := strings.Split(path, ".")
-	if len(segments) == 0 {
+	if path == "" {
 		return fmt.Errorf("empty config path")
 	}
+	segments := strings.Split(path, ".")
 
 	v := reflect.ValueOf(cfg).Elem()
 	for i, seg := range segments {
