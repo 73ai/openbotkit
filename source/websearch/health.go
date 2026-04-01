@@ -51,10 +51,8 @@ func (h *healthTracker) IsHealthy(name string) bool {
 	}
 
 	switch info.state {
-	case stateHealthy:
-		return true
-	case stateHalfOpen:
-		return true
+	case stateHealthy, stateHalfOpen:
+		return true // stateHealthy is the zero value; kept for safety
 	case stateUnhealthy:
 		if time.Since(info.lastFail) > info.cooldown {
 			info.state = stateHalfOpen
