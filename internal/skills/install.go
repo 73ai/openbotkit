@@ -33,6 +33,7 @@ var builtinSkills = map[string]SkillMeta{
 	"applenotes-read": {RequiresAuth: "applenotes"},
 	"contacts-search": {},
 	"skill-creator":   {},
+	"config-manage":   {},
 }
 
 // InstallResult tracks what changed during installation.

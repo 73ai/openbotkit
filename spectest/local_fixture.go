@@ -243,7 +243,7 @@ func createContactsDB(t *testing.T, dir string) {
 func installSkills(t *testing.T, dir string) {
 	t.Helper()
 	skillsDir := filepath.Join(dir, "skills")
-	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save", "contacts-search", "whatsapp-send", "email-send", "schedule-task", "web-search", "web-fetch", "x-read", "x-post", "skill-creator"} {
+	for _, name := range []string{"email-read", "whatsapp-read", "memory-read", "memory-save", "contacts-search", "whatsapp-send", "email-send", "schedule-task", "web-search", "web-fetch", "x-read", "x-post", "skill-creator", "config-manage"} {
 		destDir := filepath.Join(skillsDir, name)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			t.Fatalf("mkdir skill %s: %v", name, err)
