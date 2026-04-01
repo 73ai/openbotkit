@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
+	"github.com/zalando/go-keyring"
 )
 
 func newTestServerWithCreds() *Server {
@@ -41,6 +43,23 @@ func TestCredentialCreate(t *testing.T) {
 	}
 	if !strings.HasPrefix(resp["url"], "/credential/") {
 		t.Fatalf("expected url starting with /credential/, got %q", resp["url"])
+	}
+}
+
+func TestCredentialCreate_RequiresAuth(t *testing.T) {
+	s := newTestServerWithCreds()
+	s.cfg.Auth = &config.AuthConfig{Username: "admin", Password: "secret"}
+
+	body := `{"label":"Test Key","key_ref":"keychain:obk/test"}`
+	req := httptest.NewRequest("POST", "/api/credential/request", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	// Call through the auth middleware, not the handler directly.
+	handler := s.basicAuth(http.HandlerFunc(s.handleCredentialRequest))
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without auth, got %d", rec.Code)
 	}
 }
 
@@ -84,10 +103,9 @@ func TestCredentialFormRender(t *testing.T) {
 }
 
 func TestCredentialSubmit(t *testing.T) {
+	keyring.MockInit()
+
 	s := newTestServerWithCreds()
-	// Use a key_ref that doesn't actually try the system keyring.
-	// We just test the handler flow — StoreCredential will fail on CI
-	// without a keyring, but we can verify the token invalidation logic.
 	token, err := s.credTokens.create("Test Key", "keychain:obk/test-handler")
 	if err != nil {
 		t.Fatalf("create token: %v", err)
@@ -101,34 +119,70 @@ func TestCredentialSubmit(t *testing.T) {
 
 	s.handleCredentialSubmit(rec, req)
 
-	// The handler will either succeed (keyring available) or fail (CI).
-	// We can't assert 200 in all environments, but we can verify the
-	// error is about the keyring, not our handler logic.
-	if rec.Code == http.StatusOK {
-		body := rec.Body.String()
-		if !strings.Contains(body, "saved successfully") {
-			t.Error("success page should say 'saved successfully'")
-		}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	// Regardless of keyring success, token should be invalidated on success path.
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "saved successfully") {
+		t.Error("success page should say 'saved successfully'")
+	}
 }
 
-func TestCredentialSubmit_InvalidatesToken(t *testing.T) {
+func TestCredentialSubmit_StoresInKeyring(t *testing.T) {
+	keyring.MockInit()
+
 	s := newTestServerWithCreds()
-	token, _ := s.credTokens.create("Test Key", "keychain:obk/test-invalid")
+	token, _ := s.credTokens.create("Test Key", "keychain:obk/test-store")
 
-	// Mark as used directly.
-	s.credTokens.invalidate(token)
-
-	// Second access should fail.
-	req := httptest.NewRequest("GET", "/credential/"+token, nil)
+	form := url.Values{"value": {"my-secret-key"}}
+	req := httptest.NewRequest("POST", "/credential/"+token, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("token", token)
 	rec := httptest.NewRecorder()
 
-	s.handleCredentialForm(rec, req)
+	s.handleCredentialSubmit(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 for used token, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the credential was actually stored.
+	val, err := provider.LoadCredential("keychain:obk/test-store")
+	if err != nil {
+		t.Fatalf("LoadCredential: %v", err)
+	}
+	if val != "my-secret-key" {
+		t.Errorf("stored value = %q, want %q", val, "my-secret-key")
+	}
+}
+
+func TestCredentialSubmit_InvalidatesToken(t *testing.T) {
+	keyring.MockInit()
+
+	s := newTestServerWithCreds()
+	token, _ := s.credTokens.create("Test Key", "keychain:obk/test-invalidate")
+
+	// Submit the credential.
+	form := url.Values{"value": {"sk-test"}}
+	req := httptest.NewRequest("POST", "/credential/"+token, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("token", token)
+	rec := httptest.NewRecorder()
+	s.handleCredentialSubmit(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first submit expected 200, got %d", rec.Code)
+	}
+
+	// Second access to the same token should fail.
+	req2 := httptest.NewRequest("GET", "/credential/"+token, nil)
+	req2.SetPathValue("token", token)
+	rec2 := httptest.NewRecorder()
+	s.handleCredentialForm(rec2, req2)
+
+	if rec2.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for used token, got %d", rec2.Code)
 	}
 }
 
