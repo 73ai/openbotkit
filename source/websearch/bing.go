@@ -56,7 +56,7 @@ func (b *Bing) Search(ctx context.Context, query string, opts SearchOptions) ([]
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bing: status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "bing", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)

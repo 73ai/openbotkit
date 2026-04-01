@@ -62,7 +62,7 @@ func (g *Google) Search(ctx context.Context, query string, opts SearchOptions) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("google returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "google", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)

@@ -32,7 +32,7 @@ func (y *Yahoo) News(ctx context.Context, query string, opts SearchOptions) ([]R
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("yahoo news returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "yahoo", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
