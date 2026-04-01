@@ -97,7 +97,7 @@ func (w *WebSearch) searchWithEngines(ctx context.Context, query string, opts Se
 			defer mu.Unlock()
 			if err != nil {
 				lastErr = err
-				w.health.RecordFailure(eng.Name())
+				w.health.RecordFailure(eng.Name(), classifyError(err))
 				slog.Warn("search engine failed", "engine", eng.Name(), "error", err)
 				return nil // don't cancel other goroutines
 			}
@@ -268,7 +268,7 @@ func (w *WebSearch) newsWithEngines(ctx context.Context, query string, opts Sear
 			defer mu.Unlock()
 			if err != nil {
 				lastErr = err
-				w.health.RecordFailure(eng.Name())
+				w.health.RecordFailure(eng.Name(), classifyError(err))
 				slog.Warn("news engine failed", "engine", eng.Name(), "error", err)
 				return nil
 			}
