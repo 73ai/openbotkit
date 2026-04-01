@@ -2,6 +2,7 @@ package tools
 
 import (
 	"errors"
+	"os"
 
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/source/slack"
@@ -97,6 +98,10 @@ type SubagentToolConfig struct {
 // BuildSubagentTool creates a fully-configured SubagentTool with enriched
 // tools, optional Slack, detected agents, and workspace extras.
 func BuildSubagentTool(cfg SubagentToolConfig) *SubagentTool {
+	if cfg.WorkspaceDir != "" {
+		os.MkdirAll(cfg.WorkspaceDir, 0700)
+	}
+
 	deps := SubagentRegistryDeps{
 		ScratchDir:    cfg.ScratchDir,
 		WebDeps:       cfg.WebDeps,
