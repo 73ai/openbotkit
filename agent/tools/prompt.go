@@ -101,6 +101,7 @@ IMPORTANT: To create or edit Google Sheets, Docs, or Slides, always use the serv
 		b.WriteString(`
 ## Task Delegation
 Use delegate_task for research, analysis, code generation, or any multi-step task.
+Set timeout_minutes based on task complexity: quick lookups 2-5, standard tasks 10-15, deep research 20-30.
 The tool returns the agent's output directly. Synthesize and deliver the results to the user.
 `)
 	}
