@@ -9,7 +9,7 @@ import (
 	"github.com/73ai/openbotkit/provider"
 )
 
-const defaultChildMaxIter = 10
+const defaultChildMaxIter = 25
 
 // SubagentTool delegates a task to a child agent that runs synchronously.
 type SubagentTool struct {
@@ -17,6 +17,7 @@ type SubagentTool struct {
 	model       string
 	toolFactory func() *Registry
 	system      string
+	extras      []string
 	maxIter     int
 }
 
@@ -26,7 +27,8 @@ type SubagentConfig struct {
 	Model       string
 	ToolFactory func() *Registry
 	System      string
-	MaxIter     int // 0 defaults to 10
+	Extras      []string // extra text appended to the dynamic system block
+	MaxIter     int      // 0 defaults to 25
 }
 
 func NewSubagentTool(cfg SubagentConfig) *SubagentTool {
@@ -39,6 +41,7 @@ func NewSubagentTool(cfg SubagentConfig) *SubagentTool {
 		model:       cfg.Model,
 		toolFactory: cfg.ToolFactory,
 		system:      cfg.System,
+		extras:      cfg.Extras,
 		maxIter:     maxIter,
 	}
 }
@@ -74,13 +77,11 @@ func (s *SubagentTool) Execute(ctx context.Context, input json.RawMessage) (stri
 	}
 
 	childReg := s.toolFactory()
+	blocks := BuildSystemBlocks(s.system+"\n", childReg, s.extras...)
 	child := agent.New(
 		s.provider, s.model, childReg,
-		agent.WithSystem(s.system),
+		agent.WithSystemBlocks(blocks),
 		agent.WithMaxIterations(s.maxIter),
 	)
-	out, err := child.Run(ctx, in.Task)
-	out = TruncateHeadTail(out, MaxLinesHeadTail, MaxLinesHeadTail)
-	out = TruncateBytes(out, MaxOutputBytes)
-	return out, err
+	return child.Run(ctx, in.Task)
 }

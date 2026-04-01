@@ -102,6 +102,10 @@ func (d *DelegateTaskTool) InputSchema() json.RawMessage {
 			"enum": %s,
 			"description": "Which agent to use (auto-selects best available if omitted)"
 		},
+		"timeout_minutes": {
+			"type": "integer",
+			"description": "Estimated time for the agent to complete (default 15, min 2, max 60)"
+		},
 		"async": {
 			"type": "boolean",
 			"description": "Run in background and return immediately with a task_id (default false)"
@@ -112,12 +116,13 @@ func (d *DelegateTaskTool) InputSchema() json.RawMessage {
 }
 
 type delegateTaskInput struct {
-	Task         string   `json:"task"`
-	Steps        []string `json:"steps,omitempty"`
-	OutputFormat string   `json:"output_format,omitempty"`
-	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
-	Agent        string   `json:"agent,omitempty"`
-	Async        bool     `json:"async,omitempty"`
+	Task           string   `json:"task"`
+	Steps          []string `json:"steps,omitempty"`
+	OutputFormat   string   `json:"output_format,omitempty"`
+	MaxBudgetUSD   float64  `json:"max_budget_usd,omitempty"`
+	Agent          string   `json:"agent,omitempty"`
+	TimeoutMinutes int      `json:"timeout_minutes,omitempty"`
+	Async          bool     `json:"async,omitempty"`
 }
 
 func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -134,6 +139,11 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		return "", err
 	}
 
+	timeout := d.timeout
+	if in.TimeoutMinutes > 0 {
+		timeout = time.Duration(clampInt(in.TimeoutMinutes, 2, 60)) * time.Minute
+	}
+
 	prompt := buildPrompt(in.Task, in.Steps, in.OutputFormat)
 	preview := truncateUTF8(in.Task, 80)
 	desc := fmt.Sprintf("Delegate to %s: %s", kind, preview)
@@ -143,9 +153,11 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		runOpts = append(runOpts, WithMaxBudget(in.MaxBudgetUSD))
 	}
 
+	slog.Info("delegate_task: executing", "agent", kind, "timeout", timeout, "prompt_len", len(prompt))
+
 	// Async mode: if tracker is set and async requested, run in background.
 	if in.Async && d.tracker != nil {
-		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, runOpts)
+		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, timeout, runOpts)
 	}
 
 	var guardOpts []GuardOption
@@ -153,13 +165,22 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 		guardOpts = append(guardOpts, WithApprovalRules(d.approvalRules, "delegate_task", input))
 	}
 
-	out, err := GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
-		return runner.Run(ctx, prompt, d.timeout, runOpts...)
+	start := time.Now()
+	result, err2 := GuardedAction(ctx, d.interactor, RiskHigh, desc, func() (string, error) {
+		return runner.Run(ctx, prompt, timeout, runOpts...)
 	}, guardOpts...)
-	if err == nil && out != "denied_by_user" {
-		out = d.writeResultFile(out, prompt)
+	slog.Info("delegate_task: completed", "agent", kind, "elapsed", time.Since(start).Round(time.Millisecond), "output_len", len(result))
+	return result, err2
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
 	}
-	return out, err
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // buildPrompt combines task, steps, and output format into a single prompt.
@@ -186,6 +207,7 @@ func (d *DelegateTaskTool) executeAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, desc string,
+	timeout time.Duration,
 	runOpts []RunOption,
 ) (string, error) {
 	taskID, err := generateTaskID()
@@ -211,7 +233,7 @@ func (d *DelegateTaskTool) executeAsync(
 		return "denied_by_user", nil
 	}
 
-	go d.runAsync(runner, kind, task, preview, taskID, runOpts)
+	go d.runAsync(runner, kind, task, preview, taskID, timeout, runOpts)
 
 	resp := struct {
 		TaskID string `json:"task_id"`
@@ -225,9 +247,10 @@ func (d *DelegateTaskTool) runAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, taskID string,
+	timeout time.Duration,
 	runOpts []RunOption,
 ) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	d.tracker.RegisterCancel(taskID, cancel)
 
@@ -241,7 +264,7 @@ func (d *DelegateTaskTool) runAsync(
 				lastNotify = time.Now()
 			}
 		}
-		output, err := sr.RunStream(ctx, task, d.timeout, onEvent, runOpts...)
+		output, err := sr.RunStream(ctx, task, timeout, onEvent, runOpts...)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				d.logAudit(taskID, preview, "", "cancelled")
@@ -261,7 +284,7 @@ func (d *DelegateTaskTool) runAsync(
 	}
 
 	// Fallback to non-streaming runner.
-	output, err := runner.Run(ctx, task, d.timeout, runOpts...)
+	output, err := runner.Run(ctx, task, timeout, runOpts...)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			d.logAudit(taskID, preview, "", "cancelled")

@@ -19,6 +19,7 @@ const (
 type Config struct {
 	Mode         Mode                `yaml:"mode,omitempty"`
 	Timezone     string              `yaml:"timezone,omitempty"`
+	Workspace    string              `yaml:"workspace,omitempty"`
 	Providers    *ProvidersConfig    `yaml:"providers,omitempty"`
 	Models       *ModelsConfig       `yaml:"models,omitempty"`
 	Remote       *RemoteConfig       `yaml:"remote,omitempty"`
@@ -52,6 +53,15 @@ func (c *Config) ResolvedMode() Mode {
 func (c *Config) IsLocal() bool  { return c.ResolvedMode() == ModeLocal }
 func (c *Config) IsRemote() bool { return c.ResolvedMode() == ModeRemote }
 func (c *Config) IsServer() bool { return c.ResolvedMode() == ModeServer }
+
+// ResolvedWorkspaceDir returns the configured workspace directory
+// or falls back to the default ~/.obk/workspace.
+func (c *Config) ResolvedWorkspaceDir() string {
+	if c.Workspace != "" {
+		return c.Workspace
+	}
+	return WorkspaceDir()
+}
 
 type RemoteConfig struct {
 	Server      string `yaml:"server,omitempty"`

@@ -35,6 +35,8 @@ type Fixture struct {
 	*spectest.LocalFixture
 	mainProvider provider.Provider
 	mainModel    string
+	fastProvider provider.Provider
+	fastModel    string
 }
 
 // NewFixture creates a use case test fixture with profile-based providers.
@@ -81,6 +83,8 @@ func NewFixture(t *testing.T) *Fixture {
 		t.Fatalf("resolve default model: %v", err)
 	}
 
+	fastProvider, fastModel := tools.ResolveFastProvider(models, reg, mainProvider, mainModel)
+
 	judgeProvider, judgeModel, err := resolveSpec(reg, models.Complex)
 	if err != nil {
 		t.Fatalf("resolve complex/judge model: %v", err)
@@ -89,10 +93,19 @@ func NewFixture(t *testing.T) *Fixture {
 	env.JudgeProvider = judgeProvider
 	env.JudgeModel = judgeModel
 
+	fastJudgeProvider, fastJudgeModel, err := resolveSpec(reg, models.Fast)
+	if err != nil {
+		t.Fatalf("resolve fast/judge model: %v", err)
+	}
+	env.JudgeFastProvider = fastJudgeProvider
+	env.JudgeFastModel = fastJudgeModel
+
 	return &Fixture{
 		LocalFixture: env,
 		mainProvider: mainProvider,
 		mainModel:    mainModel,
+		fastProvider: fastProvider,
+		fastModel:    fastModel,
 	}
 }
 
@@ -108,13 +121,25 @@ func resolveSpec(reg *provider.Registry, spec string) (provider.Provider, string
 	return p, model, nil
 }
 
+// testInteractor auto-approves all actions for use case tests.
+type testInteractor struct{}
+
+func (t *testInteractor) Notify(_ string) error                  { return nil }
+func (t *testInteractor) NotifyLink(_, _ string) error           { return nil }
+func (t *testInteractor) RequestApproval(_ string) (bool, error) { return true, nil }
+
 // SchedDBPath returns the path to the scheduler database.
 func (f *Fixture) SchedDBPath() string {
 	return filepath.Join(f.Dir(), "scheduler", "data.db")
 }
 
+// WorkspaceDir returns the workspace directory for persistent research artifacts.
+func (f *Fixture) WorkspaceDir() string {
+	return filepath.Join(f.Dir(), "workspace")
+}
+
 // Agent creates an agent that mirrors the production Telegram agent setup:
-// standard tools + schedule + web + learnings.
+// standard tools + schedule + web + learnings + subagent.
 func (f *Fixture) Agent(t *testing.T, skillExtras ...string) *agent.Agent {
 	t.Helper()
 
@@ -143,8 +168,8 @@ func (f *Fixture) Agent(t *testing.T, skillExtras ...string) *agent.Agent {
 	ws := websearch.New(websearch.Config{})
 	webDeps := tools.WebToolDeps{
 		WS:       ws,
-		Provider: f.mainProvider,
-		Model:    f.mainModel,
+		Provider: f.fastProvider,
+		Model:    f.fastModel,
 	}
 	toolReg.Register(tools.NewWebSearchTool(webDeps))
 	toolReg.Register(tools.NewWebFetchTool(webDeps))
@@ -159,9 +184,82 @@ func (f *Fixture) Agent(t *testing.T, skillExtras ...string) *agent.Agent {
 	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
 	toolReg.Register(tools.NewLearningSearchTool(learningsDeps))
 
+	// Workspace
+	workspaceDir := f.WorkspaceDir()
+	if err := os.MkdirAll(workspaceDir, 0700); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+
+	// Subagent with enriched tools
+	subagentDeps := tools.SubagentRegistryDeps{
+		WebDeps:       &webDeps,
+		LearningsDeps: &learningsDeps,
+		ScheduleDeps:  &schedDeps,
+	}
+	toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
+		Provider: f.mainProvider,
+		Model:    f.mainModel,
+		ToolFactory: func() *tools.Registry {
+			return tools.NewSubagentRegistry(subagentDeps)
+		},
+		System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		Extras: []string{"\nWorkspace directory: " + workspaceDir + "\n"},
+	}))
+
 	identity := "You are a personal AI assistant communicating via Telegram.\n"
-	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
+		"\nWorkspace directory: " + workspaceDir + "\n"
 	extras += strings.Join(skillExtras, "\n")
+	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
+
+	return agent.New(f.mainProvider, f.mainModel, toolReg,
+		agent.WithSystemBlocks(blocks),
+		agent.WithMaxIterations(15),
+	)
+}
+
+// AgentWithDelegation creates an agent with delegate_task and check_task
+// tools registered. Returns nil if no external agents are detected.
+func (f *Fixture) AgentWithDelegation(t *testing.T, agents []tools.AgentInfo) *agent.Agent {
+	t.Helper()
+
+	toolReg := tools.NewStandardRegistry(nil, nil)
+
+	ws := websearch.New(websearch.Config{})
+	webDeps := tools.WebToolDeps{
+		WS:       ws,
+		Provider: f.fastProvider,
+		Model:    f.fastModel,
+	}
+	toolReg.Register(tools.NewWebSearchTool(webDeps))
+	toolReg.Register(tools.NewWebFetchTool(webDeps))
+
+	learningsDir := filepath.Join(f.Dir(), "learnings")
+	os.MkdirAll(learningsDir, 0700)
+	learningsDeps := tools.LearningsDeps{Store: learnings.New(learningsDir)}
+	toolReg.Register(tools.NewLearningSaveTool(learningsDeps))
+	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
+	toolReg.Register(tools.NewLearningSearchTool(learningsDeps))
+
+	workspaceDir := f.WorkspaceDir()
+	os.MkdirAll(workspaceDir, 0700)
+
+	scratchDir := filepath.Join(f.Dir(), "scratch")
+	os.MkdirAll(scratchDir, 0700)
+
+	inter := &testInteractor{}
+	tracker := tools.NewTaskTracker()
+	toolReg.Register(tools.NewDelegateTaskTool(tools.DelegateTaskConfig{
+		Interactor: inter,
+		Agents:     agents,
+		Tracker:    tracker,
+		ScratchDir: scratchDir,
+	}))
+	toolReg.Register(tools.NewCheckTaskTool(tracker))
+
+	identity := "You are a personal AI assistant communicating via Telegram.\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
+		"\nWorkspace directory: " + workspaceDir + "\n"
 	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
 
 	return agent.New(f.mainProvider, f.mainModel, toolReg,

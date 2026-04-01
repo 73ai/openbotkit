@@ -65,6 +65,9 @@ func (d *DuckDuckGo) Search(ctx context.Context, query string, opts SearchOption
 	}
 	req.Header.Set("Referer", "https://html.duckduckgo.com/")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Dest", "document")
 
 	resp, err := d.client.Do(req)
 	if err != nil {
@@ -73,7 +76,7 @@ func (d *DuckDuckGo) Search(ctx context.Context, query string, opts SearchOption
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("duckduckgo returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "duckduckgo", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)

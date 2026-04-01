@@ -91,6 +91,14 @@ func LearningsDir() string {
 	return filepath.Join(Dir(), "learnings")
 }
 
+func WorkspaceDir() string {
+	return filepath.Join(Dir(), "workspace")
+}
+
+func EnsureWorkspaceDir() error {
+	return os.MkdirAll(WorkspaceDir(), 0700)
+}
+
 func BackupDir() string {
 	return filepath.Join(Dir(), "backup")
 }

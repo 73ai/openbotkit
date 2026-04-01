@@ -33,6 +33,7 @@ type blockingAgentRunner struct {
 	err     error
 	release chan struct{}
 	called  chan struct{}
+	timeout time.Duration
 }
 
 func newBlockingRunner(output string, err error) *blockingAgentRunner {
@@ -44,7 +45,8 @@ func newBlockingRunner(output string, err error) *blockingAgentRunner {
 	}
 }
 
-func (b *blockingAgentRunner) Run(ctx context.Context, _ string, _ time.Duration, _ ...RunOption) (string, error) {
+func (b *blockingAgentRunner) Run(ctx context.Context, _ string, timeout time.Duration, _ ...RunOption) (string, error) {
+	b.timeout = timeout
 	close(b.called)
 	select {
 	case <-b.release:

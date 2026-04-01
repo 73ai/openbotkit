@@ -198,11 +198,11 @@ func TestTreeStructure(t *testing.T) {
 	svc := testService(cfg)
 
 	tree := svc.Tree()
-	if len(tree) != 7 {
-		t.Fatalf("tree has %d top-level nodes, want 7", len(tree))
+	if len(tree) != 8 {
+		t.Fatalf("tree has %d top-level nodes, want 8", len(tree))
 	}
 
-	labels := []string{"General", "LLM Models", "Channels", "Data Sources", "Integrations", "Backup", "Advanced"}
+	labels := []string{"General", "Workspace", "LLM Models", "Channels", "Data Sources", "Integrations", "Backup", "Advanced"}
 	for i, n := range tree {
 		if n.Category == nil {
 			t.Errorf("tree[%d] is not a category", i)
@@ -519,9 +519,9 @@ func TestModelsTreeStructure(t *testing.T) {
 	cfg := config.Default()
 	svc := testService(cfg)
 
-	modelsNode := svc.Tree()[1]
+	modelsNode := svc.Tree()[2]
 	if modelsNode.Category == nil || modelsNode.Category.Label != "LLM Models" {
-		t.Fatal("expected LLM Models category at index 1")
+		t.Fatal("expected LLM Models category at index 2")
 	}
 
 	children := modelsNode.Category.Children

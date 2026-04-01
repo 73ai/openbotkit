@@ -30,6 +30,9 @@ func (b *Brave) Search(ctx context.Context, query string, opts SearchOptions) ([
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-Dest", "document")
 
 	resp, err := b.client.Do(req)
 	if err != nil {
@@ -38,7 +41,7 @@ func (b *Brave) Search(ctx context.Context, query string, opts SearchOptions) ([
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("brave returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "brave", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)

@@ -88,15 +88,24 @@ var chatCmd = &cobra.Command{
 			toolReg.SetAudit(auditLogger, "cli")
 		}
 		scratchDir := config.ScratchDir(sessionID)
-		toolReg.Register(tools.NewSubagentTool(tools.SubagentConfig{
-			Provider: p,
-			Model:    modelName,
-			ToolFactory: func() *tools.Registry {
-				r := tools.NewStandardRegistry(nil, nil)
-				r.SetScratchDir(scratchDir)
-				return r
-			},
-			System: "You are a focused sub-agent. Complete the given task and return a concise result.",
+		workspaceDir := cfg.ResolvedWorkspaceDir()
+
+		subagentWebDeps := registerWebDeps(cfg, registry, p, modelName)
+		subagentLearningsDeps := tools.LearningsDeps{
+			Store: learnings.New(config.LearningsDir()),
+		}
+		slackWS := ""
+		if cfg.Slack != nil {
+			slackWS = cfg.Slack.DefaultWorkspace
+		}
+		toolReg.Register(tools.BuildSubagentTool(tools.SubagentToolConfig{
+			Provider:       p,
+			Model:          modelName,
+			WebDeps:        &subagentWebDeps,
+			LearningsDeps:  &subagentLearningsDeps,
+			ScratchDir:     scratchDir,
+			WorkspaceDir:   workspaceDir,
+			SlackWorkspace: slackWS,
 		}))
 
 		// Register delegate_task if external AI CLIs are available.
@@ -261,6 +270,15 @@ func registerWebTools(cfg *config.Config, reg *tools.Registry, provRegistry *pro
 	reg.Register(tools.NewWebSearchTool(deps))
 	reg.Register(tools.NewWebFetchTool(deps))
 	return wsDB
+}
+
+func registerWebDeps(cfg *config.Config, provRegistry *provider.Registry, defaultP provider.Provider, defaultModel string) tools.WebToolDeps {
+	ws, _ := tools.NewWebSearchInstance(tools.WebSearchSetup{
+		WSConfig: cfg.WebSearch,
+		DSN:      cfg.WebSearchDataDSN(),
+	})
+	fastP, fastModel := tools.ResolveFastProvider(cfg.Models, provRegistry, defaultP, defaultModel)
+	return tools.WebToolDeps{WS: ws, Provider: fastP, Model: fastModel}
 }
 
 func init() {

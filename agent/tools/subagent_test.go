@@ -88,8 +88,11 @@ func TestSubagentTool_SimpleTask(t *testing.T) {
 	if len(mp.requests) != 1 {
 		t.Errorf("expected 1 provider request, got %d", len(mp.requests))
 	}
-	if mp.requests[0].System != "You are a test sub-agent." {
-		t.Errorf("system = %q", mp.requests[0].System)
+	// System is now delivered via SystemBlocks (BuildSystemBlocks).
+	if len(mp.requests[0].SystemBlocks) == 0 {
+		t.Error("expected SystemBlocks to be set")
+	} else if !strings.Contains(mp.requests[0].SystemBlocks[0].Text, "You are a test sub-agent.") {
+		t.Errorf("system block = %q", mp.requests[0].SystemBlocks[0].Text)
 	}
 }
 
@@ -242,4 +245,4 @@ func TestSubagentTool_EmptyTask(t *testing.T) {
 }
 
 // defaultChildMaxIter returns the default max iterations for child agents.
-func defaultChildMaxIter() int { return 10 }
+func defaultChildMaxIter() int { return 25 }

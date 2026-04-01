@@ -50,7 +50,7 @@ func (d *DuckDuckGo) News(ctx context.Context, query string, opts SearchOptions)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("duckduckgo news returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "duckduckgo", Code: resp.StatusCode}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
