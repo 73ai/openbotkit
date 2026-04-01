@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/73ai/openbotkit/config"
@@ -74,49 +73,15 @@ var configSetCmd = &cobra.Command{
 		key := args[0]
 		value := args[1]
 
-		switch strings.ToLower(key) {
-		case "providers.google.credentials_file":
-			if cfg.Providers == nil {
-				cfg.Providers = &config.ProvidersConfig{}
-			}
-			if cfg.Providers.Google == nil {
-				cfg.Providers.Google = &config.GoogleProviderConfig{}
-			}
-			cfg.Providers.Google.CredentialsFile = value
-		case "gmail.storage.driver":
-			if value != "sqlite" && value != "postgres" {
-				return fmt.Errorf("invalid driver: %s (must be 'sqlite' or 'postgres')", value)
-			}
-			cfg.Gmail.Storage.Driver = value
-		case "gmail.storage.dsn":
-			cfg.Gmail.Storage.DSN = value
-		case "gmail.credentials_file":
-			cfg.Gmail.CredentialsFile = value
-		case "gmail.download_attachments":
-			cfg.Gmail.DownloadAttachments = value == "true"
-		case "integrations.gws.callback_url":
-			if cfg.Integrations == nil {
-				cfg.Integrations = &config.IntegrationsConfig{}
-			}
-			if cfg.Integrations.GWS == nil {
-				cfg.Integrations.GWS = &config.GWSConfig{}
-			}
-			cfg.Integrations.GWS.CallbackURL = value
-		case "integrations.gws.ngrok_domain":
-			if cfg.Integrations == nil {
-				cfg.Integrations = &config.IntegrationsConfig{}
-			}
-			if cfg.Integrations.GWS == nil {
-				cfg.Integrations.GWS = &config.GWSConfig{}
-			}
-			cfg.Integrations.GWS.NgrokDomain = value
-		case "timezone":
+		// Special validation for timezone.
+		if key == "timezone" {
 			if _, err := time.LoadLocation(value); err != nil {
 				return fmt.Errorf("invalid timezone %q: %w", value, err)
 			}
-			cfg.Timezone = value
-		default:
-			return fmt.Errorf("unknown config key: %s", key)
+		}
+
+		if err := config.SetByPath(cfg, key, value); err != nil {
+			return err
 		}
 
 		if err := cfg.Save(); err != nil {
