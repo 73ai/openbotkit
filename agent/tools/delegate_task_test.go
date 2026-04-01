@@ -298,6 +298,22 @@ func TestDelegateTask_TimeoutMinutesInSchema(t *testing.T) {
 	}
 }
 
+func TestDelegateTask_AsyncTimeoutMinutes(t *testing.T) {
+	tool, _, runner := setupAsyncDelegateTest(t, true)
+	input, _ := json.Marshal(delegateTaskInput{Task: "deep research", TimeoutMinutes: 30, Async: true})
+	_, err := tool.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	// Wait for the runner to be called so timeout is captured.
+	<-runner.called
+	if runner.timeout != 30*time.Minute {
+		t.Errorf("async timeout = %v, want 30m", runner.timeout)
+	}
+	close(runner.release)
+	<-time.After(100 * time.Millisecond)
+}
+
 func TestDelegateTask_ApprovalDescription(t *testing.T) {
 	tool, inter, _ := setupDelegateTest(t, true)
 	longTask := strings.Repeat("a", 200)
