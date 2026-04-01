@@ -35,7 +35,9 @@ func (m *Mojeek) Search(ctx context.Context, query string, opts SearchOptions) (
 	if page <= 1 {
 		page = 1
 	}
-	q.Set("s", fmt.Sprintf("%d", (page-1)*10+1))
+	if page > 1 {
+		q.Set("s", fmt.Sprintf("%d", (page-1)*10+1))
+	}
 	q.Set("safe", "1")
 	u.RawQuery = q.Encode()
 
@@ -44,6 +46,9 @@ func (m *Mojeek) Search(ctx context.Context, query string, opts SearchOptions) (
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-Dest", "document")
 
 	if opts.Region != "" {
 		arc, lb := regionToCookies(opts.Region)
@@ -62,7 +67,7 @@ func (m *Mojeek) Search(ctx context.Context, query string, opts SearchOptions) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mojeek returned status %d", resp.StatusCode)
+		return nil, &StatusError{Engine: "mojeek", Code: resp.StatusCode}
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
