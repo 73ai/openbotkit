@@ -3,6 +3,52 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.0] (2026-04-01)
+
+### Added
+
+- **config**: Add workspace directory config and setting
+- **subagent**: Use system blocks and increase maxIter to 25
+- **tools**: Add NewSubagentRegistry for enriched subagent
+- **telegram**: Enrich subagent tools and add workspace to prompt
+- **whatsapp**: Enrich subagent tools and add workspace to prompt
+- **cli**: Enrich subagent tools and add workspace to prompt
+- **usecase**: Register subagent and workspace in test fixture
+- **usecase**: Add delegation agent builder and test interactor
+- **spectest**: Add AssertChecklist for binary yes/no judge evaluation
+- **spectest**: Add JudgeFastProvider/JudgeFastModel to LocalFixture
+- **usecase**: Wire fast judge model for checklist evaluation
+- **spectest**: Add timing instrumentation to AssertChecklist
+- **websearch**: Add StatusError type and error classification
+- **websearch**: Error-type-aware health tracker with half-open state
+- **delegate_task**: Add LLM-decided timeout_minutes parameter
+
+### Changed
+
+- **subagent**: Return raw output, let registry handle truncation
+- **delegate**: Return raw output from sync path, simplify prompt
+- **websearch**: Pass failure kind to health tracker
+- **websearch**: Remaining engines return StatusError
+- **tools**: Extract BuildSubagentTool to deduplicate session setup
+- **websearch**: Merge stateHealthy and stateHalfOpen switch cases
+
+### Fixed
+
+- **usecase**: Fix web search test prompts and judge criteria
+- **test**: Update subagent tests for SystemBlocks and maxIter 25
+- **usecase**: Fix delegate test prompt and add deliver-results instruction
+- **prompt**: Add deliver-results instruction to delegate_task section
+- **spectest**: Use fast judge for AssertChecklist, handle empty response
+- **usecase**: Use highest-priority agent for delegate test, add timing
+- Resolve merge conflicts with origin/master
+- **websearch**: DuckDuckGo Sec-Fetch headers and StatusError
+- **websearch**: Mojeek omit s param on page 1, add Sec-Fetch headers
+- **websearch**: Brave Sec-Fetch headers and StatusError
+- **settings**: Update tree tests for Workspace category
+- **delegate_task**: Pass timeout_minutes through async path
+- **websearch**: Scope 202 rate-limit classification to DuckDuckGo
+- **tools**: Ensure workspace directory exists in BuildSubagentTool
+
 ## [0.8.0] (2026-03-31)
 
 ### Added
