@@ -9,6 +9,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
+	"github.com/spf13/cobra"
 )
 
 func writeTestFiles(t *testing.T, dir string) (skillFile, refFile string) {
@@ -26,12 +27,30 @@ func writeTestFiles(t *testing.T, dir string) (skillFile, refFile string) {
 	return
 }
 
+// newCreateCmd returns a fresh create command with its own flag set.
+func newCreateCmd() *cobra.Command {
+	cmd := *skillsCreateCmd
+	cmd.ResetFlags()
+	cmd.Flags().String("skill-file", "", "Path to SKILL.md file")
+	cmd.Flags().String("ref-file", "", "Path to REFERENCE.md file")
+	return &cmd
+}
+
+// newUpdateCmd returns a fresh update command with its own flag set.
+func newUpdateCmd() *cobra.Command {
+	cmd := *skillsUpdateCmd
+	cmd.ResetFlags()
+	cmd.Flags().String("skill-file", "", "Path to updated SKILL.md file")
+	cmd.Flags().String("ref-file", "", "Path to updated REFERENCE.md file")
+	return &cmd
+}
+
 func TestSkillsCreate(t *testing.T) {
 	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
 	staging := t.TempDir()
 	skillFile, refFile := writeTestFiles(t, staging)
 
-	cmd := skillsCreateCmd
+	cmd := newCreateCmd()
 	cmd.Flags().Set("skill-file", skillFile)
 	cmd.Flags().Set("ref-file", refFile)
 	if err := cmd.RunE(cmd, []string{"test-cli-skill"}); err != nil {
@@ -68,9 +87,8 @@ func TestSkillsCreate_NoRefFile(t *testing.T) {
 	staging := t.TempDir()
 	skillFile, _ := writeTestFiles(t, staging)
 
-	cmd := skillsCreateCmd
+	cmd := newCreateCmd()
 	cmd.Flags().Set("skill-file", skillFile)
-	cmd.Flags().Set("ref-file", "")
 	if err := cmd.RunE(cmd, []string{"no-ref-skill"}); err != nil {
 		t.Fatalf("create without ref: %v", err)
 	}
@@ -89,7 +107,7 @@ func TestSkillsUpdate(t *testing.T) {
 	staging := t.TempDir()
 	skillFile, refFile := writeTestFiles(t, staging)
 
-	cmd := skillsCreateCmd
+	cmd := newCreateCmd()
 	cmd.Flags().Set("skill-file", skillFile)
 	cmd.Flags().Set("ref-file", refFile)
 	if err := cmd.RunE(cmd, []string{"update-skill"}); err != nil {
@@ -100,8 +118,7 @@ func TestSkillsUpdate(t *testing.T) {
 	newRef := filepath.Join(staging, "NEW_REF.md")
 	os.WriteFile(newRef, []byte("## Updated\n\nNew content.\n"), 0600)
 
-	ucmd := skillsUpdateCmd
-	ucmd.Flags().Set("skill-file", "")
+	ucmd := newUpdateCmd()
 	ucmd.Flags().Set("ref-file", newRef)
 	if err := ucmd.RunE(ucmd, []string{"update-skill"}); err != nil {
 		t.Fatalf("update: %v", err)
@@ -121,7 +138,7 @@ func TestSkillsUpdate_NonexistentFails(t *testing.T) {
 	staging := t.TempDir()
 	_, refFile := writeTestFiles(t, staging)
 
-	ucmd := skillsUpdateCmd
+	ucmd := newUpdateCmd()
 	ucmd.Flags().Set("ref-file", refFile)
 	err := ucmd.RunE(ucmd, []string{"nonexistent"})
 	if err == nil {
@@ -134,7 +151,7 @@ func TestSkillsRemove(t *testing.T) {
 	staging := t.TempDir()
 	skillFile, refFile := writeTestFiles(t, staging)
 
-	cmd := skillsCreateCmd
+	cmd := newCreateCmd()
 	cmd.Flags().Set("skill-file", skillFile)
 	cmd.Flags().Set("ref-file", refFile)
 	cmd.RunE(cmd, []string{"remove-me"})
@@ -202,7 +219,7 @@ func TestSkillsRoundTrip(t *testing.T) {
 	skillFile, refFile := writeTestFiles(t, staging)
 
 	// Create.
-	cmd := skillsCreateCmd
+	cmd := newCreateCmd()
 	cmd.Flags().Set("skill-file", skillFile)
 	cmd.Flags().Set("ref-file", refFile)
 	if err := cmd.RunE(cmd, []string{"round-trip"}); err != nil {
@@ -236,8 +253,7 @@ func TestSkillsRoundTrip(t *testing.T) {
 	// Update.
 	newRef := filepath.Join(staging, "UPDATED.md")
 	os.WriteFile(newRef, []byte("## V2\n\nUpdated.\n"), 0600)
-	ucmd := skillsUpdateCmd
-	ucmd.Flags().Set("skill-file", "")
+	ucmd := newUpdateCmd()
 	ucmd.Flags().Set("ref-file", newRef)
 	if err := ucmd.RunE(ucmd, []string{"round-trip"}); err != nil {
 		t.Fatalf("update: %v", err)
