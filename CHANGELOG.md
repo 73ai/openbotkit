@@ -3,6 +3,33 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.0] (2026-04-01)
+
+### Added
+
+- **config**: Add generic SetByPath for arbitrary config keys
+- **skills**: Add custom skill install/remove/list/get/update functions
+- **cli**: Add obk skills create/update/remove/list/show commands
+- **skills**: Add skill-creator meta-skill
+- **skills**: Register skill-creator in builtinSkills
+- **server**: Add credential request/form/store endpoints
+- **skills**: Add config-manage skill for configuration discovery
+
+### Changed
+
+- **cli**: Replace hardcoded config set switch with SetByPath
+
+### Fixed
+
+- **skills**: Preserve custom/external skills during declarative Install()
+- **server**: Use keyring mock in credential tests, add auth test
+- **spectest**: Add skill-creator to installed skills in test fixture
+- **usecase**: Rewrite integration tests with natural prompts
+- **skills**: Validate skill names to prevent path traversal
+- **config**: Fix dead empty-path guard in SetByPath
+- **server**: Sweep expired credential tokens on create
+- **cli**: Isolate cobra flag state in skills CLI tests
+
 ## [0.9.1] (2026-04-01)
 
 ### Fixed
