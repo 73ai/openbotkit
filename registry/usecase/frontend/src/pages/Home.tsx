@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Layout from "@/components/Layout";
 import {
   Card,
@@ -6,7 +6,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,46 @@ const roiColors: Record<string, string> = {
   high: "bg-purple-100 text-purple-800",
 };
 
+function UseCaseRow({ uc }: { uc: UseCase }) {
+  return (
+    <a href={`/usecase.html?id=${uc.id}`} className="block">
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-lg mb-1">{uc.title}</CardTitle>
+              <CardDescription className="line-clamp-2">
+                {uc.description}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge variant="outline" className={riskColors[uc.risk_level]}>
+                {uc.risk_level} risk
+              </Badge>
+              <Badge variant="outline" className={roiColors[uc.roi_potential]}>
+                {uc.roi_potential} ROI
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {uc.industry_tags && (
+              <span>{uc.industry_tags.split(",").join(" / ")}</span>
+            )}
+            {uc.fork_count > 0 && (
+              <span>
+                {uc.fork_count} fork{uc.fork_count !== 1 ? "s" : ""}
+              </span>
+            )}
+            <span>by {uc.author?.name || "Unknown"}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </a>
+  );
+}
+
 export default function Home() {
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,6 +96,16 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, [query, domain, risk]);
 
+  const grouped = useMemo(() => {
+    const map = new Map<string, UseCase[]>();
+    for (const uc of useCases) {
+      const list = map.get(uc.domain) || [];
+      list.push(uc);
+      map.set(uc.domain, list);
+    }
+    return map;
+  }, [useCases]);
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -75,7 +124,10 @@ export default function Home() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Select value={domain} onValueChange={(v) => setDomain(v === "all" ? "" : v)}>
+          <Select
+            value={domain}
+            onValueChange={(v) => setDomain(v === "all" ? "" : v)}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Domains" />
             </SelectTrigger>
@@ -88,7 +140,10 @@ export default function Home() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={risk} onValueChange={(v) => setRisk(v === "all" ? "" : v)}>
+          <Select
+            value={risk}
+            onValueChange={(v) => setRisk(v === "all" ? "" : v)}
+          >
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Risk Levels" />
             </SelectTrigger>
@@ -112,48 +167,18 @@ export default function Home() {
             <p className="text-sm text-muted-foreground">
               {total} use case{total !== 1 ? "s" : ""}
             </p>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {useCases.map((uc) => (
-                <a key={uc.id} href={`/usecase.html?id=${uc.id}`}>
-                  <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
-                    <CardHeader>
-                      <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <Badge variant="secondary">{uc.domain}</Badge>
-                        <Badge
-                          variant="outline"
-                          className={riskColors[uc.risk_level]}
-                        >
-                          {uc.risk_level} risk
-                        </Badge>
-                      </div>
-                      <CardTitle className="text-lg">{uc.title}</CardTitle>
-                      <CardDescription className="line-clamp-2">
-                        {uc.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge
-                          variant="outline"
-                          className={roiColors[uc.roi_potential]}
-                        >
-                          {uc.roi_potential} ROI
-                        </Badge>
-                        {uc.fork_count > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {uc.fork_count} fork
-                            {uc.fork_count !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <span className="text-xs text-muted-foreground">
-                        by {uc.author?.name || "Unknown"}
-                      </span>
-                    </CardFooter>
-                  </Card>
-                </a>
+            <div className="space-y-10 max-w-3xl">
+              {Array.from(grouped.entries()).map(([domainName, ucs]) => (
+                <section key={domainName}>
+                  <h2 className="text-xl font-semibold mb-4 pb-2 border-b">
+                    {domainName}
+                  </h2>
+                  <div className="space-y-3">
+                    {ucs.map((uc) => (
+                      <UseCaseRow key={uc.id} uc={uc} />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </>
