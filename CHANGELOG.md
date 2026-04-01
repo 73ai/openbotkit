@@ -3,6 +3,14 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.1] (2026-04-01)
+
+### Fixed
+
+- **deps**: Bump picomatch and smol-toml for security patches
+- **deps**: Bump testcontainers-go to v0.41.0
+- **daemon**: Make TestCheckOverdueRecurringSkipsRecentRun time-agnostic
+
 ## [0.9.0] (2026-04-01)
 
 ### Added
