@@ -305,3 +305,34 @@ func TestInstallPreservesCustomSkills(t *testing.T) {
 		t.Error("SKILL.md is empty after Install()")
 	}
 }
+
+func TestInstallCustomSkill_RejectsPathTraversal(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
+	cases := []string{
+		"../escape",
+		"../../etc/evil",
+		"foo/bar",
+		".hidden",
+		"-starts-with-dash",
+		"has spaces",
+		"UPPERCASE",
+		"",
+	}
+	for _, name := range cases {
+		if err := InstallCustomSkill(name, testSkillMD, testRefMD); err == nil {
+			t.Errorf("expected error for skill name %q, got nil", name)
+		}
+	}
+}
+
+func TestInstallCustomSkill_AcceptsValidNames(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+
+	cases := []string{"my-skill", "sqlite3-query", "a", "tool-v2"}
+	for _, name := range cases {
+		if err := InstallCustomSkill(name, testSkillMD, testRefMD); err != nil {
+			t.Errorf("unexpected error for skill name %q: %v", name, err)
+		}
+	}
+}

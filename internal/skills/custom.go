@@ -4,7 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 )
+
+var validSkillName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+func validateSkillName(name string) error {
+	if !validSkillName.MatchString(name) {
+		return fmt.Errorf("invalid skill name %q: must match [a-z0-9-] and not start with a dash", name)
+	}
+	return nil
+}
 
 // SkillInfo holds merged skill data for listing.
 type SkillInfo struct {
@@ -25,6 +35,9 @@ func InstallExternalSkill(name, skillContent, refContent, repoURL string) error 
 }
 
 func installCustom(name, skillContent, refContent, source, repo string) error {
+	if err := validateSkillName(name); err != nil {
+		return err
+	}
 	dir := filepath.Join(SkillsDir(), name)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create skill dir: %w", err)
