@@ -157,7 +157,7 @@ func (d *DelegateTaskTool) Execute(ctx context.Context, input json.RawMessage) (
 
 	// Async mode: if tracker is set and async requested, run in background.
 	if in.Async && d.tracker != nil {
-		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, runOpts)
+		return d.executeAsync(ctx, runner, kind, prompt, preview, desc, timeout, runOpts)
 	}
 
 	var guardOpts []GuardOption
@@ -207,6 +207,7 @@ func (d *DelegateTaskTool) executeAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, desc string,
+	timeout time.Duration,
 	runOpts []RunOption,
 ) (string, error) {
 	taskID, err := generateTaskID()
@@ -232,7 +233,7 @@ func (d *DelegateTaskTool) executeAsync(
 		return "denied_by_user", nil
 	}
 
-	go d.runAsync(runner, kind, task, preview, taskID, runOpts)
+	go d.runAsync(runner, kind, task, preview, taskID, timeout, runOpts)
 
 	resp := struct {
 		TaskID string `json:"task_id"`
@@ -246,9 +247,10 @@ func (d *DelegateTaskTool) runAsync(
 	runner AgentRunnerInterface,
 	kind AgentKind,
 	task, preview, taskID string,
+	timeout time.Duration,
 	runOpts []RunOption,
 ) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	d.tracker.RegisterCancel(taskID, cancel)
 
@@ -262,7 +264,7 @@ func (d *DelegateTaskTool) runAsync(
 				lastNotify = time.Now()
 			}
 		}
-		output, err := sr.RunStream(ctx, task, d.timeout, onEvent, runOpts...)
+		output, err := sr.RunStream(ctx, task, timeout, onEvent, runOpts...)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				d.logAudit(taskID, preview, "", "cancelled")
@@ -282,7 +284,7 @@ func (d *DelegateTaskTool) runAsync(
 	}
 
 	// Fallback to non-streaming runner.
-	output, err := runner.Run(ctx, task, d.timeout, runOpts...)
+	output, err := runner.Run(ctx, task, timeout, runOpts...)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			d.logAudit(taskID, preview, "", "cancelled")
