@@ -189,7 +189,21 @@ func TestCheckOverdueRecurringSkipsRecentRun(t *testing.T) {
 		t.Fatalf("create schedule: %v", err)
 	}
 
-	recent := time.Now().UTC().Add(-30 * time.Minute)
+	// Compute last run as 1 minute after the most recent cron fire so
+	// the next fire is always in the future regardless of wall-clock time.
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	cronSched, _ := parser.Parse("0 */6 * * *")
+	now := time.Now().UTC()
+	// Walk backwards: the previous fire is the latest Next() that is <= now.
+	prev := cronSched.Next(now.Add(-7 * time.Hour)) // guaranteed before the previous slot
+	for {
+		n := cronSched.Next(prev)
+		if n.After(now) {
+			break
+		}
+		prev = n
+	}
+	recent := prev.Add(1 * time.Minute)
 	if err := scheduler.UpdateLastRun(sdb, id, recent, ""); err != nil {
 		t.Fatalf("update last run: %v", err)
 	}
