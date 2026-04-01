@@ -220,6 +220,27 @@ func TestCredentialInvalidToken(t *testing.T) {
 	}
 }
 
+func TestCredentialCreate_CleansExpiredTokens(t *testing.T) {
+	s := newTestServerWithCreds()
+
+	// Create a token and expire it manually.
+	old, _ := s.credTokens.create("Old Key", "keychain:obk/old")
+	s.credTokens.mu.Lock()
+	s.credTokens.tokens[old].ExpiresAt = time.Now().Add(-1 * time.Minute)
+	s.credTokens.mu.Unlock()
+
+	// Creating a new token should sweep the expired one.
+	s.credTokens.create("New Key", "keychain:obk/new")
+
+	s.credTokens.mu.Lock()
+	_, exists := s.credTokens.tokens[old]
+	s.credTokens.mu.Unlock()
+
+	if exists {
+		t.Error("expired token should have been cleaned up on create")
+	}
+}
+
 func TestCredentialSubmit_EmptyValue(t *testing.T) {
 	s := newTestServerWithCreds()
 	token, _ := s.credTokens.create("Test Key", "keychain:obk/test-empty")

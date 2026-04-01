@@ -38,6 +38,15 @@ func (s *credentialTokenStore) create(label, keyRef string) (string, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Sweep expired/used tokens to prevent unbounded growth.
+	now := time.Now()
+	for k, ct := range s.tokens {
+		if ct.Used || now.After(ct.ExpiresAt) {
+			delete(s.tokens, k)
+		}
+	}
+
 	s.tokens[token] = &credentialToken{
 		Label:     label,
 		KeyRef:    keyRef,
