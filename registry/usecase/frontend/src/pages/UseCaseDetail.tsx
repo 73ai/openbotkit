@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { isValidId } from "@/lib/utils";
 import type { UseCase } from "@/lib/types";
 
 const riskColors: Record<string, string> = {
@@ -30,8 +31,8 @@ export default function UseCaseDetail() {
   const id = new URLSearchParams(window.location.search).get("id");
 
   useEffect(() => {
-    if (!id) {
-      setError("No use case ID provided.");
+    if (!isValidId(id)) {
+      setError("Invalid use case ID.");
       setLoading(false);
       return;
     }

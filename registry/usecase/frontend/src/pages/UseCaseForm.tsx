@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { isValidId } from "@/lib/utils";
 import type { UseCase } from "@/lib/types";
 import { DOMAINS, RISK_LEVELS, ROI_LEVELS, IMPL_STATUSES } from "@/lib/types";
 
@@ -28,7 +29,8 @@ export default function UseCaseForm() {
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState<UseCase | null>(null);
 
-  const editId = new URLSearchParams(window.location.search).get("id");
+  const rawId = new URLSearchParams(window.location.search).get("id");
+  const editId = isValidId(rawId) ? rawId : null;
   const isEdit = !!editId;
 
   const [title, setTitle] = useState("");
