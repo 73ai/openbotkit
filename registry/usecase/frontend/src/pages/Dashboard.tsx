@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -33,14 +35,15 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, [user, authLoading]);
 
-  const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+  const handleDelete = async (id: string) => {
+    setDeleteError("");
     setDeletingId(id);
     try {
       await apiFetch(`/api/usecases/${id}`, { method: "DELETE" });
       setUseCases((prev) => prev.filter((uc) => uc.id !== id));
+      setConfirmDeleteId(null);
     } catch {
-      alert("Failed to delete. Please try again.");
+      setDeleteError("Failed to delete. Please try again.");
     } finally {
       setDeletingId(null);
     }
@@ -133,18 +136,40 @@ export default function Dashboard() {
                     </p>
                   )}
                 </CardContent>
-                <CardFooter className="gap-2">
+                <CardFooter className="gap-2 flex-wrap">
                   <Button variant="outline" size="sm" asChild>
                     <a href={`/usecase-form.html?id=${uc.id}`}>Edit</a>
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deletingId === uc.id}
-                    onClick={() => handleDelete(uc.id, uc.title)}
-                  >
-                    {deletingId === uc.id ? "Deleting..." : "Delete"}
-                  </Button>
+                  {confirmDeleteId === uc.id ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deletingId === uc.id}
+                        onClick={() => handleDelete(uc.id)}
+                      >
+                        {deletingId === uc.id ? "Deleting..." : "Confirm"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setConfirmDeleteId(null); setDeleteError(""); }}
+                      >
+                        Cancel
+                      </Button>
+                      {deleteError && (
+                        <p className="text-xs text-destructive w-full">{deleteError}</p>
+                      )}
+                    </>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setConfirmDeleteId(uc.id)}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             ))}

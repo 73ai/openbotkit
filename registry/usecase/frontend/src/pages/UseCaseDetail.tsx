@@ -27,6 +27,7 @@ export default function UseCaseDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [forking, setForking] = useState(false);
+  const [forkError, setForkError] = useState("");
 
   const id = new URLSearchParams(window.location.search).get("id");
 
@@ -44,7 +45,7 @@ export default function UseCaseDetail() {
 
   const handleFork = async () => {
     if (!uc || !user) return;
-    if (!confirm("Fork this use case to your dashboard? You can customize it after.")) return;
+    setForkError("");
     setForking(true);
     try {
       const fork = await apiFetch<UseCase>(`/api/usecases/${uc.id}/fork`, {
@@ -52,7 +53,7 @@ export default function UseCaseDetail() {
       });
       window.location.href = `/usecase.html?id=${fork.id}`;
     } catch {
-      alert("Failed to fork use case. Please try again.");
+      setForkError("Failed to fork use case. Please try again.");
     } finally {
       setForking(false);
     }
@@ -125,21 +126,26 @@ export default function UseCaseDetail() {
               </p>
             )}
           </div>
-          <div className="flex gap-2 shrink-0">
-            {isAuthor && (
-              <Button variant="outline" asChild>
-                <a href={`/usecase-form.html?id=${uc.id}`}>Edit</a>
-              </Button>
-            )}
-            {user && !isAuthor && (
-              <Button onClick={handleFork} disabled={forking}>
-                {forking ? "Forking..." : `Fork (${uc.fork_count})`}
-              </Button>
-            )}
-            {!user && (
-              <Button variant="outline" disabled>
-                Sign in to fork
-              </Button>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="flex gap-2">
+              {isAuthor && (
+                <Button variant="outline" asChild>
+                  <a href={`/usecase-form.html?id=${uc.id}`}>Edit</a>
+                </Button>
+              )}
+              {user && !isAuthor && (
+                <Button onClick={handleFork} disabled={forking}>
+                  {forking ? "Forking..." : `Fork (${uc.fork_count})`}
+                </Button>
+              )}
+              {!user && (
+                <Button variant="outline" disabled>
+                  Sign in to fork
+                </Button>
+              )}
+            </div>
+            {forkError && (
+              <p className="text-xs text-destructive">{forkError}</p>
             )}
           </div>
         </div>
