@@ -118,10 +118,11 @@ func (w *EventHookWorker) resolveProvider(modelTier string) (provider.Provider, 
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	return string(runes[:n]) + "..."
 }
 
 var _ river.Worker[EventHookArgs] = (*EventHookWorker)(nil)

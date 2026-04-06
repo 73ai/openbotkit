@@ -27,6 +27,7 @@ func TestTruncate(t *testing.T) {
 		{"", 5, ""},
 		{"ab", 2, "ab"},
 		{"abc", 2, "ab..."},
+		{"こんにちは", 3, "こんに..."},
 	}
 	for _, tc := range cases {
 		got := truncate(tc.input, tc.n)
