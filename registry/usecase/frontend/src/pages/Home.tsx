@@ -183,7 +183,7 @@ export default function Home() {
         </div>
 
         {error ? (
-          <p className="text-muted-foreground">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         ) : loading ? (
           <p className="text-muted-foreground">Loading use cases...</p>
         ) : useCases.length === 0 ? (
