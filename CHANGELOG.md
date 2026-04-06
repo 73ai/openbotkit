@@ -3,6 +3,33 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.0] (2026-04-06)
+
+### Added
+
+- **channel**: Add Registry for centralized pusher management
+- **gmail**: Return new email IDs from Sync for event hooks
+- **daemon**: Add fan-out and data payload to SyncNotifier
+- **daemon**: Pass new email IDs through gmail sync to notifier
+- **hooks**: Add event_hooks schema, types, and store
+- **gmail**: Add GetEmailsByIDs for loading emails by row ID
+- **daemon**: Add EventHookWorker for post-sync LLM classification
+- **daemon**: Add HookListener for event-driven hook dispatch
+- **daemon**: Wire channel registry, hooks DB, and hook listener
+- **cli**: Add OBK_GMAIL_DRY_RUN env var for email send and draft
+- **tools**: Add prompt prefixes to gate email write commands
+- **test**: Add CapturePusher, RecordingInteractor, AgentWithInteractor
+
+### Fixed
+
+- **test**: Run event hook test through full River pipeline
+- **jobs**: Early return in loadEmails for empty IDs
+- **jobs**: Truncate by runes instead of bytes for UTF-8 safety
+- **daemon**: Remove leaky C() method from SyncNotifier
+- **jobs**: Wire UpdateLastRun into EventHookWorker
+- **cli**: Handle json.Marshal error in gmail dry-run paths
+- **daemon**: Add panic recovery to HookListener goroutine
+
 ## [0.11.0] (2026-04-06)
 
 ### Added
