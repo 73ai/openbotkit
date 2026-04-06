@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Layout from "@/components/Layout";
 import {
   Card,
@@ -80,27 +80,45 @@ export default function Home() {
   const [risk, setRisk] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError("");
     const params = new URLSearchParams();
-    if (query) params.set("q", query);
+    if (debouncedQuery) params.set("q", debouncedQuery);
     if (domain) params.set("domain", domain);
     if (risk) params.set("risk", risk);
     params.set("limit", "50");
 
-    apiFetch<UseCaseListResult>(`/api/usecases?${params}`)
+    apiFetch<UseCaseListResult>(`/api/usecases?${params}`, {
+      signal: controller.signal,
+    })
       .then((r) => {
         setUseCases(r.use_cases || []);
         setTotal(r.total);
       })
       .catch((e) => {
+        if (e.name === "AbortError") return;
         setUseCases([]);
         setError(e.message || "Failed to load use cases. Please try again.");
       })
-      .finally(() => setLoading(false));
-  }, [query, domain, risk]);
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [debouncedQuery, domain, risk]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, UseCase[]>();
