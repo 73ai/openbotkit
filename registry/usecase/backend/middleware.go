@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -29,8 +28,11 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			return
 		}
 
-		allowed := s.cfg.FrontendURL
-		if origin == allowed || strings.HasPrefix(origin, "http://localhost") {
+		allowed := origin == s.cfg.FrontendURL
+		if s.cfg.DemoLogin {
+			allowed = allowed || origin == "http://localhost:3000" || origin == "http://localhost:5173"
+		}
+		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
