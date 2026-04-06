@@ -46,6 +46,9 @@ func validateUseCaseRequest(req *useCaseRequest) error {
 	if req.Description == "" {
 		return fmt.Errorf("description is required")
 	}
+	if len(req.Description) > 5000 {
+		return fmt.Errorf("description must be under 5000 characters")
+	}
 	if req.Domain == "" {
 		return fmt.Errorf("domain is required")
 	}
