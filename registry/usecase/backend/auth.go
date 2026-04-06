@@ -37,11 +37,13 @@ func (s *Server) issueJWT(userID, email string) (string, error) {
 }
 
 func (s *Server) setTokenCookie(w http.ResponseWriter, tokenStr string) {
+	secure := !s.cfg.DemoLogin
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    tokenStr,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   7 * 24 * 60 * 60,
 	})
