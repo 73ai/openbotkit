@@ -40,6 +40,14 @@ func (s *Server) handleGetUseCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if uc.Visibility == "private" || uc.Status == "draft" {
+		callerID := s.optionalUserID(r)
+		if callerID != uc.AuthorID {
+			writeError(w, http.StatusNotFound, "use case not found")
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(uc)
 }

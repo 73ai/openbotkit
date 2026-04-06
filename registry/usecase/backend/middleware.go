@@ -85,3 +85,22 @@ func userIDFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(contextKeyUserID).(string)
 	return v
 }
+
+func (s *Server) optionalUserID(r *http.Request) string {
+	cookie, err := r.Cookie("token")
+	if err != nil {
+		return ""
+	}
+	token, err := jwt.Parse(cookie.Value, func(t *jwt.Token) (any, error) {
+		return []byte(s.cfg.JWTSecret), nil
+	}, jwt.WithValidMethods([]string{"HS256"}))
+	if err != nil || !token.Valid {
+		return ""
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return ""
+	}
+	uid, _ := claims["sub"].(string)
+	return uid
+}
