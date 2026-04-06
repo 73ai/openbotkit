@@ -27,7 +27,7 @@ import { DOMAINS, RISK_LEVELS, ROI_LEVELS, IMPL_STATUSES } from "@/lib/types";
 export default function UseCaseForm() {
   const { user, loading: authLoading } = useAuth();
   const [saving, setSaving] = useState(false);
-  const [existing, setExisting] = useState<UseCase | null>(null);
+  const [formError, setFormError] = useState("");
 
   const rawId = new URLSearchParams(window.location.search).get("id");
   const editId = isValidId(rawId) ? rawId : null;
@@ -61,7 +61,6 @@ export default function UseCaseForm() {
             window.location.href = `/usecase.html?id=${editId}`;
             return;
           }
-          setExisting(uc);
           setTitle(uc.title);
           setDescription(uc.description);
           setDomain(uc.domain);
@@ -85,6 +84,21 @@ export default function UseCaseForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError("");
+
+    if (!title.trim()) {
+      setFormError("Title is required.");
+      return;
+    }
+    if (!description.trim()) {
+      setFormError("Description is required.");
+      return;
+    }
+    if (!domain) {
+      setFormError("Please select a domain.");
+      return;
+    }
+
     setSaving(true);
 
     const body = {
@@ -118,7 +132,7 @@ export default function UseCaseForm() {
       }
       window.location.href = `/usecase.html?id=${result.id}`;
     } catch (err) {
-      alert(`Failed to save: ${err}`);
+      setFormError(`Failed to save: ${err}`);
     } finally {
       setSaving(false);
     }
@@ -311,6 +325,10 @@ export default function UseCaseForm() {
               </div>
             </CardContent>
           </Card>
+
+          {formError && (
+            <p className="text-sm text-destructive">{formError}</p>
+          )}
 
           <div className="flex gap-3">
             <Button type="submit" disabled={saving}>
