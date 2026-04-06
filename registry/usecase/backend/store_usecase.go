@@ -38,7 +38,7 @@ func (s *Store) ListUseCases(f UseCaseFilter) (*UseCaseListResult, error) {
 
 	if f.Query != "" {
 		where = append(where, "(uc.title LIKE ? OR uc.description LIKE ?)")
-		q := "%" + f.Query + "%"
+		q := "%" + escapeLike(f.Query) + "%"
 		args = append(args, q, q)
 	}
 	if f.Domain != "" {
@@ -47,7 +47,7 @@ func (s *Store) ListUseCases(f UseCaseFilter) (*UseCaseListResult, error) {
 	}
 	if f.Industry != "" {
 		where = append(where, "uc.industry_tags LIKE ?")
-		args = append(args, "%"+f.Industry+"%")
+		args = append(args, "%"+escapeLike(f.Industry)+"%")
 	}
 	if f.Risk != "" {
 		where = append(where, "uc.risk_level = ?")
@@ -318,6 +318,12 @@ func scanUseCaseFields(s scanner) (UseCase, error) {
 	uc.Author = &author
 
 	return uc, nil
+}
+
+var likeReplacer = strings.NewReplacer("%", "\\%", "_", "\\_")
+
+func escapeLike(s string) string {
+	return likeReplacer.Replace(s)
 }
 
 func scanUseCase(rows *sql.Rows) (UseCase, error) {
