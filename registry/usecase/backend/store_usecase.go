@@ -91,6 +91,9 @@ func (s *Store) ListUseCases(f UseCaseFilter) (*UseCaseListResult, error) {
 		}
 		usecases = append(usecases, uc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate use cases: %w", err)
+	}
 
 	return &UseCaseListResult{
 		UseCases: usecases,
@@ -263,6 +266,9 @@ func (s *Store) ListUserUseCases(authorID string) ([]UseCase, error) {
 			return nil, fmt.Errorf("scan use case: %w", err)
 		}
 		usecases = append(usecases, uc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate user use cases: %w", err)
 	}
 	return usecases, nil
 }
