@@ -31,10 +31,13 @@ var sendCmd = &cobra.Command{
 		account, _ := cmd.Flags().GetString("account")
 
 		if dryPath := os.Getenv("OBK_GMAIL_DRY_RUN"); dryPath != "" {
-			data, _ := json.Marshal(map[string]any{
+			data, err := json.Marshal(map[string]any{
 				"to": to, "cc": cc, "bcc": bcc,
 				"subject": subject, "body": body, "account": account,
 			})
+			if err != nil {
+				return fmt.Errorf("dry-run marshal: %w", err)
+			}
 			if err := os.WriteFile(dryPath, data, 0600); err != nil {
 				return fmt.Errorf("dry-run write: %w", err)
 			}
