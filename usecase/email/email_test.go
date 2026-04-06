@@ -114,10 +114,14 @@ func TestUseCase_EmailSendWithApproval(t *testing.T) {
 		t.Error("dry-run: subject is empty")
 	}
 
-	// Check body mentions budget/spreadsheet
+	// Check body mentions budget/spreadsheet/review/noon
 	body, _ := sent["body"].(string)
 	if body == "" {
-		t.Error("dry-run: body is empty")
+		t.Fatal("dry-run: body is empty")
+	}
+	bodyLower := strings.ToLower(body)
+	if !strings.Contains(bodyLower, "budget") && !strings.Contains(bodyLower, "spreadsheet") && !strings.Contains(bodyLower, "review") && !strings.Contains(bodyLower, "noon") {
+		t.Errorf("dry-run: body should mention budget/spreadsheet/review/noon, got: %s", body)
 	}
 }
 

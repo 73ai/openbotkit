@@ -2,6 +2,7 @@ package spectest
 
 import (
 	"context"
+	"database/sql"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,12 +13,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
+	"github.com/riverqueue/river/riverdriver/riversqlite"
+	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/73ai/openbotkit/agent"
 	"github.com/73ai/openbotkit/agent/tools"
 	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon"
 	"github.com/73ai/openbotkit/daemon/jobs"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/testutil"
@@ -496,15 +499,15 @@ func (f *LocalFixture) EmailIDs(t *testing.T) []int64 {
 	return ids
 }
 
-// RunEventHook processes an event hook, classifying the given email IDs with
-// an LLM and pushing notifications via the provided pusher.
+// RunEventHook tests the full event hook pipeline end-to-end:
+// SyncNotifier → HookListener → River enqueue → EventHookWorker → LLM → Pusher.
 // The modelsConfig must specify at least a nano or fast tier for the LLM call.
 func (f *LocalFixture) RunEventHook(t *testing.T, pusher *CapturePusher, emailIDs []int64, modelsConfig *config.ModelsConfig) {
 	t.Helper()
 
 	dir := f.dir
 
-	// Open hooks DB (co-located with scheduler)
+	// Open hooks DB (co-located with scheduler).
 	hooksDBPath := filepath.Join(dir, "scheduler", "data.db")
 	hooksDB, err := store.Open(store.SQLiteConfig(hooksDBPath))
 	if err != nil {
@@ -516,7 +519,7 @@ func (f *LocalFixture) RunEventHook(t *testing.T, pusher *CapturePusher, emailID
 		t.Fatalf("migrate hooks: %v", err)
 	}
 
-	hookID, err := hooks.Create(hooksDB, &hooks.EventHook{
+	_, err = hooks.Create(hooksDB, &hooks.EventHook{
 		EventType: "gmail_sync",
 		Prompt: `You will receive an email. Decide if it is urgent and requires immediate attention.
 
@@ -540,24 +543,69 @@ Not urgent: newsletters, marketing, routine updates, automated notifications, ti
 	cfg.Gmail.Storage.DSN = filepath.Join(dir, "gmail", "data.db")
 	cfg.Models = modelsConfig
 
-	worker := &jobs.EventHookWorker{
+	// Set up River with the EventHookWorker.
+	jobsDBPath := filepath.Join(dir, "hook-jobs.db")
+	jobsDB, err := sql.Open("sqlite", jobsDBPath)
+	if err != nil {
+		t.Fatalf("open jobs db: %v", err)
+	}
+	defer jobsDB.Close()
+	jobsDB.SetMaxOpenConns(1)
+
+	driver := riversqlite.New(jobsDB)
+	migrator, err := rivermigrate.New(driver, nil)
+	if err != nil {
+		t.Fatalf("create migrator: %v", err)
+	}
+	if _, err := migrator.Migrate(context.Background(), rivermigrate.DirectionUp, nil); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	workers := river.NewWorkers()
+	river.AddWorker(workers, &jobs.EventHookWorker{
 		Cfg:     cfg,
 		ChanReg: chanReg,
 		HooksDB: hooksDB,
+	})
+
+	riverClient, err := river.NewClient(driver, &river.Config{
+		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 1}},
+		Workers: workers,
+	})
+	if err != nil {
+		t.Fatalf("create river client: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	job := &river.Job[jobs.EventHookArgs]{
-		JobRow: &rivertype.JobRow{},
-		Args: jobs.EventHookArgs{
-			HookID:  hookID,
-			ItemIDs: emailIDs,
-		},
+	if err := riverClient.Start(ctx); err != nil {
+		t.Fatalf("start river: %v", err)
 	}
-	if err := worker.Work(ctx, job); err != nil {
-		t.Fatalf("event hook work: %v", err)
+	defer riverClient.Stop(context.Background())
+
+	// Set up the SyncNotifier and HookListener.
+	notifier := daemon.NewSyncNotifier()
+	hookListener := daemon.NewHookListener(cfg, riverClient, jobsDB, notifier, hooksDB)
+	go hookListener.Run(ctx)
+
+	// Fire the signal — this is what the gmail sync does after fetching new emails.
+	notifier.NotifyWithData("gmail", emailIDs)
+
+	// Poll until the pusher receives at least one message (or timeout).
+	deadline := time.After(90 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for event hook to deliver push notification")
+		case <-ticker.C:
+			if len(pusher.Messages()) > 0 {
+				return
+			}
+		}
 	}
 }
 

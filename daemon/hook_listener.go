@@ -27,6 +27,7 @@ type HookListener struct {
 	jobsDB   *sql.DB
 	notifier *SyncNotifier
 	hooksDB  *store.DB
+	ch       <-chan SyncSignal
 }
 
 func NewHookListener(cfg *config.Config, rc *river.Client[*sql.Tx], jobsDB *sql.DB, notifier *SyncNotifier, hooksDB *store.DB) *HookListener {
@@ -36,12 +37,13 @@ func NewHookListener(cfg *config.Config, rc *river.Client[*sql.Tx], jobsDB *sql.
 		jobsDB:   jobsDB,
 		notifier: notifier,
 		hooksDB:  hooksDB,
+		ch:       notifier.Subscribe(), // subscribe eagerly so no signals are lost
 	}
 }
 
 func (l *HookListener) Run(ctx context.Context) {
 	l.ensureDefaults()
-	ch := l.notifier.Subscribe()
+	ch := l.ch
 
 	for {
 		select {
