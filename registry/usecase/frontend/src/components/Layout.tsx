@@ -2,6 +2,12 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
+function navClass(href: string) {
+  const path = window.location.pathname;
+  const active = href === "/" ? path === "/" || path === "/index.html" : path.startsWith(href);
+  return active ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground";
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, loading, login, logout } = useAuth();
 
@@ -14,17 +20,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               Use Case Registry
             </a>
             <nav className="flex items-center gap-3 sm:gap-4 text-sm">
-              <a
-                href="/"
-                className="text-muted-foreground hover:text-foreground"
-              >
+              <a href="/" className={navClass("/")}>
                 Browse
               </a>
               {user && (
-                <a
-                  href="/dashboard"
-                  className="text-muted-foreground hover:text-foreground"
-                >
+                <a href="/dashboard" className={navClass("/dashboard")}>
                   Dashboard
                 </a>
               )}
