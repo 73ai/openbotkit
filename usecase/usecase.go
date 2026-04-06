@@ -38,6 +38,7 @@ type Fixture struct {
 	mainModel    string
 	fastProvider provider.Provider
 	fastModel    string
+	Models       *config.ModelsConfig
 }
 
 // NewFixture creates a use case test fixture with profile-based providers.
@@ -107,6 +108,7 @@ func NewFixture(t *testing.T) *Fixture {
 		mainModel:    mainModel,
 		fastProvider: fastProvider,
 		fastModel:    fastModel,
+		Models:       models,
 	}
 }
 

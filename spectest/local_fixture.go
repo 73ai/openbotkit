@@ -1,6 +1,7 @@
 package spectest
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -10,17 +11,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
+
 	"github.com/73ai/openbotkit/agent"
 	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/channel"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon/jobs"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/testutil"
-	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/provider/anthropic"
 	"github.com/73ai/openbotkit/provider/gemini"
 	"github.com/73ai/openbotkit/provider/openai"
-	embeddedSkills "github.com/73ai/openbotkit/skills"
 	"github.com/73ai/openbotkit/service/contacts"
+	"github.com/73ai/openbotkit/service/hooks"
+	"github.com/73ai/openbotkit/service/memory"
+	embeddedSkills "github.com/73ai/openbotkit/skills"
 	gmail "github.com/73ai/openbotkit/source/gmail"
 	"github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"
@@ -458,6 +466,98 @@ func (f *LocalFixture) GivenMemories(t *testing.T, memories []UserMemory) {
 		if _, err := ms.Add(m.Content, memory.Category(cat), "manual", ""); err != nil {
 			t.Fatalf("add memory %d: %v", i, err)
 		}
+	}
+}
+
+// EmailIDs returns all email row IDs from the gmail database.
+func (f *LocalFixture) EmailIDs(t *testing.T) []int64 {
+	t.Helper()
+	dbPath := filepath.Join(f.dir, "gmail", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open gmail db: %v", err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT id FROM emails ORDER BY id")
+	if err != nil {
+		t.Fatalf("query email ids: %v", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan id: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// RunEventHook processes an event hook, classifying the given email IDs with
+// an LLM and pushing notifications via the provided pusher.
+// The modelsConfig must specify at least a nano or fast tier for the LLM call.
+func (f *LocalFixture) RunEventHook(t *testing.T, pusher *CapturePusher, emailIDs []int64, modelsConfig *config.ModelsConfig) {
+	t.Helper()
+
+	dir := f.dir
+
+	// Open hooks DB (co-located with scheduler)
+	hooksDBPath := filepath.Join(dir, "scheduler", "data.db")
+	hooksDB, err := store.Open(store.SQLiteConfig(hooksDBPath))
+	if err != nil {
+		t.Fatalf("open hooks db: %v", err)
+	}
+	defer hooksDB.Close()
+
+	if err := hooks.Migrate(hooksDB); err != nil {
+		t.Fatalf("migrate hooks: %v", err)
+	}
+
+	hookID, err := hooks.Create(hooksDB, &hooks.EventHook{
+		EventType: "gmail_sync",
+		Prompt: `You will receive an email. Decide if it is urgent and requires immediate attention.
+
+If NOT urgent, reply with exactly: SKIP
+If urgent, write a short Telegram notification (1-3 sentences) summarizing the email and why it's urgent.
+
+Urgent examples: production outages, security alerts, time-sensitive deadlines, emergency contacts.
+Not urgent: newsletters, marketing, routine updates, automated notifications, timesheet reminders.`,
+		Channel:   "telegram",
+		ModelTier: "nano",
+	})
+	if err != nil {
+		t.Fatalf("create hook: %v", err)
+	}
+
+	chanReg := channel.NewRegistry()
+	chanReg.Register("telegram", pusher)
+
+	cfg := config.Default()
+	cfg.Gmail.Storage.Driver = "sqlite"
+	cfg.Gmail.Storage.DSN = filepath.Join(dir, "gmail", "data.db")
+	cfg.Models = modelsConfig
+
+	worker := &jobs.EventHookWorker{
+		Cfg:     cfg,
+		ChanReg: chanReg,
+		HooksDB: hooksDB,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	job := &river.Job[jobs.EventHookArgs]{
+		JobRow: &rivertype.JobRow{},
+		Args: jobs.EventHookArgs{
+			HookID:  hookID,
+			ItemIDs: emailIDs,
+		},
+	}
+	if err := worker.Work(ctx, job); err != nil {
+		t.Fatalf("event hook work: %v", err)
 	}
 }
 
