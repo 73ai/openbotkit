@@ -2,7 +2,9 @@ package gmail
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/oauth/google"
@@ -32,6 +34,18 @@ var draftsCreateCmd = &cobra.Command{
 		subject, _ := cmd.Flags().GetString("subject")
 		body, _ := cmd.Flags().GetString("body")
 		account, _ := cmd.Flags().GetString("account")
+
+		if dryPath := os.Getenv("OBK_GMAIL_DRY_RUN"); dryPath != "" {
+			data, _ := json.Marshal(map[string]any{
+				"to": to, "cc": cc, "bcc": bcc,
+				"subject": subject, "body": body, "account": account,
+			})
+			if err := os.WriteFile(dryPath, data, 0600); err != nil {
+				return fmt.Errorf("dry-run write: %w", err)
+			}
+			fmt.Printf("Draft created (dry-run, written to %s)\n", dryPath)
+			return nil
+		}
 
 		if cfg.IsRemote() {
 			client, err := newRemoteClient(cfg)
