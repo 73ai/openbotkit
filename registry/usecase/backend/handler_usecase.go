@@ -104,6 +104,22 @@ func (s *Server) handleUpdateUseCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.RiskLevel == "" {
+		req.RiskLevel = "medium"
+	}
+	if req.ROIPotential == "" {
+		req.ROIPotential = "medium"
+	}
+	if req.Status == "" {
+		req.Status = "draft"
+	}
+	if req.ImplStatus == "" {
+		req.ImplStatus = "evaluating"
+	}
+	if req.Visibility == "" {
+		req.Visibility = "public"
+	}
+
 	if err := validateUseCaseRequest(&req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
