@@ -234,12 +234,14 @@ func (g *Gmail) Sync(ctx context.Context, db *store.DB, opts SyncOptions) (*Sync
 				}
 			}
 
-			if _, err := SaveEmail(db, fetched); err != nil {
+			emailID, err := SaveEmail(db, fetched)
+			if err != nil {
 				slog.Error("error saving email", "id", id, "error", err)
 				result.Errors++
 				continue
 			}
 
+			result.NewIDs = append(result.NewIDs, emailID)
 			result.Fetched++
 		}
 

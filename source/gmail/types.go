@@ -49,6 +49,7 @@ type SyncResult struct {
 	Fetched int
 	Skipped int
 	Errors  int
+	NewIDs  []int64 // IDs of newly saved emails
 }
 
 type ListOptions struct {
