@@ -42,6 +42,12 @@ func NewHookListener(cfg *config.Config, rc *river.Client[*sql.Tx], jobsDB *sql.
 }
 
 func (l *HookListener) Run(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("hook listener panicked", "panic", r)
+		}
+	}()
+
 	l.ensureDefaults()
 	ch := l.ch
 
