@@ -35,11 +35,6 @@ func (s *Server) handleCreateUseCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Title == "" || req.Description == "" || req.Domain == "" {
-		writeError(w, http.StatusBadRequest, "title, description, and domain are required")
-		return
-	}
-
 	if req.RiskLevel == "" {
 		req.RiskLevel = "medium"
 	}
@@ -47,13 +42,18 @@ func (s *Server) handleCreateUseCase(w http.ResponseWriter, r *http.Request) {
 		req.ROIPotential = "medium"
 	}
 	if req.Status == "" {
-		req.Status = "published"
+		req.Status = "draft"
 	}
 	if req.ImplStatus == "" {
 		req.ImplStatus = "evaluating"
 	}
 	if req.Visibility == "" {
 		req.Visibility = "public"
+	}
+
+	if err := validateUseCaseRequest(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	id := newID()
@@ -104,8 +104,8 @@ func (s *Server) handleUpdateUseCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Title == "" || req.Description == "" || req.Domain == "" {
-		writeError(w, http.StatusBadRequest, "title, description, and domain are required")
+	if err := validateUseCaseRequest(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
