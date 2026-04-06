@@ -8,7 +8,10 @@ import (
 
 	"github.com/riverqueue/river"
 
+	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/service/hooks"
+	"github.com/73ai/openbotkit/store"
 )
 
 type Daemon struct {
@@ -68,7 +71,14 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	notifier := NewSyncNotifier()
 
-	client, db, err := newRiverClient(ctx, d.cfg, notifier)
+	chanReg := channel.NewRegistry()
+	hooksDB, err := d.openHooksDB()
+	if err != nil {
+		return fmt.Errorf("open hooks db: %w", err)
+	}
+	defer hooksDB.Close()
+
+	client, db, err := newRiverClient(ctx, d.cfg, notifier, chanReg, hooksDB)
 	if err != nil {
 		return fmt.Errorf("init river: %w", err)
 	}
@@ -80,6 +90,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return fmt.Errorf("start river: %w", err)
 	}
 	slog.Info("river job queue started")
+
+	hookListener := NewHookListener(d.cfg, d.river, d.jobsDB, notifier, hooksDB)
+	go hookListener.Run(ctx)
 
 	if !d.skipScheduler {
 		d.scheduler = NewScheduler(d.cfg, d.river, d.jobsDB, notifier)
@@ -145,4 +158,17 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	slog.Info("daemon stopped")
 	return nil
+}
+
+func (d *Daemon) openHooksDB() (*store.DB, error) {
+	dsn := d.cfg.SchedulerDataDSN()
+	db, err := store.Open(store.SQLiteConfig(dsn))
+	if err != nil {
+		return nil, err
+	}
+	if err := hooks.Migrate(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
 }

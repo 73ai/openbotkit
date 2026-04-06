@@ -10,11 +10,13 @@ import (
 	"github.com/riverqueue/river/riverdriver/riversqlite"
 	"github.com/riverqueue/river/rivermigrate"
 
+	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/daemon/jobs"
+	"github.com/73ai/openbotkit/store"
 )
 
-func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotifier) (*river.Client[*sql.Tx], *sql.DB, error) {
+func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotifier, chanReg *channel.Registry, hooksDB *store.DB) (*river.Client[*sql.Tx], *sql.DB, error) {
 	dsn := cfg.JobsDBDSN()
 
 	db, err := sql.Open("sqlite", dsn)
@@ -38,7 +40,12 @@ func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotif
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &jobs.GmailSyncWorker{
 		Cfg:        cfg,
-		OnComplete: func() { notifier.Notify("gmail") },
+		OnComplete: func(ids []int64) { notifier.NotifyWithData("gmail", ids) },
+	})
+	river.AddWorker(workers, &jobs.EventHookWorker{
+		Cfg:     cfg,
+		ChanReg: chanReg,
+		HooksDB: hooksDB,
 	})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
 	river.AddWorker(workers, &jobs.ScheduledTaskWorker{Cfg: cfg})

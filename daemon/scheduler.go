@@ -206,11 +206,12 @@ func (s *Scheduler) pollOneShot(ctx context.Context) error {
 }
 
 func (s *Scheduler) reactiveCheckLoop(ctx context.Context) {
+	ch := s.notifier.Subscribe()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case sig := <-s.notifier.C():
+		case sig := <-ch:
 			if err := s.checkReactiveTriggers(ctx, sig.Source); err != nil {
 				slog.Error("scheduler: reactive check failed", "source", sig.Source, "error", err)
 			}

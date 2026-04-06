@@ -18,9 +18,10 @@ const (
 
 // CommandFilter validates shell commands against an allowlist or blocklist.
 type CommandFilter struct {
-	allowed   []string // if set, only these prefixes pass
-	blocked   []string // if set, these prefixes are rejected
-	softAllow bool     // if true, non-matching returns FilterPrompt instead of FilterDeny
+	allowed        []string // if set, only these prefixes pass
+	blocked        []string // if set, these prefixes are rejected
+	softAllow      bool     // if true, non-matching returns FilterPrompt instead of FilterDeny
+	promptPrefixes []string // command prefixes that require approval even when on the allowlist
 }
 
 // NewAllowlistFilter creates a filter that only permits commands
@@ -40,6 +41,12 @@ func NewSoftAllowlistFilter(prefixes []string) *CommandFilter {
 // whose first token matches any of the given prefixes.
 func NewBlocklistFilter(prefixes []string) *CommandFilter {
 	return &CommandFilter{blocked: prefixes}
+}
+
+// SetPromptPrefixes adds command prefixes that require approval even when on
+// the allowlist. A segment starting with any prefix returns FilterPrompt.
+func (f *CommandFilter) SetPromptPrefixes(prefixes []string) {
+	f.promptPrefixes = prefixes
 }
 
 // CheckWithResult validates the given command string and returns a FilterResult
@@ -97,6 +104,12 @@ func (f *CommandFilter) checkSegmentResult(seg string) (FilterResult, error) {
 	fields := strings.Fields(strings.TrimSpace(seg))
 	if len(fields) == 0 {
 		return FilterAllow, nil
+	}
+	normalized := strings.Join(fields, " ")
+	for _, prefix := range f.promptPrefixes {
+		if strings.HasPrefix(normalized, prefix) {
+			return FilterPrompt, nil
+		}
 	}
 	if len(f.allowed) > 0 {
 		return f.checkTokenResult(fields[0])
@@ -186,6 +199,13 @@ var InteractiveAllowlist = []string{
 	"find", "grep", "rg",
 	"date", "cal", "echo", "printf",
 	"git", "tree", "file", "stat", "jq", "which",
+}
+
+// WriteCommandPrefixes are obk commands that perform write actions and
+// require user approval even when obk is on the allowlist.
+var WriteCommandPrefixes = []string{
+	"obk gmail send",
+	"obk gmail drafts create",
 }
 
 // DefaultBlocklist is the legacy blocklist used when no Interactor is provided

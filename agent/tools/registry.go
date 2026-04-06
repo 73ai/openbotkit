@@ -60,8 +60,10 @@ func NewStandardRegistry(inter Interactor, rules *ApprovalRuleSet) *Registry {
 	r := NewRegistry()
 	var bashOpts []BashOption
 	if inter != nil {
+		filter := NewSoftAllowlistFilter(InteractiveAllowlist)
+		filter.SetPromptPrefixes(WriteCommandPrefixes)
 		bashOpts = append(bashOpts,
-			WithCommandFilter(NewSoftAllowlistFilter(InteractiveAllowlist)),
+			WithCommandFilter(filter),
 			WithInteractor(inter),
 			WithApprovalRuleSet(rules),
 		)

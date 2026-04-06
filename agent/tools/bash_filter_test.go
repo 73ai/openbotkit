@@ -280,6 +280,46 @@ func TestCheckWithResult_BlocklistAllows(t *testing.T) {
 	}
 }
 
+func TestPromptPrefix_OverridesAllow(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	f.SetPromptPrefixes(WriteCommandPrefixes)
+
+	// obk is on the allowlist, but "obk gmail send" matches a prompt prefix
+	result, err := f.CheckWithResult("obk gmail send --to a@b.com --subject hi --body hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterPrompt {
+		t.Errorf("result = %d, want FilterPrompt for obk gmail send", result)
+	}
+}
+
+func TestPromptPrefix_DraftCreate(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	f.SetPromptPrefixes(WriteCommandPrefixes)
+
+	result, err := f.CheckWithResult("obk gmail drafts create --to a@b.com --subject draft --body wip")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterPrompt {
+		t.Errorf("result = %d, want FilterPrompt for obk gmail drafts create", result)
+	}
+}
+
+func TestPromptPrefix_ReadCommandStillAllowed(t *testing.T) {
+	f := NewSoftAllowlistFilter(InteractiveAllowlist)
+	f.SetPromptPrefixes(WriteCommandPrefixes)
+
+	result, err := f.CheckWithResult("obk gmail list")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != FilterAllow {
+		t.Errorf("result = %d, want FilterAllow for obk gmail list", result)
+	}
+}
+
 func TestDefaultBlocklist_Coverage(t *testing.T) {
 	f := NewBlocklistFilter(DefaultBlocklist)
 	blocked := []string{"curl x", "wget x", "nc x", "ssh x", "scp x", "sudo x", "chmod x", "chown x", "eval x", "exec x", "ncat x", "nmap x", "bash -c x", "python3 -c x", "env curl x"}

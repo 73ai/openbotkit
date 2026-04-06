@@ -1,6 +1,8 @@
 package spectest
 
 import (
+	"context"
+	"database/sql"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -10,17 +12,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riversqlite"
+	"github.com/riverqueue/river/rivermigrate"
+
 	"github.com/73ai/openbotkit/agent"
 	"github.com/73ai/openbotkit/agent/tools"
+	"github.com/73ai/openbotkit/channel"
+	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon"
+	"github.com/73ai/openbotkit/daemon/jobs"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/testutil"
-	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/provider/anthropic"
 	"github.com/73ai/openbotkit/provider/gemini"
 	"github.com/73ai/openbotkit/provider/openai"
-	embeddedSkills "github.com/73ai/openbotkit/skills"
 	"github.com/73ai/openbotkit/service/contacts"
+	"github.com/73ai/openbotkit/service/hooks"
+	"github.com/73ai/openbotkit/service/memory"
+	embeddedSkills "github.com/73ai/openbotkit/skills"
 	gmail "github.com/73ai/openbotkit/source/gmail"
 	"github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"
@@ -457,6 +468,143 @@ func (f *LocalFixture) GivenMemories(t *testing.T, memories []UserMemory) {
 		}
 		if _, err := ms.Add(m.Content, memory.Category(cat), "manual", ""); err != nil {
 			t.Fatalf("add memory %d: %v", i, err)
+		}
+	}
+}
+
+// EmailIDs returns all email row IDs from the gmail database.
+func (f *LocalFixture) EmailIDs(t *testing.T) []int64 {
+	t.Helper()
+	dbPath := filepath.Join(f.dir, "gmail", "data.db")
+	db, err := store.Open(store.SQLiteConfig(dbPath))
+	if err != nil {
+		t.Fatalf("open gmail db: %v", err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT id FROM emails ORDER BY id")
+	if err != nil {
+		t.Fatalf("query email ids: %v", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan id: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// RunEventHook tests the full event hook pipeline end-to-end:
+// SyncNotifier → HookListener → River enqueue → EventHookWorker → LLM → Pusher.
+// The modelsConfig must specify at least a nano or fast tier for the LLM call.
+func (f *LocalFixture) RunEventHook(t *testing.T, pusher *CapturePusher, emailIDs []int64, modelsConfig *config.ModelsConfig) {
+	t.Helper()
+
+	dir := f.dir
+
+	// Open hooks DB (co-located with scheduler).
+	hooksDBPath := filepath.Join(dir, "scheduler", "data.db")
+	hooksDB, err := store.Open(store.SQLiteConfig(hooksDBPath))
+	if err != nil {
+		t.Fatalf("open hooks db: %v", err)
+	}
+	defer hooksDB.Close()
+
+	if err := hooks.Migrate(hooksDB); err != nil {
+		t.Fatalf("migrate hooks: %v", err)
+	}
+
+	_, err = hooks.Create(hooksDB, &hooks.EventHook{
+		EventType: "gmail_sync",
+		Prompt: `You will receive an email. Decide if it is urgent and requires immediate attention.
+
+If NOT urgent, reply with exactly: SKIP
+If urgent, write a short Telegram notification (1-3 sentences) summarizing the email and why it's urgent.
+
+Urgent examples: production outages, security alerts, time-sensitive deadlines, emergency contacts.
+Not urgent: newsletters, marketing, routine updates, automated notifications, timesheet reminders.`,
+		Channel:   "telegram",
+		ModelTier: "nano",
+	})
+	if err != nil {
+		t.Fatalf("create hook: %v", err)
+	}
+
+	chanReg := channel.NewRegistry()
+	chanReg.Register("telegram", pusher)
+
+	cfg := config.Default()
+	cfg.Gmail.Storage.Driver = "sqlite"
+	cfg.Gmail.Storage.DSN = filepath.Join(dir, "gmail", "data.db")
+	cfg.Models = modelsConfig
+
+	// Set up River with the EventHookWorker.
+	jobsDBPath := filepath.Join(dir, "hook-jobs.db")
+	jobsDB, err := sql.Open("sqlite", jobsDBPath)
+	if err != nil {
+		t.Fatalf("open jobs db: %v", err)
+	}
+	defer jobsDB.Close()
+	jobsDB.SetMaxOpenConns(1)
+
+	driver := riversqlite.New(jobsDB)
+	migrator, err := rivermigrate.New(driver, nil)
+	if err != nil {
+		t.Fatalf("create migrator: %v", err)
+	}
+	if _, err := migrator.Migrate(context.Background(), rivermigrate.DirectionUp, nil); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	workers := river.NewWorkers()
+	river.AddWorker(workers, &jobs.EventHookWorker{
+		Cfg:     cfg,
+		ChanReg: chanReg,
+		HooksDB: hooksDB,
+	})
+
+	riverClient, err := river.NewClient(driver, &river.Config{
+		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 1}},
+		Workers: workers,
+	})
+	if err != nil {
+		t.Fatalf("create river client: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	if err := riverClient.Start(ctx); err != nil {
+		t.Fatalf("start river: %v", err)
+	}
+	defer riverClient.Stop(context.Background())
+
+	// Set up the SyncNotifier and HookListener.
+	notifier := daemon.NewSyncNotifier()
+	hookListener := daemon.NewHookListener(cfg, riverClient, jobsDB, notifier, hooksDB)
+	go hookListener.Run(ctx)
+
+	// Fire the signal — this is what the gmail sync does after fetching new emails.
+	notifier.NotifyWithData("gmail", emailIDs)
+
+	// Poll until the pusher receives at least one message (or timeout).
+	deadline := time.After(90 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for event hook to deliver push notification")
+		case <-ticker.C:
+			if len(pusher.Messages()) > 0 {
+				return
+			}
 		}
 	}
 }
