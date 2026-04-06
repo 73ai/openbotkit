@@ -3,6 +3,56 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.0] (2026-04-06)
+
+### Added
+
+- **registry**: Init Go module and DB store wrapper
+- **registry**: Add User/UseCase models and DB schema
+- **registry**: Add server bootstrap, config, and health endpoint
+- **registry**: Add CORS, body limit, and JWT auth middleware
+- **registry**: Add Google OAuth, demo login, and user handlers
+- **registry**: Add store queries for users and use cases
+- **registry**: Add public browse and detail handlers
+- **registry**: Add create, update, delete use case handlers
+- **registry**: Add fork and dashboard handlers
+- **registry**: Add 8 curated seed use cases across domains
+- **registry**: Init frontend with React, Vite, Tailwind, shadcn deps
+- **registry**: Add HTML entry points, TSX entries, and global CSS
+- **registry**: Add frontend lib (types, API client, auth hook, utils)
+- **registry**: Add shadcn/ui components
+- **registry**: Add Layout and all pages (Home, Detail, Form, Dashboard)
+- **registry**: Add Express production server with API proxy
+- **registry**: Replace seed data with 18 researched use cases
+- **registry**: Add pagination controls to browse page
+
+### Changed
+
+- **registry**: Single-column layout grouped by domain
+
+### Fixed
+
+- **registry**: Add input validation for use case fields
+- **registry**: Enforce JWT secret in production, fix fork race condition
+- **registry**: Add error states, loading states, permission checks
+- **registry**: Restrict CORS to exact frontend URLs
+- **registry**: Hide private/draft use cases from non-authors
+- **registry**: Validate use case ID as hex before API calls
+- **registry**: Default empty fields on update like create does
+- **registry**: Check rows.Err() after DB iteration loops
+- **registry**: Set Secure flag on auth cookie in production
+- **registry**: Add max length validation for description (5000 chars)
+- **registry**: Decrement fork count when forked use case is deleted
+- **registry**: Add search debounce and abort controller
+- **registry**: Deduplicate auth requests with cached singleton
+- **registry**: Add client-side form validation and inline errors
+- **registry**: Fix demo login redirect and add port 5174 to CORS
+- **registry**: Improve mobile layout for header and detail footer
+- **registry**: Use destructive color for error messages on home page
+- **registry**: Highlight active nav link in header
+- **registry**: Replace alert/confirm with inline error and confirm UI
+- **registry**: Escape LIKE wildcards in search queries
+
 ## [0.10.0] (2026-04-01)
 
 ### Added
