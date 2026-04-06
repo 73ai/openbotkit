@@ -203,12 +203,37 @@ func (s *Store) ForkUseCase(originalID, newID, newSlug, authorID string) (*UseCa
 		AuthorID:          authorID,
 	}
 
-	if err := s.CreateUseCase(fork); err != nil {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("begin fork tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	insertQ := s.db.Rebind(`
+		INSERT INTO use_cases (id, title, slug, description, domain, industry_tags,
+			risk_level, roi_potential, status, impl_status, visibility,
+			safety_pii, safety_autonomous, safety_blast_radius, safety_oversight,
+			forked_from, fork_count, author_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	_, err = tx.Exec(insertQ,
+		fork.ID, fork.Title, fork.Slug, fork.Description, fork.Domain, fork.IndustryTags,
+		fork.RiskLevel, fork.ROIPotential, fork.Status, fork.ImplStatus, fork.Visibility,
+		fork.SafetyPII, fork.SafetyAutonomous, fork.SafetyBlastRadius, fork.SafetyOversight,
+		fork.ForkedFrom, fork.ForkCount, fork.AuthorID,
+	)
+	if err != nil {
 		return nil, fmt.Errorf("create fork: %w", err)
 	}
 
 	incrQ := s.db.Rebind(`UPDATE use_cases SET fork_count = fork_count + 1 WHERE id = ?`)
-	s.db.Exec(incrQ, originalID)
+	if _, err := tx.Exec(incrQ, originalID); err != nil {
+		return nil, fmt.Errorf("increment fork count: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit fork tx: %w", err)
+	}
 
 	return s.GetUseCase(newID)
 }

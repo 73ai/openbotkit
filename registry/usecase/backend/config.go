@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"log/slog"
+	"os"
+)
 
 type Config struct {
 	Addr              string
@@ -25,7 +28,13 @@ func LoadConfig() Config {
 		DemoLogin:         os.Getenv("REGISTRY_DEMO_LOGIN") == "true",
 	}
 	if cfg.JWTSecret == "" {
-		cfg.JWTSecret = "dev-secret-change-me"
+		if cfg.DemoLogin {
+			cfg.JWTSecret = "dev-secret-change-me"
+			slog.Warn("using default JWT secret; set REGISTRY_JWT_SECRET for production")
+		} else {
+			slog.Error("REGISTRY_JWT_SECRET is required when demo login is disabled")
+			os.Exit(1)
+		}
 	}
 	return cfg
 }
