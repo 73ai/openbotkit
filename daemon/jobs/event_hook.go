@@ -99,6 +99,9 @@ func (w *EventHookWorker) loadEmails(ids []int64) ([]gmailsrc.Email, error) {
 }
 
 func (w *EventHookWorker) resolveProvider(modelTier string) (provider.Provider, string, error) {
+	if w.Cfg.Models == nil {
+		return nil, "", fmt.Errorf("no models configured")
+	}
 	registry, err := provider.NewRegistry(w.Cfg.Models)
 	if err != nil {
 		return nil, "", fmt.Errorf("create provider registry: %w", err)

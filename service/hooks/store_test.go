@@ -62,6 +62,25 @@ func TestListEnabled(t *testing.T) {
 	}
 }
 
+func TestGetNotFound(t *testing.T) {
+	db := openTestDB(t)
+	_, err := Get(db, 999)
+	if err == nil {
+		t.Error("expected error for non-existent hook")
+	}
+}
+
+func TestListEnabledEmpty(t *testing.T) {
+	db := openTestDB(t)
+	hooks, err := ListEnabled(db, "nonexistent")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(hooks) != 0 {
+		t.Errorf("expected 0 hooks, got %d", len(hooks))
+	}
+}
+
 func TestUpdateLastRun(t *testing.T) {
 	db := openTestDB(t)
 	id, _ := Create(db, &EventHook{EventType: "gmail_sync", Prompt: "p", Channel: "telegram", ModelTier: "nano"})
