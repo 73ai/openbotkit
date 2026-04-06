@@ -38,7 +38,7 @@ func newRiverClient(ctx context.Context, cfg *config.Config, notifier *SyncNotif
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &jobs.GmailSyncWorker{
 		Cfg:        cfg,
-		OnComplete: func() { notifier.Notify("gmail") },
+		OnComplete: func(ids []int64) { notifier.NotifyWithData("gmail", ids) },
 	})
 	river.AddWorker(workers, &jobs.ReminderWorker{})
 	river.AddWorker(workers, &jobs.ScheduledTaskWorker{Cfg: cfg})
