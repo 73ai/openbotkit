@@ -182,6 +182,39 @@ func SearchEmails(db *store.DB, query string, limit int) ([]Email, error) {
 	return emails, rows.Err()
 }
 
+func GetEmailsByIDs(db *store.DB, ids []int64) ([]Email, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT id, message_id, account, from_addr, to_addr, subject, date, body, html_body
+		 FROM emails WHERE id IN (%s) ORDER BY date`,
+		strings.Join(placeholders, ","))
+
+	rows, err := db.Query(db.Rebind(query), args...)
+	if err != nil {
+		return nil, fmt.Errorf("get emails by ids: %w", err)
+	}
+	defer rows.Close()
+
+	var emails []Email
+	for rows.Next() {
+		var e Email
+		var id int64
+		if err := rows.Scan(&id, &e.MessageID, &e.Account, &e.From, &e.To, &e.Subject, &e.Date, &e.Body, &e.HTMLBody); err != nil {
+			return nil, fmt.Errorf("scan email: %w", err)
+		}
+		emails = append(emails, e)
+	}
+	return emails, rows.Err()
+}
+
 func CountEmails(db *store.DB, account string) (int64, error) {
 	query := "SELECT COUNT(*) FROM emails"
 	var args []any
