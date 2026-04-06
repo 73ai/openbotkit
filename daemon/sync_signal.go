@@ -46,7 +46,5 @@ func (n *SyncNotifier) send(sig SyncSignal) {
 	}
 }
 
-// C returns a subscriber channel. Kept for backward compatibility.
-func (n *SyncNotifier) C() <-chan SyncSignal {
-	return n.Subscribe()
-}
+// Subscribe must be called once per consumer before the event loop starts.
+// There is no Unsubscribe — the channel lives as long as the notifier.
