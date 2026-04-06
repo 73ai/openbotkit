@@ -18,6 +18,8 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -27,24 +29,40 @@ export default function Dashboard() {
     }
     apiFetch<DashboardResult>("/api/dashboard")
       .then((r) => setUseCases(r.use_cases || []))
-      .catch(() => setUseCases([]))
+      .catch((e) => setError(e.message || "Failed to load dashboard."))
       .finally(() => setLoading(false));
   }, [user, authLoading]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this use case?")) return;
+  const handleDelete = async (id: string, title: string) => {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    setDeletingId(id);
     try {
       await apiFetch(`/api/usecases/${id}`, { method: "DELETE" });
       setUseCases((prev) => prev.filter((uc) => uc.id !== id));
     } catch {
-      alert("Failed to delete");
+      alert("Failed to delete. Please try again.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
   if (authLoading || loading) {
     return (
       <Layout>
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">Loading your dashboard...</p>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="space-y-4">
+          <p className="text-muted-foreground">{error}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
       </Layout>
     );
   }
@@ -72,7 +90,11 @@ export default function Dashboard() {
                 <a href="/usecase-form.html" className="underline">
                   Create your first one
                 </a>
-                .
+                , or{" "}
+                <a href="/" className="underline">
+                  browse existing use cases
+                </a>{" "}
+                to fork one to your dashboard.
               </p>
             </CardContent>
           </Card>
@@ -118,9 +140,10 @@ export default function Dashboard() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => handleDelete(uc.id)}
+                    disabled={deletingId === uc.id}
+                    onClick={() => handleDelete(uc.id, uc.title)}
                   >
-                    Delete
+                    {deletingId === uc.id ? "Deleting..." : "Delete"}
                   </Button>
                 </CardFooter>
               </Card>

@@ -24,20 +24,26 @@ export default function UseCaseDetail() {
   const { user } = useAuth();
   const [uc, setUc] = useState<UseCase | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [forking, setForking] = useState(false);
 
   const id = new URLSearchParams(window.location.search).get("id");
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setError("No use case ID provided.");
+      setLoading(false);
+      return;
+    }
     apiFetch<UseCase>(`/api/usecases/${id}`)
       .then(setUc)
-      .catch(() => setUc(null))
+      .catch((e) => setError(e.message || "Failed to load use case."))
       .finally(() => setLoading(false));
   }, [id]);
 
   const handleFork = async () => {
     if (!uc || !user) return;
+    if (!confirm("Fork this use case to your dashboard? You can customize it after.")) return;
     setForking(true);
     try {
       const fork = await apiFetch<UseCase>(`/api/usecases/${uc.id}/fork`, {
@@ -45,7 +51,7 @@ export default function UseCaseDetail() {
       });
       window.location.href = `/usecase.html?id=${fork.id}`;
     } catch {
-      alert("Failed to fork use case");
+      alert("Failed to fork use case. Please try again.");
     } finally {
       setForking(false);
     }
@@ -54,20 +60,28 @@ export default function UseCaseDetail() {
   if (loading) {
     return (
       <Layout>
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">Loading use case...</p>
       </Layout>
     );
   }
 
-  if (!uc) {
+  if (error || !uc) {
     return (
       <Layout>
-        <p className="text-muted-foreground">Use case not found.</p>
+        <div className="space-y-4">
+          <p className="text-muted-foreground">
+            {error || "Use case not found."}
+          </p>
+          <Button variant="outline" asChild>
+            <a href="/">Back to browse</a>
+          </Button>
+        </div>
       </Layout>
     );
   }
 
   const isAuthor = user?.id === uc.author_id;
+  const wasUpdated = uc.updated_at !== uc.created_at;
 
   return (
     <Layout>
@@ -92,6 +106,9 @@ export default function UseCaseDetail() {
               <Badge variant="outline">{uc.impl_status}</Badge>
               {uc.visibility === "private" && (
                 <Badge variant="destructive">Private</Badge>
+              )}
+              {uc.status === "draft" && (
+                <Badge variant="outline">Draft</Badge>
               )}
             </div>
             <h1 className="text-3xl font-bold">{uc.title}</h1>
@@ -181,8 +198,15 @@ export default function UseCaseDetail() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Created by {uc.author?.name || "Unknown"} on{" "}
-                {new Date(uc.created_at).toLocaleDateString()}
+                <span>
+                  Created by {uc.author?.name || "Unknown"} on{" "}
+                  {new Date(uc.created_at).toLocaleDateString()}
+                </span>
+                {wasUpdated && (
+                  <span className="ml-3">
+                    Updated {new Date(uc.updated_at).toLocaleDateString()}
+                  </span>
+                )}
               </div>
               <Button asChild>
                 <a href="https://openbotkit.dev">

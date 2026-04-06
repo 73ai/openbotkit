@@ -79,8 +79,11 @@ export default function Home() {
   const [domain, setDomain] = useState("");
   const [risk, setRisk] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (domain) params.set("domain", domain);
@@ -92,7 +95,10 @@ export default function Home() {
         setUseCases(r.use_cases || []);
         setTotal(r.total);
       })
-      .catch(() => setUseCases([]))
+      .catch((e) => {
+        setUseCases([]);
+        setError(e.message || "Failed to load use cases. Please try again.");
+      })
       .finally(() => setLoading(false));
   }, [query, domain, risk]);
 
@@ -158,10 +164,19 @@ export default function Home() {
           </Select>
         </div>
 
-        {loading ? (
-          <p className="text-muted-foreground">Loading...</p>
+        {error ? (
+          <p className="text-muted-foreground">{error}</p>
+        ) : loading ? (
+          <p className="text-muted-foreground">Loading use cases...</p>
         ) : useCases.length === 0 ? (
-          <p className="text-muted-foreground">No use cases found.</p>
+          <div className="text-muted-foreground space-y-1">
+            <p>No use cases found.</p>
+            {(query || domain || risk) && (
+              <p className="text-sm">
+                Try adjusting your search or filters.
+              </p>
+            )}
+          </div>
         ) : (
           <>
             <p className="text-sm text-muted-foreground">

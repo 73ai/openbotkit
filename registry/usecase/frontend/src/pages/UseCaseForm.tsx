@@ -52,22 +52,32 @@ export default function UseCaseForm() {
       return;
     }
     if (editId) {
-      apiFetch<UseCase>(`/api/usecases/${editId}`).then((uc) => {
-        setExisting(uc);
-        setTitle(uc.title);
-        setDescription(uc.description);
-        setDomain(uc.domain);
-        setIndustryTags(uc.industry_tags || "");
-        setRiskLevel(uc.risk_level);
-        setRoiPotential(uc.roi_potential);
-        setStatus(uc.status);
-        setImplStatus(uc.impl_status);
-        setVisibility(uc.visibility);
-        setSafetyPii(uc.safety_pii);
-        setSafetyAutonomous(uc.safety_autonomous);
-        setSafetyBlastRadius(uc.safety_blast_radius || "");
-        setSafetyOversight(uc.safety_oversight || "");
-      });
+      apiFetch<UseCase>(`/api/usecases/${editId}`)
+        .then((uc) => {
+          if (uc.author_id !== user.id) {
+            alert("You can only edit your own use cases.");
+            window.location.href = `/usecase.html?id=${editId}`;
+            return;
+          }
+          setExisting(uc);
+          setTitle(uc.title);
+          setDescription(uc.description);
+          setDomain(uc.domain);
+          setIndustryTags(uc.industry_tags || "");
+          setRiskLevel(uc.risk_level);
+          setRoiPotential(uc.roi_potential);
+          setStatus(uc.status);
+          setImplStatus(uc.impl_status);
+          setVisibility(uc.visibility);
+          setSafetyPii(uc.safety_pii);
+          setSafetyAutonomous(uc.safety_autonomous);
+          setSafetyBlastRadius(uc.safety_blast_radius || "");
+          setSafetyOversight(uc.safety_oversight || "");
+        })
+        .catch(() => {
+          alert("Use case not found.");
+          window.location.href = "/dashboard";
+        });
     }
   }, [editId, user, authLoading]);
 
