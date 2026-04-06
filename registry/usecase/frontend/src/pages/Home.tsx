@@ -8,6 +8,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -78,13 +79,18 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [domain, setDomain] = useState("");
   const [risk, setRisk] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   const abortRef = useRef<AbortController | null>(null);
+  const limit = 20;
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+      setPage(1);
+    }, 300);
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -99,7 +105,8 @@ export default function Home() {
     if (debouncedQuery) params.set("q", debouncedQuery);
     if (domain) params.set("domain", domain);
     if (risk) params.set("risk", risk);
-    params.set("limit", "50");
+    params.set("page", String(page));
+    params.set("limit", String(limit));
 
     apiFetch<UseCaseListResult>(`/api/usecases?${params}`, {
       signal: controller.signal,
@@ -118,7 +125,7 @@ export default function Home() {
       });
 
     return () => controller.abort();
-  }, [debouncedQuery, domain, risk]);
+  }, [debouncedQuery, domain, risk, page]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, UseCase[]>();
@@ -150,7 +157,7 @@ export default function Home() {
           />
           <Select
             value={domain}
-            onValueChange={(v) => setDomain(v === "all" ? "" : v)}
+            onValueChange={(v) => { setDomain(v === "all" ? "" : v); setPage(1); }}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Domains" />
@@ -166,7 +173,7 @@ export default function Home() {
           </Select>
           <Select
             value={risk}
-            onValueChange={(v) => setRisk(v === "all" ? "" : v)}
+            onValueChange={(v) => { setRisk(v === "all" ? "" : v); setPage(1); }}
           >
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Risk Levels" />
@@ -214,6 +221,30 @@ export default function Home() {
                 </section>
               ))}
             </div>
+
+            {total > limit && (
+              <div className="flex items-center justify-center gap-4 pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {Math.ceil(total / limit)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= Math.ceil(total / limit)}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
