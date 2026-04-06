@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,6 +128,34 @@ type testInteractor struct{}
 func (t *testInteractor) Notify(_ string) error                  { return nil }
 func (t *testInteractor) NotifyLink(_, _ string) error           { return nil }
 func (t *testInteractor) RequestApproval(_ string) (bool, error) { return true, nil }
+
+// RecordingInteractor records approvals and notifications while auto-approving.
+type RecordingInteractor struct {
+	mu            sync.Mutex
+	Notifications []string
+	Approvals     []string
+}
+
+func (r *RecordingInteractor) Notify(msg string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Notifications = append(r.Notifications, msg)
+	return nil
+}
+
+func (r *RecordingInteractor) NotifyLink(text, _ string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Notifications = append(r.Notifications, text)
+	return nil
+}
+
+func (r *RecordingInteractor) RequestApproval(desc string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Approvals = append(r.Approvals, desc)
+	return true, nil
+}
 
 // SchedDBPath returns the path to the scheduler database.
 func (f *Fixture) SchedDBPath() string {
@@ -282,4 +311,58 @@ func (f *Fixture) LoadSkillContent(t *testing.T, skillName string) string {
 	}
 	t.Fatalf("no skill content found for %s in %s", skillName, skillsDir)
 	return ""
+}
+
+// AgentWithInteractor creates an agent with the given interactor for approval
+// gating. Uses the same tool set as Agent but with the interactor wired in.
+func (f *Fixture) AgentWithInteractor(t *testing.T, inter tools.Interactor, skillExtras ...string) *agent.Agent {
+	t.Helper()
+
+	toolReg := tools.NewStandardRegistry(inter, nil)
+
+	schedDeps := tools.ScheduleToolDeps{
+		Cfg: &config.Config{
+			Scheduler: &config.SchedulerConfig{
+				Storage: config.StorageConfig{Driver: "sqlite", DSN: f.SchedDBPath()},
+			},
+		},
+		Channel: "telegram",
+		ChannelMeta: scheduler.ChannelMeta{
+			BotToken: "test-token",
+			OwnerID:  42,
+		},
+	}
+	toolReg.Register(tools.NewCreateScheduleTool(schedDeps))
+	toolReg.Register(tools.NewListSchedulesTool(schedDeps))
+	toolReg.Register(tools.NewDeleteScheduleTool(schedDeps))
+
+	ws := websearch.New(websearch.Config{})
+	webDeps := tools.WebToolDeps{
+		WS:       ws,
+		Provider: f.fastProvider,
+		Model:    f.fastModel,
+	}
+	toolReg.Register(tools.NewWebSearchTool(webDeps))
+	toolReg.Register(tools.NewWebFetchTool(webDeps))
+
+	learningsDir := filepath.Join(f.Dir(), "learnings")
+	os.MkdirAll(learningsDir, 0700)
+	learningsDeps := tools.LearningsDeps{Store: learnings.New(learningsDir)}
+	toolReg.Register(tools.NewLearningSaveTool(learningsDeps))
+	toolReg.Register(tools.NewLearningReadTool(learningsDeps))
+	toolReg.Register(tools.NewLearningSearchTool(learningsDeps))
+
+	workspaceDir := f.WorkspaceDir()
+	os.MkdirAll(workspaceDir, 0700)
+
+	identity := "You are a personal AI assistant communicating via Telegram.\n"
+	extras := "\nThe user's timezone is America/New_York.\nToday's date is " + time.Now().Format("2006-01-02") + ".\n" +
+		"\nWorkspace directory: " + workspaceDir + "\n"
+	extras += strings.Join(skillExtras, "\n")
+	blocks := tools.BuildSystemBlocks(identity, toolReg, extras)
+
+	return agent.New(f.mainProvider, f.mainModel, toolReg,
+		agent.WithSystemBlocks(blocks),
+		agent.WithMaxIterations(15),
+	)
 }
