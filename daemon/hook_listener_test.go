@@ -31,7 +31,7 @@ func TestHookListener_HandleEvent_EnqueuesJob(t *testing.T) {
 	defer hooksDB.Close()
 	hooks.Migrate(hooksDB)
 
-	hookID, err := hooks.Create(hooksDB, &hooks.EventHook{
+	_, err = hooks.Create(hooksDB, &hooks.EventHook{
 		EventType: "gmail_sync",
 		Prompt:    "test prompt",
 		Channel:   "telegram",
@@ -95,7 +95,6 @@ func TestHookListener_HandleEvent_EnqueuesJob(t *testing.T) {
 		t.Fatal("job args empty")
 	}
 	t.Logf("enqueued job args: %s", argsJSON)
-	_ = hookID // used via DB
 }
 
 func TestHookListener_HandleEvent_SkipsNoData(t *testing.T) {
