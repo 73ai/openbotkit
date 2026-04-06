@@ -197,7 +197,7 @@ export default function UseCaseDetail() {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 <span>
                   Created by {uc.author?.name || "Unknown"} on{" "}
@@ -209,7 +209,7 @@ export default function UseCaseDetail() {
                   </span>
                 )}
               </div>
-              <Button asChild>
+              <Button asChild className="shrink-0">
                 <a href="https://openbotkit.dev">
                   Implement with OpenBotKit
                 </a>
