@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/riverqueue/river"
 
@@ -58,6 +59,7 @@ func (w *EventHookWorker) Work(ctx context.Context, job *river.Job[EventHookArgs
 		return fmt.Errorf("get pusher: %w", err)
 	}
 
+	var lastErr string
 	for _, email := range emails {
 		prompt := hook.Prompt + "\n\nFrom: " + email.From +
 			"\nSubject: " + email.Subject +
@@ -72,6 +74,7 @@ func (w *EventHookWorker) Work(ctx context.Context, job *river.Job[EventHookArgs
 		})
 		if err != nil {
 			slog.Warn("hook: classify failed", "email_id", email.MessageID, "err", err)
+			lastErr = err.Error()
 			continue
 		}
 
@@ -81,8 +84,10 @@ func (w *EventHookWorker) Work(ctx context.Context, job *river.Job[EventHookArgs
 		}
 		if err := pusher.Push(ctx, text); err != nil {
 			slog.Warn("hook: push failed", "email_id", email.MessageID, "err", err)
+			lastErr = err.Error()
 		}
 	}
+	hooks.UpdateLastRun(w.HooksDB, hook.ID, time.Now(), lastErr)
 	return nil
 }
 
