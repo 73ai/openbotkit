@@ -134,7 +134,12 @@ func (s *Server) handleAuthDemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.setTokenCookie(w, jwtStr)
-	http.Redirect(w, r, s.cfg.FrontendURL+"/dashboard", http.StatusFound)
+
+	redirect := s.cfg.FrontendURL + "/dashboard"
+	if ref := r.Referer(); ref != "" {
+		redirect = ref
+	}
+	http.Redirect(w, r, redirect, http.StatusFound)
 }
 
 func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {

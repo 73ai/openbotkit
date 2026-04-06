@@ -30,7 +30,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 
 		allowed := origin == s.cfg.FrontendURL
 		if s.cfg.DemoLogin {
-			allowed = allowed || origin == "http://localhost:3000" || origin == "http://localhost:5173"
+			allowed = allowed || origin == "http://localhost:3000" || origin == "http://localhost:5173" || origin == "http://localhost:5174"
 		}
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
