@@ -168,15 +168,22 @@ func (s *Store) UpdateUseCase(uc *UseCase) error {
 }
 
 func (s *Store) DeleteUseCase(id, authorID string) error {
-	q := s.db.Rebind(`DELETE FROM use_cases WHERE id = ? AND author_id = ?`)
-	result, err := s.db.Exec(q, id, authorID)
-	if err != nil {
-		return fmt.Errorf("delete use case: %w", err)
-	}
-	n, _ := result.RowsAffected()
-	if n == 0 {
+	var forkedFrom sql.NullString
+	lookupQ := s.db.Rebind(`SELECT forked_from FROM use_cases WHERE id = ? AND author_id = ?`)
+	if err := s.db.QueryRow(lookupQ, id, authorID).Scan(&forkedFrom); err != nil {
 		return fmt.Errorf("use case not found or not owned by user")
 	}
+
+	delQ := s.db.Rebind(`DELETE FROM use_cases WHERE id = ? AND author_id = ?`)
+	if _, err := s.db.Exec(delQ, id, authorID); err != nil {
+		return fmt.Errorf("delete use case: %w", err)
+	}
+
+	if forkedFrom.Valid {
+		decrQ := s.db.Rebind(`UPDATE use_cases SET fork_count = MAX(fork_count - 1, 0) WHERE id = ?`)
+		s.db.Exec(decrQ, forkedFrom.String)
+	}
+
 	return nil
 }
 
