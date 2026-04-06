@@ -87,6 +87,9 @@ func (w *EventHookWorker) Work(ctx context.Context, job *river.Job[EventHookArgs
 }
 
 func (w *EventHookWorker) loadEmails(ids []int64) ([]gmailsrc.Email, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
 	db, err := store.Open(store.Config{
 		Driver: w.Cfg.Gmail.Storage.Driver,
 		DSN:    w.Cfg.GmailDataDSN(),
