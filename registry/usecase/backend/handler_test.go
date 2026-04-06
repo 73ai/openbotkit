@@ -162,6 +162,104 @@ func TestCreateUseCaseRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsInvalidDomain(t *testing.T) {
+	srv := testServer(t)
+	token := issueTestJWT("test-secret", "seed-author")
+
+	body := `{"title":"Bad","description":"Test","domain":"InvalidDomain"}`
+	req := httptest.NewRequest("POST", "/api/usecases", strings.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	req.Header.Set("Content-Type", "application/json")
+
+	mux := http.NewServeMux()
+	srv.routes(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateRejectsMissingTitle(t *testing.T) {
+	srv := testServer(t)
+	token := issueTestJWT("test-secret", "seed-author")
+
+	body := `{"title":"","description":"Test","domain":"Sales"}`
+	req := httptest.NewRequest("POST", "/api/usecases", strings.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	req.Header.Set("Content-Type", "application/json")
+
+	mux := http.NewServeMux()
+	srv.routes(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthMeExpiredToken(t *testing.T) {
+	srv := testServer(t)
+
+	claims := jwt.MapClaims{
+		"sub":   "seed-author",
+		"email": "test@example.com",
+		"exp":   time.Now().Add(-time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	s, _ := token.SignedString([]byte("test-secret"))
+
+	req := httptest.NewRequest("GET", "/api/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: s})
+	w := httptest.NewRecorder()
+	srv.handleAuthMe(w, req)
+
+	if w.Code != 401 {
+		t.Fatalf("expected 401 for expired token, got %d", w.Code)
+	}
+}
+
+func TestAuthMeInvalidSignature(t *testing.T) {
+	srv := testServer(t)
+
+	token := issueTestJWT("wrong-secret", "seed-author")
+	req := httptest.NewRequest("GET", "/api/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	w := httptest.NewRecorder()
+	srv.handleAuthMe(w, req)
+
+	if w.Code != 401 {
+		t.Fatalf("expected 401 for wrong secret, got %d", w.Code)
+	}
+}
+
+func TestCreateDefaultsToDraft(t *testing.T) {
+	srv := testServer(t)
+	token := issueTestJWT("test-secret", "seed-author")
+
+	body := `{"title":"Draft Test","description":"Should be draft","domain":"Sales"}`
+	req := httptest.NewRequest("POST", "/api/usecases", strings.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "token", Value: token})
+	req.Header.Set("Content-Type", "application/json")
+
+	mux := http.NewServeMux()
+	srv.routes(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var created UseCase
+	json.NewDecoder(w.Body).Decode(&created)
+	if created.Status != "draft" {
+		t.Fatalf("expected draft status, got %s", created.Status)
+	}
+}
+
 func TestCreateAndDeleteUseCase(t *testing.T) {
 	srv := testServer(t)
 
