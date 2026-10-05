@@ -59,14 +59,15 @@ type Message struct {
 }
 
 type Chat struct {
-	ChatID        int64
-	Type          string
-	Title         string
-	Username      string
-	AccessHash    int64
-	IsGroup       bool
-	IsChannel     bool
-	LastMessageAt *time.Time
+	ChatID          int64
+	Type            string
+	Title           string
+	Username        string
+	AccessHash      int64
+	IsGroup         bool
+	IsChannel       bool
+	IsCurrentDialog bool
+	LastMessageAt   *time.Time
 }
 
 type User struct {

@@ -52,6 +52,10 @@ func (f *CommandFilter) SetPromptPrefixes(prefixes []string) {
 // CheckWithResult validates the given command string and returns a FilterResult
 // indicating whether to allow, deny, or prompt the user.
 func (f *CommandFilter) CheckWithResult(command string) (FilterResult, error) {
+	normalized := strings.NewReplacer("'", "", "\"", "", "\\", "").Replace(command)
+	if telegramDeleteCommand.MatchString(normalized) {
+		return FilterDeny, fmt.Errorf("Telegram deletion is only available in the manual CLI")
+	}
 	if f == nil {
 		return FilterAllow, nil
 	}
@@ -175,8 +179,9 @@ func firstToken(segment string) string {
 }
 
 var (
-	dollarParenRe = regexp.MustCompile(`\$\(([^)]+)\)`)
-	backtickRe    = regexp.MustCompile("`([^`]+)`")
+	telegramDeleteCommand = regexp.MustCompile(`\btelegram\s+(chats|messages)\s+delete\b`)
+	dollarParenRe         = regexp.MustCompile(`\$\(([^)]+)\)`)
+	backtickRe            = regexp.MustCompile("`([^`]+)`")
 )
 
 // extractSubstitutions returns commands found inside $() and backticks.

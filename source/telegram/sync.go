@@ -32,15 +32,71 @@ func NewAPIFetcher(raw *tg.Client) Fetcher {
 }
 
 func (f *apiFetcher) Dialogs(ctx context.Context, fn func(context.Context, dialogs.Elem) error) error {
-	return query.GetDialogs(f.raw).ForEach(ctx, fn)
+	seen := map[int64]bool{}
+	for _, folderID := range []int{0, 1} {
+		firstPage := true
+		q := dialogs.QueryFunc(func(ctx context.Context, page dialogs.Request) (tg.MessagesDialogsClass, error) {
+			req := &tg.MessagesGetDialogsRequest{OffsetDate: page.OffsetDate, OffsetID: page.OffsetID, OffsetPeer: page.OffsetPeer, Limit: page.Limit, ExcludePinned: !firstPage}
+			firstPage = false
+			req.SetFolderID(folderID)
+			return f.raw.MessagesGetDialogs(ctx, req)
+		})
+		iter := dialogs.NewIterator(q, 100)
+		for iter.Next(ctx) {
+			elem := iter.Value()
+			id, ok := chatIDFromInputPeer(elem.Peer)
+			if !ok {
+				return fmt.Errorf("dialog peer unavailable: %T", elem.Dialog)
+			}
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			if err := fn(ctx, elem); err != nil {
+				return err
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *apiFetcher) History(ctx context.Context, peer tg.InputPeerClass, offsetID int, fn func(context.Context, messages.Elem) error) error {
-	b := query.Messages(f.raw).GetHistory(peer).BatchSize(100)
-	if offsetID > 0 {
-		b = b.OffsetID(offsetID)
+	b := query.Messages(f.raw).GetHistory(peer)
+	q := messages.QueryFunc(func(ctx context.Context, page messages.Request) (tg.MessagesMessagesClass, error) {
+		result, err := b.Query(ctx, page)
+		if err != nil {
+			return nil, err
+		}
+		var raw []tg.MessageClass
+		switch response := result.(type) {
+		case *tg.MessagesMessages:
+			raw = response.Messages
+		case *tg.MessagesMessagesSlice:
+			raw = response.Messages
+		case *tg.MessagesChannelMessages:
+			raw = response.Messages
+		default:
+			return nil, fmt.Errorf("unverifiable history result: %T", result)
+		}
+		for _, msg := range raw {
+			switch msg.(type) {
+			case *tg.Message, *tg.MessageService:
+			default:
+				return nil, fmt.Errorf("unverifiable history message: %T", msg)
+			}
+		}
+		return result, nil
+	})
+	iter := messages.NewIterator(q, 100).OffsetID(offsetID)
+	for iter.Next(ctx) {
+		if err := fn(ctx, iter.Value()); err != nil {
+			return err
+		}
 	}
-	return b.ForEach(ctx, fn)
+	return iter.Err()
 }
 
 // errStopChat unwinds a history iteration once we have walked far enough back.
@@ -49,25 +105,14 @@ var errStopChat = errors.New("telegram: stop iterating chat")
 // SyncDialogs records every dialog plus the users and chats they reference,
 // without touching message history. Backfill and login both need this first.
 func SyncDialogs(ctx context.Context, f Fetcher, db *store.DB) (int, error) {
-	count := 0
-	err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
-		if err := saveEntities(db, elem.Entities); err != nil {
-			return err
-		}
-		chat, ok := chatFromDialog(elem)
-		if !ok {
-			return nil
-		}
-		if err := UpsertChat(db, chat); err != nil {
-			return err
-		}
-		count++
-		return nil
-	})
+	targets, err := collectDialogs(ctx, f, db)
 	if err != nil {
-		return count, fmt.Errorf("iterate dialogs: %w", err)
+		return len(targets), err
 	}
-	return count, nil
+	if err := reconcileDialogs(db, targets); err != nil {
+		return len(targets), fmt.Errorf("reconcile dialogs: %w", err)
+	}
+	return len(targets), nil
 }
 
 // Backfill walks history for every dialog, oldest-bound by opts.Since. Progress
@@ -84,29 +129,13 @@ func Backfill(ctx context.Context, f Fetcher, db *store.DB, opts BackfillOptions
 		slog.Warn("telegram: could not read the stored account", "error", err)
 	}
 
-	var targets []backfillTarget
-
-	err = f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
-		if err := saveEntities(db, elem.Entities); err != nil {
-			return err
-		}
-		chat, ok := chatFromDialog(elem)
-		if !ok {
-			return nil
-		}
-		if err := UpsertChat(db, chat); err != nil {
-			return err
-		}
-		result.Chats++
-		t := backfillTarget{peer: elem.Peer, chat: chat}
-		if elem.Last != nil {
-			t.lastID = elem.Last.GetID()
-		}
-		targets = append(targets, t)
-		return nil
-	})
+	targets, err := collectDialogs(ctx, f, db)
+	result.Chats = len(targets)
 	if err != nil {
-		return result, fmt.Errorf("iterate dialogs: %w", err)
+		return result, err
+	}
+	if err := reconcileDialogs(db, targets); err != nil {
+		return result, fmt.Errorf("reconcile dialogs: %w", err)
 	}
 
 	for _, t := range targets {
@@ -119,6 +148,32 @@ func Backfill(ctx context.Context, f Fetcher, db *store.DB, opts BackfillOptions
 	}
 
 	return result, nil
+}
+
+func collectDialogs(ctx context.Context, f Fetcher, db *store.DB) ([]backfillTarget, error) {
+	var targets []backfillTarget
+	err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
+		if err := saveEntities(db, elem.Entities); err != nil {
+			return err
+		}
+		chat, ok := chatFromDialog(elem)
+		if !ok {
+			return fmt.Errorf("dialog peer unavailable: %T", elem.Dialog)
+		}
+		if err := UpsertChat(db, chat); err != nil {
+			return err
+		}
+		target := backfillTarget{peer: elem.Peer, chat: chat}
+		if elem.Last != nil {
+			target.lastID = elem.Last.GetID()
+		}
+		targets = append(targets, target)
+		return nil
+	})
+	if err != nil {
+		return targets, fmt.Errorf("iterate dialogs: %w", err)
+	}
+	return targets, nil
 }
 
 type backfillTarget struct {

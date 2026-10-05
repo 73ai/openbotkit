@@ -119,7 +119,7 @@ func (r *AgentRunner) buildArgs(opts runOptions) []string {
 }
 
 func (r *AgentRunner) buildEnv() []string {
-	env := scrubEnv(os.Environ())
+	env := append(filterEnv(scrubEnv(os.Environ()), "OBK_AGENT"), "OBK_AGENT=1")
 	if r.info.Kind == AgentClaude {
 		return filterEnv(env, "CLAUDECODE")
 	}
