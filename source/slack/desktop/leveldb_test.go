@@ -19,12 +19,40 @@ func TestExtractTokenFromDB(t *testing.T) {
 	db.Put([]byte("otherkey"), []byte("no token here"), nil)
 	db.Close()
 
-	token, err := extractTokenFromDB(dbPath)
+	tokens, err := extractTokensFromDB(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if token != "xoxc-abc123-def456" {
-		t.Errorf("token = %q", token)
+	if len(tokens) != 1 || tokens[0] != "xoxc-abc123-def456" {
+		t.Errorf("tokens = %v", tokens)
+	}
+}
+
+func TestExtractTokensFromDB_MultipleWorkspaces(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "testdb")
+
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Put([]byte("teams"), []byte(`{"T1":{"token":"xoxc-team-one"},"T2":{"token":"xoxc-team-two"}}`), nil)
+	db.Put([]byte("dup"), []byte(`{"token":"xoxc-team-one"}`), nil)
+	db.Put([]byte("third"), []byte(`{"token":"xoxc-team-three"}`), nil)
+	db.Close()
+
+	tokens, err := extractTokensFromDB(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"xoxc-team-one": true, "xoxc-team-two": true, "xoxc-team-three": true}
+	if len(tokens) != len(want) {
+		t.Fatalf("tokens = %v, want 3 distinct", tokens)
+	}
+	for _, tok := range tokens {
+		if !want[tok] {
+			t.Errorf("unexpected token %q", tok)
+		}
 	}
 }
 
@@ -39,17 +67,17 @@ func TestExtractTokenFromDB_NoToken(t *testing.T) {
 	db.Put([]byte("key"), []byte("no token here"), nil)
 	db.Close()
 
-	token, err := extractTokenFromDB(dbPath)
+	tokens, err := extractTokensFromDB(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if token != "" {
-		t.Errorf("expected empty token, got %q", token)
+	if len(tokens) != 0 {
+		t.Errorf("expected no tokens, got %v", tokens)
 	}
 }
 
 func TestExtractTokenFromDB_MissingDir(t *testing.T) {
-	_, err := extractTokenFromDB("/nonexistent/path")
+	_, err := extractTokensFromDB("/nonexistent/path")
 	if err == nil {
 		t.Fatal("expected error for missing directory")
 	}
