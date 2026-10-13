@@ -72,10 +72,6 @@ func authLoginDesktop() error {
 	if err != nil {
 		return err
 	}
-	if len(creds) == 0 {
-		fmt.Println("No workspaces selected.")
-		return nil
-	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -147,20 +143,7 @@ func authLoginToken() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	if cfg.Slack == nil {
-		cfg.Slack = &config.SlackConfig{}
-	}
-	if cfg.Slack.Workspaces == nil {
-		cfg.Slack.Workspaces = make(map[string]config.SlackWorkspace)
-	}
-	cfg.Slack.Workspaces[workspace] = config.SlackWorkspace{
-		TeamID:   teamID,
-		TeamName: teamName,
-		AuthMode: "token",
-	}
-	if cfg.Slack.DefaultWorkspace == "" {
-		cfg.Slack.DefaultWorkspace = workspace
-	}
+	addWorkspace(cfg, workspace, teamID, teamName, "token")
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

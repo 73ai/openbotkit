@@ -9,8 +9,6 @@ import (
 	"github.com/charmbracelet/huh"
 )
 
-// SelectDesktopWorkspaces asks which of the detected workspaces to connect.
-// All are selected by default.
 func SelectDesktopWorkspaces(creds []*desktop.Credentials) ([]*desktop.Credentials, error) {
 	if len(creds) <= 1 {
 		return creds, nil
@@ -34,6 +32,9 @@ func SelectDesktopWorkspaces(creds []*desktop.Credentials) ([]*desktop.Credentia
 		return nil, err
 	}
 
+	if len(picked) == 0 {
+		return nil, fmt.Errorf("no Slack workspace selected")
+	}
 	selected := make([]*desktop.Credentials, 0, len(picked))
 	for _, i := range picked {
 		selected = append(selected, creds[i])
@@ -41,31 +42,30 @@ func SelectDesktopWorkspaces(creds []*desktop.Credentials) ([]*desktop.Credentia
 	return selected, nil
 }
 
-// AddDesktopWorkspaces stores credentials for each workspace and records it in
-// cfg. The caller saves cfg. Returns the workspace names added.
+// AddDesktopWorkspaces stores credentials and records each workspace in cfg;
+// the caller saves cfg.
 func AddDesktopWorkspaces(cfg *config.Config, creds []*desktop.Credentials) ([]string, error) {
+	var names []string
+	for _, c := range creds {
+		workspace := slacksrc.SanitizeWorkspaceName(c.TeamName)
+		if err := slacksrc.SaveCredentials(workspace, c.Token, c.Cookie); err != nil {
+			return nil, fmt.Errorf("save credentials for %s: %w", workspace, err)
+		}
+		addWorkspace(cfg, workspace, c.TeamID, c.TeamName, "desktop")
+		names = append(names, workspace)
+	}
+	return names, nil
+}
+
+func addWorkspace(cfg *config.Config, name, teamID, teamName, authMode string) {
 	if cfg.Slack == nil {
 		cfg.Slack = &config.SlackConfig{}
 	}
 	if cfg.Slack.Workspaces == nil {
 		cfg.Slack.Workspaces = make(map[string]config.SlackWorkspace)
 	}
-
-	var names []string
-	for _, c := range creds {
-		workspace := slacksrc.SanitizeWorkspaceName(c.TeamName)
-		if err := slacksrc.SaveCredentials(workspace, c.Token, c.Cookie); err != nil {
-			return names, fmt.Errorf("save credentials for %s: %w", workspace, err)
-		}
-		cfg.Slack.Workspaces[workspace] = config.SlackWorkspace{
-			TeamID:   c.TeamID,
-			TeamName: c.TeamName,
-			AuthMode: "desktop",
-		}
-		if cfg.Slack.DefaultWorkspace == "" {
-			cfg.Slack.DefaultWorkspace = workspace
-		}
-		names = append(names, workspace)
+	cfg.Slack.Workspaces[name] = config.SlackWorkspace{TeamID: teamID, TeamName: teamName, AuthMode: authMode}
+	if cfg.Slack.DefaultWorkspace == "" {
+		cfg.Slack.DefaultWorkspace = name
 	}
-	return names, nil
 }
