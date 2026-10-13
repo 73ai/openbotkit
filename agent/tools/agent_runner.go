@@ -112,7 +112,7 @@ func (r *AgentRunner) buildArgs(opts runOptions) []string {
 	case AgentGemini:
 		return []string{"--approval-mode", "yolo", "-p"}
 	case AgentCodex:
-		return []string{"exec", "--full-auto"}
+		return []string{"exec", "--sandbox", "workspace-write"}
 	default:
 		return nil
 	}

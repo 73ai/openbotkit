@@ -9,21 +9,22 @@ import (
 )
 
 type SlackSearchTool struct {
-	deps SlackToolDeps
+	workspaces slackRouter
 }
 
 func NewSlackSearchTool(deps SlackToolDeps) *SlackSearchTool {
-	return &SlackSearchTool{deps: deps}
+	return &SlackSearchTool{workspaces: deps.router()}
 }
 
 func (t *SlackSearchTool) Name() string { return "slack_search" }
 func (t *SlackSearchTool) Description() string {
-	return "Search Slack messages or files by query"
+	return t.workspaces.describe("Search Slack messages or files by query")
 }
 func (t *SlackSearchTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
+			` + slackWorkspaceProp + `
 			"query": {
 				"type": "string",
 				"description": "Search query"
@@ -43,15 +44,20 @@ func (t *SlackSearchTool) InputSchema() json.RawMessage {
 }
 
 type slackSearchInput struct {
-	Query string `json:"query"`
-	Type  string `json:"type"`
-	Limit int    `json:"limit"`
+	Workspace string `json:"workspace"`
+	Query     string `json:"query"`
+	Type      string `json:"type"`
+	Limit     int    `json:"limit"`
 }
 
 func (t *SlackSearchTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
 	var in slackSearchInput
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("parse input: %w", err)
+	}
+	ws, err := t.workspaces.pick(in.Workspace)
+	if err != nil {
+		return "", err
 	}
 	if in.Query == "" {
 		return "", fmt.Errorf("query is required")
@@ -64,7 +70,7 @@ func (t *SlackSearchTool) Execute(ctx context.Context, input json.RawMessage) (s
 
 	var out string
 	if in.Type == "files" {
-		result, err := t.deps.Client.SearchFiles(ctx, in.Query, opts)
+		result, err := ws.Client.SearchFiles(ctx, in.Query, opts)
 		if err != nil {
 			return "", fmt.Errorf("search files: %w", err)
 		}
@@ -73,7 +79,7 @@ func (t *SlackSearchTool) Execute(ctx context.Context, input json.RawMessage) (s
 			return "", err
 		}
 	} else {
-		result, err := t.deps.Client.SearchMessages(ctx, in.Query, opts)
+		result, err := ws.Client.SearchMessages(ctx, in.Query, opts)
 		if err != nil {
 			return "", fmt.Errorf("search messages: %w", err)
 		}

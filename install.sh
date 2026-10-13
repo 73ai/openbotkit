@@ -74,7 +74,7 @@ install_binary() {
 
     log "Downloading obk ${VERSION} (${OS}/${ARCH})"
 
-    ARCHIVE="openbotkit_${OS}_${ARCH}.tar.gz"
+    ARCHIVE="openbotkit_${VERSION#v}_${OS}_${ARCH}.tar.gz"
     URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
 
     tmpdir=$(mktemp -d)

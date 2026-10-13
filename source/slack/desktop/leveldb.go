@@ -28,54 +28,60 @@ func slackLevelDBPaths() []string {
 	}
 }
 
-func ExtractToken() (string, error) {
+func ExtractTokens() ([]string, error) {
 	paths := slackLevelDBPaths()
 	if len(paths) == 0 {
-		return "", fmt.Errorf("slack desktop not supported on %s", runtime.GOOS)
+		return nil, fmt.Errorf("slack desktop not supported on %s", runtime.GOOS)
 	}
 
+	var tokens []string
+	seen := make(map[string]bool)
 	for _, path := range paths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue
 		}
-		token, err := extractTokenFromDB(path)
+		found, err := extractTokensFromDB(path)
 		if err != nil {
 			continue
 		}
-		if token != "" {
-			return token, nil
+		for _, tok := range found {
+			if !seen[tok] {
+				seen[tok] = true
+				tokens = append(tokens, tok)
+			}
 		}
 	}
-	return "", fmt.Errorf("no xoxc token found in Slack Desktop storage")
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("no xoxc token found in Slack Desktop storage")
+	}
+	return tokens, nil
 }
 
-func extractTokenFromDB(path string) (string, error) {
+func extractTokensFromDB(path string) ([]string, error) {
 	// Copy LevelDB files to a temp dir so we can open even when Slack Desktop
 	// holds the LOCK file on the original database.
 	tmpDir, err := copyLevelDB(path)
 	if err != nil {
-		return "", fmt.Errorf("copy leveldb: %w", err)
+		return nil, fmt.Errorf("copy leveldb: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	db, err := leveldb.OpenFile(tmpDir, &opt.Options{ReadOnly: true})
 	if err != nil {
-		return "", fmt.Errorf("open leveldb: %w", err)
+		return nil, fmt.Errorf("open leveldb: %w", err)
 	}
 	defer db.Close()
 
 	iter := db.NewIterator(nil, nil)
 	defer iter.Release()
 
+	var tokens []string
 	for iter.Next() {
-		val := string(iter.Value())
-		if strings.Contains(val, "xoxc-") {
-			if match := tokenRe.FindString(val); match != "" {
-				return match, nil
-			}
+		if val := string(iter.Value()); strings.Contains(val, "xoxc-") {
+			tokens = append(tokens, tokenRe.FindAllString(val, -1)...)
 		}
 	}
-	return "", nil
+	return tokens, nil
 }
 
 // copyLevelDB copies .ldb, .log, and CURRENT files to a temp directory,

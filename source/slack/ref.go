@@ -132,6 +132,12 @@ func MatchesWorkspace(subdomain, workspace string) bool {
 	return normalizeWorkspace(subdomain) == normalizeWorkspace(workspace)
 }
 
+// MatchWorkspace reports whether a permalink subdomain refers to a workspace,
+// by its config name or its Slack team name.
+func MatchWorkspace(subdomain, name, teamName string) bool {
+	return MatchesWorkspace(subdomain, name) || (teamName != "" && MatchesWorkspace(subdomain, teamName))
+}
+
 func normalizeWorkspace(s string) string {
 	var b strings.Builder
 	for _, c := range strings.ToLower(s) {

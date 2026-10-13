@@ -4,30 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/73ai/openbotkit/source/slack"
 )
 
 type SlackSendTool struct {
-	deps     SlackToolDeps
-	resolver *slack.Resolver
+	deps       SlackToolDeps
+	workspaces slackRouter
 }
 
 func NewSlackSendTool(deps SlackToolDeps) *SlackSendTool {
 	return &SlackSendTool{
-		deps:     deps,
-		resolver: deps.SlackResolver(),
+		deps:       deps,
+		workspaces: deps.router(),
 	}
 }
 
 func (t *SlackSendTool) Name() string { return "slack_send" }
 func (t *SlackSendTool) Description() string {
-	return "Send a message to a Slack channel (requires user approval)"
+	return t.workspaces.describe("Send a message to a Slack channel (requires user approval)")
 }
 func (t *SlackSendTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
+			` + slackWorkspaceProp + `
 			"channel": {
 				"type": "string",
 				"description": "Channel name, ID, or URL"
@@ -46,9 +45,10 @@ func (t *SlackSendTool) InputSchema() json.RawMessage {
 }
 
 type slackSendInput struct {
-	Channel  string `json:"channel"`
-	Text     string `json:"text"`
-	ThreadTS string `json:"thread_ts"`
+	Workspace string `json:"workspace"`
+	Channel   string `json:"channel"`
+	Text      string `json:"text"`
+	ThreadTS  string `json:"thread_ts"`
 }
 
 func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -56,17 +56,21 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("parse input: %w", err)
 	}
+	ws, err := t.workspaces.pick(in.Workspace)
+	if err != nil {
+		return "", err
+	}
 	if in.Channel == "" || in.Text == "" {
 		return "", fmt.Errorf("channel and text are required")
 	}
 
-	channelID, err := t.resolver.ResolveChannel(ctx, in.Channel)
+	channelID, err := ws.Resolver.ResolveChannel(ctx, in.Channel)
 	if err != nil {
 		return "", err
 	}
 
 	preview := truncateUTF8(in.Text, 100)
-	desc := fmt.Sprintf("Send message to %s: %s", in.Channel, preview)
+	desc := fmt.Sprintf("Send message to %s: %s", t.workspaces.channelLabel(ws, in.Channel), preview)
 
 	var opts []GuardOption
 	if t.deps.ApprovalRules != nil {
@@ -74,7 +78,7 @@ func (t *SlackSendTool) Execute(ctx context.Context, input json.RawMessage) (str
 	}
 
 	return GuardedAction(ctx, t.deps.Interactor, RiskMedium, desc, func() (string, error) {
-		ts, err := t.deps.Client.PostMessage(ctx, channelID, in.Text, in.ThreadTS)
+		ts, err := ws.Client.PostMessage(ctx, channelID, in.Text, in.ThreadTS)
 		if err != nil {
 			return "", err
 		}

@@ -125,8 +125,10 @@ jq '.users' /tmp/thread.json
 - Auth for file downloads uses the Slack Desktop cookie, which expires. If a download fails with
   "got an HTML page instead of the file", the credentials are stale — run `obk slack auth login`.
   The command errors instead of writing that login page into your image file.
-- A permalink from a different workspace than the one you're authenticated to is rejected with an
-  explicit error rather than a confusing `channel_not_found`.
+- With several workspaces connected, a permalink picks the workspace matching its subdomain.
+  Use `--workspace <name>` (or `-w`) to choose one explicitly; `obk slack auth list` shows names.
+- A permalink from a workspace you aren't authenticated to is rejected with an explicit error
+  rather than a confusing `channel_not_found`.
 - DM (`D…`), private group (`G…`), and public channel (`C…`) permalinks all work.
 - Long threads are fully paginated — no silent truncation.
 - Bulk-downloading every file in a thread is not supported; download them one URL at a time.
