@@ -15,8 +15,7 @@ both `is_group` and `is_channel` set.
 
 `telegram_chats` also caches referenced peers. Only rows with `is_current_dialog = 1`
 belong to the current dialog snapshot from the last successful complete sync.
-Existing caches need a successful sync after the membership migration before
-local chat listing returns dialogs. Cached history is preserved for removed chats.
+Cached history is preserved for removed chats.
 Zero stored messages does not prove a chat is empty on Telegram.
 Use `obk telegram chats empty` to verify current private chats against live history.
 Its kinds are `joined_telegram` (only contact-signup notices), `service_only`
