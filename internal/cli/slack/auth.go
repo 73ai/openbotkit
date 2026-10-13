@@ -68,35 +68,30 @@ func authLoginDesktop() error {
 		return fmt.Errorf("desktop extraction failed: %w", err)
 	}
 
-	workspace := slacksrc.SanitizeWorkspaceName(creds.TeamName)
-	if err := slacksrc.SaveCredentials(workspace, creds.Token, creds.Cookie); err != nil {
-		return fmt.Errorf("save credentials: %w", err)
+	creds, err = SelectDesktopWorkspaces(creds)
+	if err != nil {
+		return err
+	}
+	if len(creds) == 0 {
+		fmt.Println("No workspaces selected.")
+		return nil
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-
-	if cfg.Slack == nil {
-		cfg.Slack = &config.SlackConfig{}
-	}
-	if cfg.Slack.Workspaces == nil {
-		cfg.Slack.Workspaces = make(map[string]config.SlackWorkspace)
-	}
-	cfg.Slack.Workspaces[workspace] = config.SlackWorkspace{
-		TeamID:   creds.TeamID,
-		TeamName: creds.TeamName,
-		AuthMode: "desktop",
-	}
-	if cfg.Slack.DefaultWorkspace == "" {
-		cfg.Slack.DefaultWorkspace = workspace
+	names, err := AddDesktopWorkspaces(cfg, creds)
+	if err != nil {
+		return err
 	}
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 
-	fmt.Printf("Authenticated with workspace %q (team: %s)\n", workspace, creds.TeamName)
+	for i, name := range names {
+		fmt.Printf("Authenticated with workspace %q (team: %s)\n", name, creds[i].TeamName)
+	}
 	return nil
 }
 
