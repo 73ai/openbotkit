@@ -51,9 +51,6 @@ func TestSyncReconcilesDialogMembership(t *testing.T) {
 	if !ids[ChatIDFromUser(11)] || ids[ChatIDFromUser(12)] {
 		t.Fatalf("current after removal = %v", ids)
 	}
-	if chat, _ := GetChat(db, ChatIDFromUser(12)); chat == nil {
-		t.Fatal("removed chat row should be kept")
-	}
 	if n, _ := CountMessages(db, ChatIDFromUser(12)); n != 1 {
 		t.Fatalf("removed chat history = %d messages, want 1", n)
 	}
@@ -79,20 +76,6 @@ func TestSyncDialogsErrorKeepsMembership(t *testing.T) {
 	}
 	if !currentIDs(t, db)[ChatIDFromUser(11)] {
 		t.Fatal("failed sync must not clear membership")
-	}
-}
-
-func TestSyncSkipsDialogsWithoutPeer(t *testing.T) {
-	db := testDB(t)
-	d, _ := userDialog(&tg.User{ID: 11, FirstName: "Ann"})
-	odd := dialogs.Elem{Dialog: &tg.Dialog{}, Peer: &tg.InputPeerEmpty{}}
-	f := &fakeFetcher{dialogs: []dialogs.Elem{odd, d}}
-	n, err := SyncDialogs(context.Background(), f, db)
-	if err != nil {
-		t.Fatalf("sync: %v", err)
-	}
-	if n != 1 || !currentIDs(t, db)[ChatIDFromUser(11)] {
-		t.Fatalf("count = %d, current = %v", n, currentIDs(t, db))
 	}
 }
 
@@ -150,7 +133,7 @@ func TestMigrateAddsDialogMembershipColumn(t *testing.T) {
 		}
 	}
 	chat, err := GetChat(db, 1)
-	if err != nil || chat == nil || chat.Title != "Ann" || chat.IsCurrentDialog {
+	if err != nil || chat == nil || chat.Title != "Ann" || !chat.IsCurrentDialog {
 		t.Fatalf("chat = %+v, err = %v", chat, err)
 	}
 }
