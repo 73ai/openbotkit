@@ -4,8 +4,8 @@ import (
 	"errors"
 	"os"
 
+	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/provider"
-	"github.com/73ai/openbotkit/source/slack"
 )
 
 // denyInteractor implements Interactor for sub-agent contexts where
@@ -22,13 +22,12 @@ func (d *denyInteractor) RequestApproval(_ string) (bool, error) {
 // SubagentRegistryDeps provides optional dependencies for building
 // an enriched subagent tool registry.
 type SubagentRegistryDeps struct {
-	ScratchDir     string
-	WebDeps        *WebToolDeps
-	LearningsDeps  *LearningsDeps
-	ScheduleDeps   *ScheduleToolDeps
-	SlackClient    slack.API
-	SlackWorkspace string
-	Agents         []AgentInfo
+	ScratchDir    string
+	WebDeps       *WebToolDeps
+	LearningsDeps *LearningsDeps
+	ScheduleDeps  *ScheduleToolDeps
+	Slack         *SlackToolDeps
+	Agents        []AgentInfo
 }
 
 // NewSubagentRegistry creates a tool registry for subagent contexts.
@@ -61,17 +60,15 @@ func NewSubagentRegistry(deps SubagentRegistryDeps) *Registry {
 	}
 
 	// Guarded tools — denyInteractor makes them fail via GuardedAction.
-	if deps.SlackClient != nil {
-		readDeps := SlackToolDeps{
-			Client:     deps.SlackClient,
-			Workspace:  deps.SlackWorkspace,
-			ScratchDir: deps.ScratchDir,
-		}
+	if deps.Slack != nil {
+		readDeps := *deps.Slack
+		readDeps.ScratchDir = deps.ScratchDir
 		r.Register(NewSlackSearchTool(readDeps))
 		r.Register(NewSlackReadChannelTool(readDeps))
 		r.Register(NewSlackReadThreadTool(readDeps))
 		r.Register(NewSlackMediaDownloadTool(readDeps))
-		writeDeps := SlackToolDeps{Client: deps.SlackClient, Interactor: deny}
+		writeDeps := *deps.Slack
+		writeDeps.Interactor = deny
 		r.Register(NewSlackSendTool(writeDeps))
 		r.Register(NewSlackEditTool(writeDeps))
 		r.Register(NewSlackReactTool(writeDeps))
@@ -91,14 +88,14 @@ func NewSubagentRegistry(deps SubagentRegistryDeps) *Registry {
 // SubagentToolConfig holds everything needed to create a subagent tool.
 // Use BuildSubagentTool to avoid duplicating setup across channels.
 type SubagentToolConfig struct {
-	Provider       provider.Provider
-	Model          string
-	WebDeps        *WebToolDeps
-	LearningsDeps  *LearningsDeps
-	ScheduleDeps   *ScheduleToolDeps
-	ScratchDir     string
-	WorkspaceDir   string
-	SlackWorkspace string // if non-empty, load Slack credentials
+	Provider      provider.Provider
+	Model         string
+	WebDeps       *WebToolDeps
+	LearningsDeps *LearningsDeps
+	ScheduleDeps  *ScheduleToolDeps
+	ScratchDir    string
+	WorkspaceDir  string
+	Slack         *config.SlackConfig // if set, load Slack credentials
 }
 
 // BuildSubagentTool creates a fully-configured SubagentTool with enriched
@@ -114,11 +111,8 @@ func BuildSubagentTool(cfg SubagentToolConfig) *SubagentTool {
 		LearningsDeps: cfg.LearningsDeps,
 		ScheduleDeps:  cfg.ScheduleDeps,
 	}
-	if cfg.SlackWorkspace != "" {
-		if creds, err := slack.LoadCredentials(cfg.SlackWorkspace); err == nil {
-			deps.SlackClient = slack.NewClient(creds.Token, creds.Cookie)
-			deps.SlackWorkspace = cfg.SlackWorkspace
-		}
+	if slackDeps, ok := LoadSlackToolDeps(cfg.Slack); ok {
+		deps.Slack = &slackDeps
 	}
 	deps.Agents = DetectAgents()
 

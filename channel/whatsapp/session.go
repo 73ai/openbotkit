@@ -22,7 +22,6 @@ import (
 	"github.com/73ai/openbotkit/service/memory"
 	"github.com/73ai/openbotkit/service/scheduler"
 	usagesrc "github.com/73ai/openbotkit/service/usage"
-	slacksrc "github.com/73ai/openbotkit/source/slack"
 )
 
 const sessionTimeout = 15 * time.Minute
@@ -423,18 +422,14 @@ func (sm *SessionManager) newAgent(history []provider.Message, onToolStart func(
 	subagentLearningsDeps := tools.LearningsDeps{
 		Store: learnings.New(config.LearningsDir()),
 	}
-	slackWS := ""
-	if sm.cfg.Slack != nil {
-		slackWS = sm.cfg.Slack.DefaultWorkspace
-	}
 	toolReg.Register(tools.BuildSubagentTool(tools.SubagentToolConfig{
-		Provider:       sm.provider,
-		Model:          sm.model,
-		WebDeps:        &subagentWebDeps,
-		LearningsDeps:  &subagentLearningsDeps,
-		ScratchDir:     scratchDir,
-		WorkspaceDir:   workspaceDir,
-		SlackWorkspace: slackWS,
+		Provider:      sm.provider,
+		Model:         sm.model,
+		WebDeps:       &subagentWebDeps,
+		LearningsDeps: &subagentLearningsDeps,
+		ScratchDir:    scratchDir,
+		WorkspaceDir:  workspaceDir,
+		Slack:         sm.cfg.Slack,
 	}))
 
 	identity := "You are a personal AI assistant communicating via WhatsApp.\n"
@@ -563,20 +558,15 @@ func (sm *SessionManager) registerWebTools(reg *tools.Registry) {
 }
 
 func (sm *SessionManager) registerSlackTools(reg *tools.Registry) {
-	if sm.cfg.Slack == nil || sm.cfg.Slack.DefaultWorkspace == "" || sm.interactor == nil {
+	if sm.interactor == nil {
 		return
 	}
-	creds, err := slacksrc.LoadCredentials(sm.cfg.Slack.DefaultWorkspace)
-	if err != nil {
+	deps, ok := tools.LoadSlackToolDeps(sm.cfg.Slack)
+	if !ok {
 		return
 	}
-	client := slacksrc.NewClient(creds.Token, creds.Cookie)
-	deps := tools.SlackToolDeps{
-		Client:     client,
-		Interactor: sm.interactor,
-		Workspace:  sm.cfg.Slack.DefaultWorkspace,
-		ScratchDir: config.ScratchDir(sm.sessionID),
-	}
+	deps.Interactor = sm.interactor
+	deps.ScratchDir = config.ScratchDir(sm.sessionID)
 	reg.Register(tools.NewSlackSearchTool(deps))
 	reg.Register(tools.NewSlackReadChannelTool(deps))
 	reg.Register(tools.NewSlackReadThreadTool(deps))
