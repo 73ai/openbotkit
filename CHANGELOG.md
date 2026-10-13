@@ -3,6 +3,12 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.1] (2026-10-13)
+
+### Fixed
+
+- **install**: Include version in release archive name (#173)
+
 ## [0.15.0] (2026-10-13)
 
 ### Added
