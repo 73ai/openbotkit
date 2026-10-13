@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/telegram/query"
@@ -34,27 +35,16 @@ func NewAPIFetcher(raw *tg.Client) Fetcher {
 func (f *apiFetcher) Dialogs(ctx context.Context, fn func(context.Context, dialogs.Elem) error) error {
 	seen := map[int64]bool{}
 	for _, folderID := range []int{0, 1} {
-		firstPage := true
-		q := dialogs.QueryFunc(func(ctx context.Context, page dialogs.Request) (tg.MessagesDialogsClass, error) {
-			req := &tg.MessagesGetDialogsRequest{OffsetDate: page.OffsetDate, OffsetID: page.OffsetID, OffsetPeer: page.OffsetPeer, Limit: page.Limit, ExcludePinned: !firstPage}
-			firstPage = false
-			req.SetFolderID(folderID)
-			return f.raw.MessagesGetDialogs(ctx, req)
-		})
-		iter := dialogs.NewIterator(q, 100)
-		for iter.Next(ctx) {
-			elem := iter.Value()
+		err := query.GetDialogs(f.raw).FolderID(folderID).ForEach(ctx, func(ctx context.Context, elem dialogs.Elem) error {
 			if id, ok := chatIDFromInputPeer(elem.Peer); ok {
 				if seen[id] {
-					continue
+					return nil
 				}
 				seen[id] = true
 			}
-			if err := fn(ctx, elem); err != nil {
-				return err
-			}
-		}
-		if err := iter.Err(); err != nil {
+			return fn(ctx, elem)
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -147,6 +137,20 @@ func collectDialogs(ctx context.Context, f Fetcher, db *store.DB) ([]backfillTar
 		return targets, fmt.Errorf("iterate dialogs: %w", err)
 	}
 	return targets, nil
+}
+
+func reconcileDialogs(db *store.DB, targets []backfillTarget, started time.Time) error {
+	ids := make([]any, 0, len(targets)+1)
+	for _, target := range targets {
+		ids = append(ids, target.chat.ChatID)
+	}
+	current := "FALSE"
+	if len(ids) > 0 {
+		current = "chat_id IN (?" + strings.Repeat(", ?", len(ids)-1) + ")"
+	}
+	ids = append(ids, started.UTC().Truncate(time.Second))
+	_, err := db.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = ("+current+" OR (is_current_dialog AND last_message_at >= ?))"), ids...)
+	return err
 }
 
 type backfillTarget struct {
