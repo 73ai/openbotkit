@@ -9,13 +9,11 @@ import (
 )
 
 type SlackReadChannelTool struct {
-	deps       SlackToolDeps
-	workspaces *slackRouter
+	workspaces slackRouter
 }
 
 func NewSlackReadChannelTool(deps SlackToolDeps) *SlackReadChannelTool {
 	return &SlackReadChannelTool{
-		deps:       deps,
 		workspaces: deps.router(),
 	}
 }

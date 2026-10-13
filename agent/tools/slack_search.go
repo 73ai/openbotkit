@@ -9,12 +9,11 @@ import (
 )
 
 type SlackSearchTool struct {
-	deps       SlackToolDeps
-	workspaces *slackRouter
+	workspaces slackRouter
 }
 
 func NewSlackSearchTool(deps SlackToolDeps) *SlackSearchTool {
-	return &SlackSearchTool{deps: deps, workspaces: deps.router()}
+	return &SlackSearchTool{workspaces: deps.router()}
 }
 
 func (t *SlackSearchTool) Name() string { return "slack_search" }

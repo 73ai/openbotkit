@@ -16,7 +16,7 @@ import (
 
 type SlackMediaDownloadTool struct {
 	deps       SlackToolDeps
-	workspaces *slackRouter
+	workspaces slackRouter
 }
 
 func NewSlackMediaDownloadTool(deps SlackToolDeps) *SlackMediaDownloadTool {

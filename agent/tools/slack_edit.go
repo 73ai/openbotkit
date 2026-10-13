@@ -8,7 +8,7 @@ import (
 
 type SlackEditTool struct {
 	deps       SlackToolDeps
-	workspaces *slackRouter
+	workspaces slackRouter
 }
 
 func NewSlackEditTool(deps SlackToolDeps) *SlackEditTool {

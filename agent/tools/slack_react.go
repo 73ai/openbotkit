@@ -8,7 +8,7 @@ import (
 
 type SlackReactTool struct {
 	deps       SlackToolDeps
-	workspaces *slackRouter
+	workspaces slackRouter
 }
 
 func NewSlackReactTool(deps SlackToolDeps) *SlackReactTool {
