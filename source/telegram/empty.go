@@ -19,10 +19,7 @@ func FindEmptyChats(ctx context.Context, f Fetcher) ([]EmptyChat, error) {
 	targets := []backfillTarget{}
 	if err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
 		chat, ok := chatFromDialog(elem)
-		if !ok {
-			return fmt.Errorf("dialog peer unavailable: %T", elem.Dialog)
-		}
-		if chat.Type == PeerUser {
+		if ok && chat.Type == PeerUser {
 			chat.IsCurrentDialog = true
 			targets = append(targets, backfillTarget{peer: elem.Peer, chat: chat})
 		}
