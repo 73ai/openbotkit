@@ -13,13 +13,12 @@ Full database schema: see schema.sql in this skill directory.
 `telegram_chats.type` spells this out as `user`, `group` or `channel`. A supergroup has
 both `is_group` and `is_channel` set.
 
-`telegram_chats` also caches referenced peers. Only rows with `is_current_dialog = 1`
-belong to the current dialog snapshot from the last successful complete sync.
-Cached history is preserved for removed chats.
-Zero stored messages does not prove a chat is empty on Telegram.
-Use `obk telegram chats empty` to verify current private chats against live history.
-Its kinds are `joined_telegram` (only contact-signup notices), `service_only`
-(other or mixed service notices), and `empty` (no messages).
+`telegram_chats` also keeps peers you no longer have a dialog with, along with their
+history. Filter on `is_current_dialog = 1` for chats that currently exist in Telegram.
+
+Zero stored messages does not mean a chat is empty on Telegram. Run
+`obk telegram chats empty` to check private chats against live history; it reports
+`empty`, `joined_telegram` (only contact-signup notices) or `service_only`.
 
 ## Query patterns
 
