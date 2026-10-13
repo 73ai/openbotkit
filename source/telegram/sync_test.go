@@ -60,9 +60,8 @@ func (f *fakeFetcher) History(ctx context.Context, p tg.InputPeerClass, offsetID
 	f.offsets[chatID] = append(f.offsets[chatID], offsetID)
 
 	for _, m := range f.history[chatID] {
-		msg := m.Msg.(*tg.Message)
 		// Real getHistory walks backwards from offsetID.
-		if offsetID > 0 && msg.ID >= offsetID {
+		if offsetID > 0 && m.Msg.GetID() >= offsetID {
 			continue
 		}
 		if err := fn(ctx, m); err != nil {
