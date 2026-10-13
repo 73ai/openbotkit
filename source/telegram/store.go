@@ -42,6 +42,20 @@ func DeleteMessages(db *store.DB, chatID int64, messageIDs []int) error {
 	return nil
 }
 
+func DeleteChat(db *store.DB, chatID int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, table := range []string{"telegram_messages", "telegram_sync_state", "telegram_chats"} {
+		if _, err := tx.Exec(db.Rebind("DELETE FROM "+table+" WHERE chat_id = ?"), chatID); err != nil {
+			return fmt.Errorf("delete %s: %w", table, err)
+		}
+	}
+	return tx.Commit()
+}
+
 // DeleteMessagesNonChannel removes messages by ID across every non-channel peer.
 // updateDeleteMessages carries no peer, but non-channel message IDs share one
 // per-account sequence, so the ID alone identifies the row.
@@ -604,13 +618,13 @@ func ListKVPrefix(db *store.DB, prefix string) (map[string]string, error) {
 	return out, rows.Err()
 }
 
-func reconcileDialogs(db *store.DB, targets []backfillTarget) error {
+func reconcileDialogs(db *store.DB, targets []backfillTarget, started time.Time) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec("UPDATE telegram_chats SET is_current_dialog = FALSE"); err != nil {
+	if _, err := tx.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = FALSE WHERE last_message_at IS NULL OR last_message_at < ?"), started.UTC().Truncate(time.Second)); err != nil {
 		return err
 	}
 	for _, target := range targets {

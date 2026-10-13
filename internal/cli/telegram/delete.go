@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -53,7 +54,7 @@ func runDelete(cmd *cobra.Command, wholeChat bool) error {
 		}
 		seen := make(map[int]bool, len(ids))
 		for _, id := range ids {
-			if id <= 0 || int64(id) > 2147483647 || seen[id] {
+			if id <= 0 || id > math.MaxInt32 || seen[id] {
 				return fmt.Errorf("message IDs must be distinct positive 32-bit integers")
 			}
 			seen[id] = true
@@ -145,7 +146,10 @@ func runDelete(cmd *cobra.Command, wholeChat bool) error {
 				}
 			}
 		}
-		return removeLocalChat(db, chatID)
+		if err := tgsrc.DeleteChat(db, chatID); err != nil {
+			return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -205,23 +209,6 @@ func deleteRemoteMessages(ctx context.Context, api *tg.Client, db *store.DB, cha
 	}
 	if err := tgsrc.DeleteMessages(db, chatID, ids); err != nil {
 		return fmt.Errorf("messages deleted on Telegram, but local cleanup failed: %w", err)
-	}
-	return nil
-}
-
-func removeLocalChat(db *store.DB, chatID int64) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
-	}
-	defer tx.Rollback()
-	for _, table := range []string{"telegram_messages", "telegram_sync_state", "telegram_chats"} {
-		if _, err := tx.Exec(db.Rebind("DELETE FROM "+table+" WHERE chat_id = ?"), chatID); err != nil {
-			return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
 	}
 	return nil
 }
