@@ -39,11 +39,7 @@ the thread works: a link to a reply returns the whole thread.`,
 			return err
 		}
 
-		subdomain := ""
-		if ref != nil {
-			subdomain = ref.Subdomain
-		}
-		client, cache, workspace, err := loadClientAndCache(subdomain)
+		client, cache, workspace, err := loadClientAndCache(ref)
 		if err != nil {
 			return err
 		}

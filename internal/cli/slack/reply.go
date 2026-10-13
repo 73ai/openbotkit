@@ -50,11 +50,7 @@ confirmation prompt.`,
 			return fmt.Errorf("empty message; pass --text or pipe the body on stdin")
 		}
 
-		subdomain := ""
-		if ref != nil {
-			subdomain = ref.Subdomain
-		}
-		client, _, workspace, err := loadClientAndCache(subdomain)
+		client, _, workspace, err := loadClientAndCache(ref)
 		if err != nil {
 			return err
 		}

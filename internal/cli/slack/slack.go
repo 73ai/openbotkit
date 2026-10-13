@@ -18,17 +18,21 @@ var Cmd = &cobra.Command{
 var workspaceFlag string
 
 func loadClient() (*slacksrc.Client, error) {
-	client, _, _, err := loadClientAndCache("")
+	client, _, _, err := loadClientAndCache(nil)
 	return client, err
 }
 
 // loadClientAndCache also returns the user name cache and the workspace it is
-// keyed on, for commands that resolve IDs to names. subdomain, taken from a
-// permalink, picks the matching workspace when --workspace is not set.
-func loadClientAndCache(subdomain string) (*slacksrc.Client, *slacksrc.UserCache, string, error) {
+// keyed on, for commands that resolve IDs to names. A permalink ref picks the
+// matching workspace when --workspace is not set.
+func loadClientAndCache(ref *slacksrc.MessageRef) (*slacksrc.Client, *slacksrc.UserCache, string, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("load config: %w", err)
+	}
+	subdomain := ""
+	if ref != nil {
+		subdomain = ref.Subdomain
 	}
 	workspace, err := resolveWorkspace(cfg.Slack, workspaceFlag, subdomain)
 	if err != nil {
@@ -55,8 +59,7 @@ func resolveWorkspace(cfg *config.SlackConfig, explicit, subdomain string) (stri
 	}
 	if subdomain != "" {
 		for _, name := range workspaceNames(cfg) {
-			ws := cfg.Workspaces[name]
-			if slacksrc.MatchesWorkspace(subdomain, name) || (ws.TeamName != "" && slacksrc.MatchesWorkspace(subdomain, ws.TeamName)) {
+			if slacksrc.MatchWorkspace(subdomain, name, cfg.Workspaces[name].TeamName) {
 				return name, nil
 			}
 		}
