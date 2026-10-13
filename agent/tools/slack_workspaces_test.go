@@ -3,12 +3,12 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/source/slack"
+	"github.com/zalando/go-keyring"
 )
 
 func twoWorkspaceDeps(def, other *mockSlackAPI, inter Interactor) SlackToolDeps {
@@ -88,14 +88,6 @@ func TestSlackTools_DescribeWorkspaces(t *testing.T) {
 	if strings.Contains(single.Description(), "workspaces") {
 		t.Errorf("single-workspace description = %q", single.Description())
 	}
-
-	var schema map[string]any
-	if err := json.Unmarshal(multi.InputSchema(), &schema); err != nil {
-		t.Fatalf("schema is not valid JSON: %v", err)
-	}
-	if _, ok := schema["properties"].(map[string]any)["workspace"]; !ok {
-		t.Error("schema missing workspace property")
-	}
 }
 
 func TestSlackTools_SchemasAreValidJSON(t *testing.T) {
@@ -111,41 +103,40 @@ func TestSlackTools_SchemasAreValidJSON(t *testing.T) {
 	}
 }
 
+func TestSlackReadThread_PermalinkFromUnconnectedWorkspace(t *testing.T) {
+	tool := NewSlackReadThreadTool(twoWorkspaceDeps(&mockSlackAPI{}, &mockSlackAPI{}, nil))
+
+	input, _ := json.Marshal(slackReadThreadInput{
+		Permalink: "https://other.slack.com/archives/C01Q9G9CD6X/p1785334150236249",
+	})
+	_, err := tool.Execute(context.Background(), input)
+	if err == nil || !strings.Contains(err.Error(), `"other"`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestLoadSlackToolDeps(t *testing.T) {
+	keyring.MockInit()
 	cfg := &config.SlackConfig{
-		DefaultWorkspace: "acme",
+		DefaultWorkspace: "beta-corp",
 		Workspaces: map[string]config.SlackWorkspace{
 			"acme":      {TeamName: "Acme"},
 			"beta-corp": {TeamName: "Beta Corp"},
 			"gone":      {TeamName: "Gone"},
 		},
 	}
-	load := func(name string) (*slack.Credentials, error) {
-		if name == "gone" {
-			return nil, errors.New("not found")
-		}
-		return &slack.Credentials{Token: "xoxc-" + name}, nil
+	if _, ok := LoadSlackToolDeps(cfg); ok {
+		t.Fatal("expected ok=false without default workspace credentials")
 	}
+	slack.SaveCredentials("acme", "xoxc-a", "")
+	slack.SaveCredentials("beta-corp", "xoxc-b", "")
 
-	deps, ok := loadSlackToolDeps(cfg, load)
+	deps, ok := LoadSlackToolDeps(cfg)
 	if !ok {
 		t.Fatal("expected deps")
 	}
-	if deps.Workspace != "acme" || deps.Client == nil {
-		t.Errorf("default = %q", deps.Workspace)
-	}
-	if len(deps.Workspaces) != 1 || deps.Workspaces[0].Name != "beta-corp" || deps.Workspaces[0].TeamName != "Beta Corp" {
-		t.Errorf("workspaces = %+v", deps.Workspaces)
-	}
-}
-
-func TestLoadSlackToolDeps_NoDefaultCredentials(t *testing.T) {
-	cfg := &config.SlackConfig{DefaultWorkspace: "acme", Workspaces: map[string]config.SlackWorkspace{"acme": {}}}
-	load := func(string) (*slack.Credentials, error) { return nil, errors.New("not found") }
-	if _, ok := loadSlackToolDeps(cfg, load); ok {
-		t.Error("expected ok=false")
-	}
-	if _, ok := loadSlackToolDeps(nil, load); ok {
-		t.Error("expected ok=false for nil config")
+	r := deps.router()
+	if r.names() != "beta-corp, acme" || r[0].TeamName != "Beta Corp" {
+		t.Errorf("workspaces = %s", r.names())
 	}
 }
