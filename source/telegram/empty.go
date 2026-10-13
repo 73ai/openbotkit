@@ -16,12 +16,12 @@ type EmptyChat struct {
 }
 
 func FindEmptyChats(ctx context.Context, f Fetcher) ([]EmptyChat, error) {
-	targets := []backfillTarget{}
+	var chats []*Chat
+	var peers []tg.InputPeerClass
 	if err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
-		chat, ok := chatFromDialog(elem)
-		if ok && chat.Type == PeerUser {
-			chat.IsCurrentDialog = true
-			targets = append(targets, backfillTarget{peer: elem.Peer, chat: chat})
+		if chat, ok := chatFromDialog(elem); ok && chat.Type == PeerUser {
+			chats = append(chats, chat)
+			peers = append(peers, elem.Peer)
 		}
 		return nil
 	}); err != nil {
@@ -29,9 +29,9 @@ func FindEmptyChats(ctx context.Context, f Fetcher) ([]EmptyChat, error) {
 	}
 
 	found := []EmptyChat{}
-	for _, target := range targets {
+	for i, chat := range chats {
 		regular, joined, other := false, false, false
-		err := f.History(ctx, target.peer, 0, func(ctx context.Context, elem messages.Elem) error {
+		err := f.History(ctx, peers[i], 0, func(ctx context.Context, elem messages.Elem) error {
 			switch msg := elem.Msg.(type) {
 			case *tg.Message:
 				regular = true
@@ -48,7 +48,7 @@ func FindEmptyChats(ctx context.Context, f Fetcher) ([]EmptyChat, error) {
 			return nil
 		})
 		if err != nil && !errors.Is(err, errStopChat) {
-			return nil, fmt.Errorf("verify chat %d: %w", target.chat.ChatID, err)
+			return nil, fmt.Errorf("verify chat %d: %w", chat.ChatID, err)
 		}
 		if regular {
 			continue
@@ -59,7 +59,7 @@ func FindEmptyChats(ctx context.Context, f Fetcher) ([]EmptyChat, error) {
 		} else if joined {
 			kind = "joined_telegram"
 		}
-		found = append(found, EmptyChat{Chat: *target.chat, Kind: kind})
+		found = append(found, EmptyChat{Chat: *chat, Kind: kind})
 	}
 	return found, nil
 }
