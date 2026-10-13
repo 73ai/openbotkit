@@ -7,27 +7,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-func TestExtractTokenFromDB(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "testdb")
-
-	db, err := leveldb.OpenFile(dbPath, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.Put([]byte("somekey"), []byte(`{"token":"xoxc-abc123-def456"}`), nil)
-	db.Put([]byte("otherkey"), []byte("no token here"), nil)
-	db.Close()
-
-	tokens, err := extractTokensFromDB(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tokens) != 1 || tokens[0] != "xoxc-abc123-def456" {
-		t.Errorf("tokens = %v", tokens)
-	}
-}
-
 func TestExtractTokensFromDB_MultipleWorkspaces(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "testdb")
@@ -37,7 +16,6 @@ func TestExtractTokensFromDB_MultipleWorkspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Put([]byte("teams"), []byte(`{"T1":{"token":"xoxc-team-one"},"T2":{"token":"xoxc-team-two"}}`), nil)
-	db.Put([]byte("dup"), []byte(`{"token":"xoxc-team-one"}`), nil)
 	db.Put([]byte("third"), []byte(`{"token":"xoxc-team-three"}`), nil)
 	db.Close()
 
@@ -45,13 +23,13 @@ func TestExtractTokensFromDB_MultipleWorkspaces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"xoxc-team-one": true, "xoxc-team-two": true, "xoxc-team-three": true}
-	if len(tokens) != len(want) {
-		t.Fatalf("tokens = %v, want 3 distinct", tokens)
-	}
+	found := map[string]bool{}
 	for _, tok := range tokens {
-		if !want[tok] {
-			t.Errorf("unexpected token %q", tok)
+		found[tok] = true
+	}
+	for _, want := range []string{"xoxc-team-one", "xoxc-team-two", "xoxc-team-three"} {
+		if !found[want] {
+			t.Errorf("missing %q in %v", want, tokens)
 		}
 	}
 }

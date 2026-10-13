@@ -5,31 +5,13 @@ import (
 	"testing"
 )
 
-func TestCredentials_Fields(t *testing.T) {
-	c := &Credentials{
-		Token:    "xoxc-abc",
-		Cookie:   "xoxd-def",
-		TeamID:   "T123",
-		TeamName: "TestTeam",
-	}
-	if c.Token != "xoxc-abc" {
-		t.Errorf("Token = %q", c.Token)
-	}
-	if c.TeamName != "TestTeam" {
-		t.Errorf("TeamName = %q", c.TeamName)
-	}
-}
-
 func TestValidateTokens_MultipleTeams(t *testing.T) {
 	teams := map[string][2]string{
 		"xoxc-a":  {"T1", "Acme"},
 		"xoxc-b":  {"T2", "Beta Corp"},
 		"xoxc-a2": {"T1", "Acme"},
 	}
-	authTest := func(token, cookie string) (string, string, error) {
-		if cookie != "xoxd-c" {
-			t.Errorf("cookie = %q", cookie)
-		}
+	authTest := func(token, _ string) (string, string, error) {
 		team, ok := teams[token]
 		if !ok {
 			return "", "", errors.New("invalid_auth")

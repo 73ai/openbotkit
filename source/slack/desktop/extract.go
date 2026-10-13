@@ -14,9 +14,6 @@ type Credentials struct {
 	TeamName string
 }
 
-type authTestFunc func(token, cookie string) (teamID, teamName string, err error)
-
-// Extract returns credentials for every workspace signed in to Slack Desktop.
 func Extract() ([]*Credentials, error) {
 	tokens, err := ExtractTokens()
 	if err != nil {
@@ -36,17 +33,12 @@ func Extract() ([]*Credentials, error) {
 
 // validateTokens keeps tokens that pass auth.test, one per team. Stale tokens
 // from signed-out workspaces linger in storage and are skipped.
-func validateTokens(tokens []string, cookie string, authTest authTestFunc) ([]*Credentials, error) {
+func validateTokens(tokens []string, cookie string, authTest func(token, cookie string) (teamID, teamName string, err error)) ([]*Credentials, error) {
 	var creds []*Credentials
 	seenTeams := make(map[string]bool)
-	var lastErr error
 	for _, token := range tokens {
 		teamID, teamName, err := authTest(token, cookie)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if seenTeams[teamID] {
+		if err != nil || seenTeams[teamID] {
 			continue
 		}
 		seenTeams[teamID] = true
@@ -58,7 +50,7 @@ func validateTokens(tokens []string, cookie string, authTest authTestFunc) ([]*C
 		})
 	}
 	if len(creds) == 0 {
-		return nil, fmt.Errorf("validate credentials: %w", lastErr)
+		return nil, fmt.Errorf("no valid Slack Desktop token found")
 	}
 	return creds, nil
 }

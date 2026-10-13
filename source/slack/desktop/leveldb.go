@@ -28,8 +28,6 @@ func slackLevelDBPaths() []string {
 	}
 }
 
-// ExtractTokens returns every distinct xoxc token Slack Desktop has stored,
-// one per signed-in workspace.
 func ExtractTokens() ([]string, error) {
 	paths := slackLevelDBPaths()
 	if len(paths) == 0 {
@@ -78,17 +76,9 @@ func extractTokensFromDB(path string) ([]string, error) {
 	defer iter.Release()
 
 	var tokens []string
-	seen := make(map[string]bool)
 	for iter.Next() {
-		val := string(iter.Value())
-		if !strings.Contains(val, "xoxc-") {
-			continue
-		}
-		for _, match := range tokenRe.FindAllString(val, -1) {
-			if !seen[match] {
-				seen[match] = true
-				tokens = append(tokens, match)
-			}
+		if val := string(iter.Value()); strings.Contains(val, "xoxc-") {
+			tokens = append(tokens, tokenRe.FindAllString(val, -1)...)
 		}
 	}
 	return tokens, nil
