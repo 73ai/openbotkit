@@ -124,7 +124,7 @@ var chatsCmd = &cobra.Command{
 
 var chatsListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all synced chats",
+	Short: "List current chats from the last complete sync",
 	Example: `  obk telegram chats list
   obk telegram chats list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -145,7 +145,7 @@ var chatsListCmd = &cobra.Command{
 
 		var chats []tgsrc.Chat
 		if query != "" {
-			chats, err = tgsrc.FindChats(db, query, limit)
+			chats, err = tgsrc.FindCurrentChats(db, query, limit)
 		} else {
 			chats, err = tgsrc.ListChats(db, limit)
 		}

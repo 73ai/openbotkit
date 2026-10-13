@@ -1,6 +1,10 @@
 package telegram
 
-import "github.com/73ai/openbotkit/store"
+import (
+	"fmt"
+
+	"github.com/73ai/openbotkit/store"
+)
 
 const schemaSQLite = `
 CREATE TABLE IF NOT EXISTS telegram_messages (
@@ -27,6 +31,7 @@ CREATE TABLE IF NOT EXISTS telegram_chats (
 	access_hash INTEGER DEFAULT 0,
 	is_group INTEGER DEFAULT 0,
 	is_channel INTEGER DEFAULT 0,
+	is_current_dialog INTEGER NOT NULL DEFAULT 0,
 	last_message_at DATETIME
 );
 
@@ -85,6 +90,7 @@ CREATE TABLE IF NOT EXISTS telegram_chats (
 	access_hash BIGINT DEFAULT 0,
 	is_group BOOLEAN DEFAULT FALSE,
 	is_channel BOOLEAN DEFAULT FALSE,
+	is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE,
 	last_message_at TIMESTAMPTZ
 );
 
@@ -123,6 +129,20 @@ func Migrate(db *store.DB) error {
 	if db.IsPostgres() {
 		schema = schemaPostgres
 	}
-	_, err := db.Exec(schema)
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+	columnQuery := "SELECT COUNT(*) FROM pragma_table_info('telegram_chats') WHERE name = 'is_current_dialog'"
+	if db.IsPostgres() {
+		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'telegram_chats' AND column_name = 'is_current_dialog'"
+	}
+	var columns int
+	if err := db.QueryRow(columnQuery).Scan(&columns); err != nil || columns > 0 {
+		return err
+	}
+	if _, err := db.Exec("ALTER TABLE telegram_chats ADD COLUMN is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE"); err != nil {
+		return fmt.Errorf("add dialog membership: %w", err)
+	}
+	_, err := db.Exec("UPDATE telegram_chats SET is_current_dialog = TRUE")
 	return err
 }

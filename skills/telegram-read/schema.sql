@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS telegram_chats (
   access_hash INTEGER DEFAULT 0,
   is_group INTEGER DEFAULT 0,
   is_channel INTEGER DEFAULT 0,
+  is_current_dialog INTEGER NOT NULL DEFAULT 0,
   last_message_at DATETIME
 );
 

@@ -42,6 +42,20 @@ func DeleteMessages(db *store.DB, chatID int64, messageIDs []int) error {
 	return nil
 }
 
+func DeleteChat(db *store.DB, chatID int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, table := range []string{"telegram_messages", "telegram_sync_state", "telegram_chats"} {
+		if _, err := tx.Exec(db.Rebind("DELETE FROM "+table+" WHERE chat_id = ?"), chatID); err != nil {
+			return fmt.Errorf("delete %s: %w", table, err)
+		}
+	}
+	return tx.Commit()
+}
+
 // DeleteMessagesNonChannel removes messages by ID across every non-channel peer.
 // updateDeleteMessages carries no peer, but non-channel message IDs share one
 // per-account sequence, so the ID alone identifies the row.
@@ -64,8 +78,8 @@ func UpsertChat(db *store.DB, c *Chat) error {
 		lastMsg = c.LastMessageAt.UTC()
 	}
 	_, err := db.Exec(
-		db.Rebind(`INSERT INTO telegram_chats (chat_id, type, title, username, access_hash, is_group, is_channel, last_message_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		db.Rebind(`INSERT INTO telegram_chats (chat_id, type, title, username, access_hash, is_group, is_channel, is_current_dialog, last_message_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(chat_id) DO UPDATE SET
 				type = excluded.type,
 				title = CASE WHEN excluded.title != '' THEN excluded.title ELSE telegram_chats.title END,
@@ -73,8 +87,9 @@ func UpsertChat(db *store.DB, c *Chat) error {
 				access_hash = CASE WHEN excluded.access_hash != 0 THEN excluded.access_hash ELSE telegram_chats.access_hash END,
 				is_group = excluded.is_group,
 				is_channel = excluded.is_channel,
+				is_current_dialog = telegram_chats.is_current_dialog OR excluded.is_current_dialog,
 				last_message_at = COALESCE(excluded.last_message_at, telegram_chats.last_message_at)`),
-		c.ChatID, c.Type, c.Title, c.Username, c.AccessHash, c.IsGroup, c.IsChannel, lastMsg,
+		c.ChatID, c.Type, c.Title, c.Username, c.AccessHash, c.IsGroup, c.IsChannel, c.IsCurrentDialog, lastMsg,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert chat: %w", err)
@@ -115,14 +130,25 @@ func TouchChatLastMessage(db *store.DB, chatID int64, at time.Time) error {
 	return nil
 }
 
+func MarkChatCurrent(db *store.DB, chatID int64, at time.Time) error {
+	stub := stubChat(chatID)
+	_, err := db.Exec(
+		db.Rebind(`INSERT INTO telegram_chats (chat_id, type, title, username, is_group, is_channel, is_current_dialog, last_message_at)
+			VALUES (?, ?, '', '', ?, ?, TRUE, ?)
+			ON CONFLICT(chat_id) DO UPDATE SET is_current_dialog = TRUE, last_message_at = excluded.last_message_at`),
+		chatID, stub.Type, stub.IsGroup, stub.IsChannel, at.UTC(),
+	)
+	return err
+}
+
 func GetChat(db *store.DB, chatID int64) (*Chat, error) {
 	var c Chat
 	var lastMsg sql.NullTime
 	err := db.QueryRow(
-		db.Rebind(`SELECT chat_id, type, title, username, access_hash, is_group, is_channel, last_message_at
+		db.Rebind(`SELECT chat_id, type, title, username, access_hash, is_group, is_channel, is_current_dialog, last_message_at
 			FROM telegram_chats WHERE chat_id = ?`),
 		chatID,
-	).Scan(&c.ChatID, &c.Type, &c.Title, &c.Username, &c.AccessHash, &c.IsGroup, &c.IsChannel, &lastMsg)
+	).Scan(&c.ChatID, &c.Type, &c.Title, &c.Username, &c.AccessHash, &c.IsGroup, &c.IsChannel, &c.IsCurrentDialog, &lastMsg)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -135,7 +161,7 @@ func GetChat(db *store.DB, chatID int64) (*Chat, error) {
 	return &c, nil
 }
 
-const chatColumns = `chat_id, type, title, username, access_hash, is_group, is_channel, last_message_at`
+const chatColumns = `chat_id, type, title, username, access_hash, is_group, is_channel, is_current_dialog, last_message_at`
 
 func scanChats(rows *sql.Rows) ([]Chat, error) {
 	chats := []Chat{}
@@ -143,7 +169,7 @@ func scanChats(rows *sql.Rows) ([]Chat, error) {
 		var c Chat
 		var lastMsg sql.NullTime
 		if err := rows.Scan(&c.ChatID, &c.Type, &c.Title, &c.Username, &c.AccessHash,
-			&c.IsGroup, &c.IsChannel, &lastMsg); err != nil {
+			&c.IsGroup, &c.IsChannel, &c.IsCurrentDialog, &lastMsg); err != nil {
 			return nil, fmt.Errorf("scan chat: %w", err)
 		}
 		if lastMsg.Valid {
@@ -154,10 +180,10 @@ func scanChats(rows *sql.Rows) ([]Chat, error) {
 	return chats, rows.Err()
 }
 
-// ListChats returns every chat, newest activity first. A limit of 0 means no
+// ListChats returns current dialogs, newest activity first. A limit of 0 means no
 // limit, as it does for FindChats.
 func ListChats(db *store.DB, limit int) ([]Chat, error) {
-	query := "SELECT " + chatColumns + " FROM telegram_chats ORDER BY last_message_at DESC"
+	query := "SELECT " + chatColumns + " FROM telegram_chats WHERE is_current_dialog = TRUE ORDER BY last_message_at DESC"
 	var args []any
 	if limit > 0 {
 		query += " LIMIT ?"
@@ -176,9 +202,22 @@ func ListChats(db *store.DB, limit int) ([]Chat, error) {
 // meaning no limit. It is a search, not a send target: use ChatsByUsername or
 // ChatsByTitle for that.
 func FindChats(db *store.DB, query string, limit int) ([]Chat, error) {
+	return findChats(db, query, limit, false)
+}
+
+// FindCurrentChats is FindChats restricted to the current dialog snapshot.
+func FindCurrentChats(db *store.DB, query string, limit int) ([]Chat, error) {
+	return findChats(db, query, limit, true)
+}
+
+func findChats(db *store.DB, query string, limit int, currentOnly bool) ([]Chat, error) {
 	pattern := likePattern(query)
+	membership := ""
+	if currentOnly {
+		membership = "is_current_dialog = TRUE AND "
+	}
 	stmt := `SELECT ` + chatColumns + ` FROM telegram_chats
-		WHERE LOWER(title) LIKE ? ESCAPE '\' OR LOWER(username) LIKE ? ESCAPE '\'
+		WHERE ` + membership + `(LOWER(title) LIKE ? ESCAPE '\' OR LOWER(username) LIKE ? ESCAPE '\')
 		ORDER BY last_message_at DESC`
 	args := []any{pattern, pattern}
 	if limit > 0 {

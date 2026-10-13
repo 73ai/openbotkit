@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/telegram/updates"
@@ -63,22 +64,22 @@ func registerUpdateHandlers(d tg.UpdateDispatcher, db *store.DB, selfID int64, o
 	}
 
 	d.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
-		notify(storeUpdateMessage(db, selfID, e, u.Message))
+		notify(storeUpdateMessage(db, selfID, e, u.Message, true))
 		return nil
 	})
 
 	d.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
-		notify(storeUpdateMessage(db, selfID, e, u.Message))
+		notify(storeUpdateMessage(db, selfID, e, u.Message, true))
 		return nil
 	})
 
 	d.OnEditMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateEditMessage) error {
-		notify(storeUpdateMessage(db, selfID, e, u.Message))
+		notify(storeUpdateMessage(db, selfID, e, u.Message, false))
 		return nil
 	})
 
 	d.OnEditChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateEditChannelMessage) error {
-		notify(storeUpdateMessage(db, selfID, e, u.Message))
+		notify(storeUpdateMessage(db, selfID, e, u.Message, false))
 		return nil
 	})
 
@@ -103,7 +104,7 @@ func registerUpdateHandlers(d tg.UpdateDispatcher, db *store.DB, selfID int64, o
 
 // storeUpdateMessage writes an update's message and the entities it references.
 // It reports whether a row was written.
-func storeUpdateMessage(db *store.DB, selfID int64, e tg.Entities, raw tg.MessageClass) bool {
+func storeUpdateMessage(db *store.DB, selfID int64, e tg.Entities, raw tg.MessageClass, isNew bool) bool {
 	ents := peer.EntitiesFromUpdate(e)
 	if err := saveEntities(db, ents); err != nil {
 		slog.Error("telegram: save entities", "error", err)
@@ -118,6 +119,11 @@ func storeUpdateMessage(db *store.DB, selfID int64, e tg.Entities, raw tg.Messag
 		return false
 	}
 
+	if isNew {
+		if err := MarkChatCurrent(db, chatID, time.Unix(int64(notEmpty.GetDate()), 0)); err != nil {
+			slog.Error("telegram: mark current chat", "chat_id", chatID, "error", err)
+		}
+	}
 	msg, ok := messageFromTG(notEmpty, chatID, selfID)
 	if !ok {
 		return false

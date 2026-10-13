@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/telegram/query"
@@ -32,7 +33,22 @@ func NewAPIFetcher(raw *tg.Client) Fetcher {
 }
 
 func (f *apiFetcher) Dialogs(ctx context.Context, fn func(context.Context, dialogs.Elem) error) error {
-	return query.GetDialogs(f.raw).ForEach(ctx, fn)
+	seen := map[int64]bool{}
+	for _, folderID := range []int{0, 1} {
+		err := query.GetDialogs(f.raw).FolderID(folderID).ForEach(ctx, func(ctx context.Context, elem dialogs.Elem) error {
+			if id, ok := chatIDFromInputPeer(elem.Peer); ok {
+				if seen[id] {
+					return nil
+				}
+				seen[id] = true
+			}
+			return fn(ctx, elem)
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *apiFetcher) History(ctx context.Context, peer tg.InputPeerClass, offsetID int, fn func(context.Context, messages.Elem) error) error {
@@ -49,25 +65,15 @@ var errStopChat = errors.New("telegram: stop iterating chat")
 // SyncDialogs records every dialog plus the users and chats they reference,
 // without touching message history. Backfill and login both need this first.
 func SyncDialogs(ctx context.Context, f Fetcher, db *store.DB) (int, error) {
-	count := 0
-	err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
-		if err := saveEntities(db, elem.Entities); err != nil {
-			return err
-		}
-		chat, ok := chatFromDialog(elem)
-		if !ok {
-			return nil
-		}
-		if err := UpsertChat(db, chat); err != nil {
-			return err
-		}
-		count++
-		return nil
-	})
+	started := time.Now()
+	targets, err := collectDialogs(ctx, f, db)
 	if err != nil {
-		return count, fmt.Errorf("iterate dialogs: %w", err)
+		return len(targets), err
 	}
-	return count, nil
+	if err := reconcileDialogs(db, targets, started); err != nil {
+		return len(targets), fmt.Errorf("reconcile dialogs: %w", err)
+	}
+	return len(targets), nil
 }
 
 // Backfill walks history for every dialog, oldest-bound by opts.Since. Progress
@@ -84,29 +90,14 @@ func Backfill(ctx context.Context, f Fetcher, db *store.DB, opts BackfillOptions
 		slog.Warn("telegram: could not read the stored account", "error", err)
 	}
 
-	var targets []backfillTarget
-
-	err = f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
-		if err := saveEntities(db, elem.Entities); err != nil {
-			return err
-		}
-		chat, ok := chatFromDialog(elem)
-		if !ok {
-			return nil
-		}
-		if err := UpsertChat(db, chat); err != nil {
-			return err
-		}
-		result.Chats++
-		t := backfillTarget{peer: elem.Peer, chat: chat}
-		if elem.Last != nil {
-			t.lastID = elem.Last.GetID()
-		}
-		targets = append(targets, t)
-		return nil
-	})
+	started := time.Now()
+	targets, err := collectDialogs(ctx, f, db)
+	result.Chats = len(targets)
 	if err != nil {
-		return result, fmt.Errorf("iterate dialogs: %w", err)
+		return result, err
+	}
+	if err := reconcileDialogs(db, targets, started); err != nil {
+		return result, fmt.Errorf("reconcile dialogs: %w", err)
 	}
 
 	for _, t := range targets {
@@ -119,6 +110,47 @@ func Backfill(ctx context.Context, f Fetcher, db *store.DB, opts BackfillOptions
 	}
 
 	return result, nil
+}
+
+func collectDialogs(ctx context.Context, f Fetcher, db *store.DB) ([]backfillTarget, error) {
+	var targets []backfillTarget
+	err := f.Dialogs(ctx, func(ctx context.Context, elem dialogs.Elem) error {
+		if err := saveEntities(db, elem.Entities); err != nil {
+			return err
+		}
+		chat, ok := chatFromDialog(elem)
+		if !ok {
+			slog.Warn("telegram: skipping dialog without a peer", "peer", fmt.Sprintf("%T", elem.Peer))
+			return nil
+		}
+		if err := UpsertChat(db, chat); err != nil {
+			return err
+		}
+		target := backfillTarget{peer: elem.Peer, chat: chat}
+		if elem.Last != nil {
+			target.lastID = elem.Last.GetID()
+		}
+		targets = append(targets, target)
+		return nil
+	})
+	if err != nil {
+		return targets, fmt.Errorf("iterate dialogs: %w", err)
+	}
+	return targets, nil
+}
+
+func reconcileDialogs(db *store.DB, targets []backfillTarget, started time.Time) error {
+	ids := make([]any, 0, len(targets)+1)
+	for _, target := range targets {
+		ids = append(ids, target.chat.ChatID)
+	}
+	current := "FALSE"
+	if len(ids) > 0 {
+		current = "chat_id IN (?" + strings.Repeat(", ?", len(ids)-1) + ")"
+	}
+	ids = append(ids, started.UTC().Truncate(time.Second))
+	_, err := db.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = ("+current+" OR (is_current_dialog AND last_message_at >= ?))"), ids...)
+	return err
 }
 
 type backfillTarget struct {

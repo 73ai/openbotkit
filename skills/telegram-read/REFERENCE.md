@@ -13,11 +13,18 @@ Full database schema: see schema.sql in this skill directory.
 `telegram_chats.type` spells this out as `user`, `group` or `channel`. A supergroup has
 both `is_group` and `is_channel` set.
 
+`telegram_chats` also keeps peers you no longer have a dialog with, along with their
+history. Filter on `is_current_dialog = 1` for chats that currently exist in Telegram.
+
+Zero stored messages does not mean a chat is empty on Telegram. Run
+`obk telegram chats empty` to check private chats against live history; it reports
+`empty`, `joined_telegram` (only contact-signup notices) or `service_only`.
+
 ## Query patterns
 
 ```bash
 # List chats
-obk db telegram "SELECT chat_id, type, title, username, last_message_at FROM telegram_chats ORDER BY last_message_at DESC LIMIT 20;"
+obk db telegram "SELECT chat_id, type, title, username, last_message_at FROM telegram_chats WHERE is_current_dialog = 1 ORDER BY last_message_at DESC LIMIT 20;"
 
 # Recent messages in a chat
 obk db telegram "SELECT timestamp, sender_name, text FROM telegram_messages WHERE chat_id = <chat_id> ORDER BY timestamp DESC LIMIT 30;"
