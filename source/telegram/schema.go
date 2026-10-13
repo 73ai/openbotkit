@@ -132,37 +132,17 @@ func Migrate(db *store.DB) error {
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
+	columnQuery := "SELECT COUNT(*) FROM pragma_table_info('telegram_chats') WHERE name = 'is_current_dialog'"
 	if db.IsPostgres() {
-		_, err := db.Exec("ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE")
+		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'telegram_chats' AND column_name = 'is_current_dialog'"
+	}
+	var columns int
+	if err := db.QueryRow(columnQuery).Scan(&columns); err != nil || columns > 0 {
 		return err
 	}
-	rows, err := db.Query("PRAGMA table_info(telegram_chats)")
-	if err != nil {
-		return err
-	}
-	found := false
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, kind string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &kind, &notNull, &defaultValue, &primaryKey); err != nil {
-			rows.Close()
-			return err
-		}
-		if name == "is_current_dialog" {
-			found = true
-		}
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	if found {
-		return nil
-	}
-	if _, err := db.Exec("ALTER TABLE telegram_chats ADD COLUMN is_current_dialog INTEGER NOT NULL DEFAULT 0"); err != nil {
+	if _, err := db.Exec("ALTER TABLE telegram_chats ADD COLUMN is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE"); err != nil {
 		return fmt.Errorf("add dialog membership: %w", err)
 	}
-	return nil
+	_, err := db.Exec("UPDATE telegram_chats SET is_current_dialog = TRUE")
+	return err
 }
