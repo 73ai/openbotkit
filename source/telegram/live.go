@@ -120,14 +120,8 @@ func storeUpdateMessage(db *store.DB, selfID int64, e tg.Entities, raw tg.Messag
 	}
 
 	if isNew {
-		at := time.Unix(int64(notEmpty.GetDate()), 0).UTC()
-		if err := TouchChatLastMessage(db, chatID, at); err != nil {
-			slog.Error("telegram: touch current chat", "chat_id", chatID, "error", err)
-			return false
-		}
-		if _, err := db.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = TRUE WHERE chat_id = ?"), chatID); err != nil {
+		if err := MarkChatCurrent(db, chatID, time.Unix(int64(notEmpty.GetDate()), 0)); err != nil {
 			slog.Error("telegram: mark current chat", "chat_id", chatID, "error", err)
-			return false
 		}
 	}
 	msg, ok := messageFromTG(notEmpty, chatID, selfID)

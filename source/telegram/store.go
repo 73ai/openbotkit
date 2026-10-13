@@ -130,6 +130,17 @@ func TouchChatLastMessage(db *store.DB, chatID int64, at time.Time) error {
 	return nil
 }
 
+func MarkChatCurrent(db *store.DB, chatID int64, at time.Time) error {
+	stub := stubChat(chatID)
+	_, err := db.Exec(
+		db.Rebind(`INSERT INTO telegram_chats (chat_id, type, title, username, is_group, is_channel, is_current_dialog, last_message_at)
+			VALUES (?, ?, '', '', ?, ?, TRUE, ?)
+			ON CONFLICT(chat_id) DO UPDATE SET is_current_dialog = TRUE, last_message_at = excluded.last_message_at`),
+		chatID, stub.Type, stub.IsGroup, stub.IsChannel, at.UTC(),
+	)
+	return err
+}
+
 func GetChat(db *store.DB, chatID int64) (*Chat, error) {
 	var c Chat
 	var lastMsg sql.NullTime
@@ -194,6 +205,7 @@ func FindChats(db *store.DB, query string, limit int) ([]Chat, error) {
 	return findChats(db, query, limit, false)
 }
 
+// FindCurrentChats is FindChats restricted to the current dialog snapshot.
 func FindCurrentChats(db *store.DB, query string, limit int) ([]Chat, error) {
 	return findChats(db, query, limit, true)
 }
@@ -616,21 +628,4 @@ func ListKVPrefix(db *store.DB, prefix string) (map[string]string, error) {
 		out[k] = v
 	}
 	return out, rows.Err()
-}
-
-func reconcileDialogs(db *store.DB, targets []backfillTarget, started time.Time) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = FALSE WHERE last_message_at IS NULL OR last_message_at < ?"), started.UTC().Truncate(time.Second)); err != nil {
-		return err
-	}
-	for _, target := range targets {
-		if _, err := tx.Exec(db.Rebind("UPDATE telegram_chats SET is_current_dialog = TRUE WHERE chat_id = ?"), target.chat.ChatID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
 }
