@@ -114,7 +114,7 @@ func TestAgentRunner_BuildsGeminiArgs(t *testing.T) {
 func TestAgentRunner_BuildsCodexArgs(t *testing.T) {
 	r := NewAgentRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	args := r.buildArgs(runOptions{})
-	want := []string{"exec", "--full-auto"}
+	want := []string{"exec", "--sandbox", "workspace-write"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}

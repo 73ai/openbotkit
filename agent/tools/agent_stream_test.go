@@ -146,7 +146,7 @@ func TestStreamRunner_BuildsGeminiStreamArgs(t *testing.T) {
 func TestStreamRunner_BuildsCodexStreamArgs(t *testing.T) {
 	r := NewStreamRunner(AgentInfo{Kind: AgentCodex, Binary: "codex"})
 	args := r.buildStreamArgs(runOptions{})
-	want := []string{"exec", "--json", "--full-auto"}
+	want := []string{"exec", "--json", "--sandbox", "workspace-write"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
