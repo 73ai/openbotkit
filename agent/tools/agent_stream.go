@@ -121,7 +121,7 @@ func (r *StreamRunner) buildStreamArgs(opts runOptions) []string {
 }
 
 func (r *StreamRunner) buildEnv() []string {
-	env := append(filterEnv(scrubEnv(os.Environ()), "OBK_AGENT"), "OBK_AGENT=1")
+	env := agentEnv(scrubEnv(os.Environ()))
 	if r.info.Kind == AgentClaude {
 		return filterEnv(env, "CLAUDECODE")
 	}

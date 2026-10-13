@@ -116,7 +116,7 @@ func (b *BashTool) runCommand(ctx context.Context, command string) (string, erro
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
-	cmd.Env = append(filterEnv(os.Environ(), "OBK_AGENT"), "OBK_AGENT=1")
+	cmd.Env = agentEnv(os.Environ())
 	if b.workDir != "" {
 		cmd.Dir = b.workDir
 	}

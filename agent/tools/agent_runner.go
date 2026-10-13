@@ -119,7 +119,7 @@ func (r *AgentRunner) buildArgs(opts runOptions) []string {
 }
 
 func (r *AgentRunner) buildEnv() []string {
-	env := append(filterEnv(scrubEnv(os.Environ()), "OBK_AGENT"), "OBK_AGENT=1")
+	env := agentEnv(scrubEnv(os.Environ()))
 	if r.info.Kind == AgentClaude {
 		return filterEnv(env, "CLAUDECODE")
 	}
@@ -127,6 +127,10 @@ func (r *AgentRunner) buildEnv() []string {
 }
 
 // filterEnv returns env with entries matching the given key prefix removed.
+func agentEnv(env []string) []string {
+	return append(filterEnv(env, "OBK_AGENT"), "OBK_AGENT=1")
+}
+
 func filterEnv(env []string, key string) []string {
 	prefix := key + "="
 	filtered := make([]string, 0, len(env))
