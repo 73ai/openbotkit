@@ -4,14 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 
 	"github.com/73ai/openbotkit/config"
 	tgsrc "github.com/73ai/openbotkit/source/telegram"
 	"github.com/73ai/openbotkit/store"
-	"github.com/charmbracelet/x/term"
 	"github.com/gotd/td/tg"
 	"github.com/spf13/cobra"
 )
@@ -22,193 +20,207 @@ var chatsDeleteCmd = &cobra.Command{
 	Long:    "Delete a private chat and its history for your account. For groups and channels, leave the chat and remove its local data. Requires terminal confirmation; unavailable to agents.",
 	Example: "  obk telegram chats delete --chat 123456789\n  obk telegram chats delete --chat 123456789 --revoke",
 	Args:    cobra.NoArgs,
-	RunE:    func(cmd *cobra.Command, args []string) error { return runDelete(cmd, true) },
+	RunE:    runChatDelete,
 }
 
 var messagesDeleteCmd = &cobra.Command{
 	Use:     "delete",
 	Short:   "Delete specific Telegram messages (manual CLI only)",
-	Long:    "Delete messages by Telegram message ID in a specific chat. Defaults to your account only for private chats. Group and channel messages require --revoke because deletion affects everyone. Requires terminal confirmation; unavailable to agents.",
+	Long:    "Delete messages by Telegram message ID in a specific chat. Defaults to your account only. Channel and supergroup deletion always affects everyone and requires --revoke. Requires terminal confirmation; unavailable to agents.",
 	Example: "  obk telegram messages delete --chat 123456789 --ids 42,43\n  obk telegram messages delete --chat 123456789 --ids 42 --revoke",
 	Args:    cobra.NoArgs,
-	RunE:    func(cmd *cobra.Command, args []string) error { return runDelete(cmd, false) },
+	RunE:    runMessagesDelete,
 }
 
-func runDelete(cmd *cobra.Command, wholeChat bool) error {
-	if os.Getenv("OBK_AGENT") != "" {
-		return fmt.Errorf("Telegram deletion is only available in the manual CLI")
+type deleteTarget struct {
+	cfg    *config.Config
+	db     *store.DB
+	chat   *tgsrc.Chat
+	peer   tg.InputPeerClass
+	kind   string
+	rawID  int64
+	revoke bool
+}
+
+func runChatDelete(cmd *cobra.Command, args []string) error {
+	t, err := loadDeleteTarget(cmd)
+	if err != nil {
+		return err
 	}
-	if !term.IsTerminal(os.Stdin.Fd()) {
-		return fmt.Errorf("Telegram deletion requires an interactive terminal")
+	defer t.db.Close()
+	if t.kind != tgsrc.PeerUser && t.revoke {
+		return fmt.Errorf("--revoke is only supported when deleting private chats")
+	}
+	if t.kind == tgsrc.PeerUser {
+		fmt.Fprintf(cmd.OutOrStdout(), "Delete private chat %q (%d) and all its history %s.\n", t.chat.Title, t.chat.ChatID, scope(t.revoke))
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "Leave chat %q (%d) and remove its local messages. Other members keep their history.\n", t.chat.Title, t.chat.ChatID)
+	}
+	if err := t.run(cmd, func(ctx context.Context, api *tg.Client) error {
+		if err := t.deleteRemoteChat(ctx, api); err != nil {
+			return err
+		}
+		if err := tgsrc.DeleteChat(t.db, t.chat.ChatID); err != nil {
+			return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Chat deleted: %d\n", t.chat.ChatID)
+	return nil
+}
+
+func runMessagesDelete(cmd *cobra.Command, args []string) error {
+	t, err := loadDeleteTarget(cmd)
+	if err != nil {
+		return err
+	}
+	defer t.db.Close()
+	ids, _ := cmd.Flags().GetIntSlice("ids")
+	if len(ids) == 0 || len(ids) > 100 {
+		return fmt.Errorf("--ids requires between 1 and 100 Telegram message IDs")
+	}
+	if t.kind == tgsrc.PeerChannel && !t.revoke {
+		return fmt.Errorf("channel and supergroup message deletion affects everyone; specify --revoke")
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Delete messages %v in chat %q (%d) %s.\n", ids, t.chat.Title, t.chat.ChatID, scope(t.revoke))
+	if err := t.run(cmd, func(ctx context.Context, api *tg.Client) error {
+		if err := t.deleteRemoteMessages(ctx, api, ids); err != nil {
+			return err
+		}
+		if err := tgsrc.DeleteMessages(t.db, t.chat.ChatID, ids); err != nil {
+			return fmt.Errorf("messages deleted on Telegram, but local cleanup failed: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Messages deleted: %v in chat %d\n", ids, t.chat.ChatID)
+	return nil
+}
+
+func scope(revoke bool) string {
+	if revoke {
+		return "for everyone"
+	}
+	return "for your account only"
+}
+
+func loadDeleteTarget(cmd *cobra.Command) (*deleteTarget, error) {
+	if os.Getenv("OBK_AGENT") != "" {
+		return nil, fmt.Errorf("Telegram deletion is only available in the manual CLI")
+	}
+	if info, err := os.Stdin.Stat(); err != nil || info.Mode()&os.ModeCharDevice == 0 {
+		return nil, fmt.Errorf("Telegram deletion requires an interactive terminal")
 	}
 	chatID, _ := cmd.Flags().GetInt64("chat")
-	if chatID == 0 {
-		return fmt.Errorf("--chat must be a nonzero Telegram chat ID")
-	}
 	revoke, _ := cmd.Flags().GetBool("revoke")
-	var ids []int
-	if !wholeChat {
-		ids, _ = cmd.Flags().GetIntSlice("ids")
-		if len(ids) == 0 || len(ids) > 100 {
-			return fmt.Errorf("--ids requires between 1 and 100 Telegram message IDs")
-		}
-		seen := make(map[int]bool, len(ids))
-		for _, id := range ids {
-			if id <= 0 || id > math.MaxInt32 || seen[id] {
-				return fmt.Errorf("message IDs must be distinct positive 32-bit integers")
-			}
-			seen[id] = true
-		}
-	}
-
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 	if err := requireSession(cfg); err != nil {
-		return err
+		return nil, err
 	}
 	db, err := openTelegramDB(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer db.Close()
 	chat, err := tgsrc.GetChat(db, chatID)
-	if err != nil {
-		return fmt.Errorf("look up chat: %w", err)
+	if err == nil && chat == nil {
+		err = fmt.Errorf("unknown chat %d; run 'obk telegram chats list' to find a synced chat", chatID)
 	}
-	if chat == nil {
-		return fmt.Errorf("unknown chat %d; run 'obk telegram chats list' to find a synced chat", chatID)
+	var peer tg.InputPeerClass
+	if err == nil {
+		peer, err = tgsrc.InputPeerFor(chat)
 	}
-	peer, err := tgsrc.InputPeerFor(chat)
 	if err != nil {
-		return err
+		db.Close()
+		return nil, err
 	}
 	kind, rawID := tgsrc.SplitChatID(chatID)
-	if wholeChat && kind != tgsrc.PeerUser && revoke {
-		return fmt.Errorf("--revoke is only supported when deleting private chats")
-	}
-	if !wholeChat && kind != tgsrc.PeerUser && !revoke {
-		return fmt.Errorf("group and channel message deletion affects everyone; specify --revoke")
-	}
+	return &deleteTarget{cfg: cfg, db: db, chat: chat, peer: peer, kind: kind, rawID: rawID, revoke: revoke}, nil
+}
 
-	scope := "for your account only"
-	if revoke {
-		scope = "for everyone"
-	}
-	if wholeChat {
-		if kind == tgsrc.PeerUser {
-			fmt.Fprintf(cmd.OutOrStdout(), "Delete private chat %q (%d) and all its history %s.\n", chat.Title, chatID, scope)
-		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "Leave chat %q (%d) and remove its local messages. Other members keep their history.\n", chat.Title, chatID)
-		}
-	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "Delete messages %v in chat %q (%d) %s.\n", ids, chat.Title, chatID, scope)
-	}
-	confirmation := fmt.Sprintf("delete %d", chatID)
+func (t *deleteTarget) run(cmd *cobra.Command, fn func(context.Context, *tg.Client) error) error {
+	confirmation := fmt.Sprintf("delete %d", t.chat.ChatID)
 	fmt.Fprintf(cmd.OutOrStdout(), "Type %q to confirm: ", confirmation)
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil || strings.TrimSpace(line) != confirmation {
 		return fmt.Errorf("deletion cancelled")
 	}
-
-	client, err := newClient(cfg, db)
+	client, err := newClient(t.cfg, t.db)
 	if err != nil {
 		return err
 	}
-	err = client.Run(cmd.Context(), func(ctx context.Context) error {
-		api := client.API()
-		if !wholeChat {
-			return deleteRemoteMessages(ctx, api, db, chatID, peer, ids, revoke)
-		}
-		switch kind {
-		case tgsrc.PeerChannel:
-			p := peer.(*tg.InputPeerChannel)
-			if _, err := api.ChannelsLeaveChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash}); err != nil {
-				return fmt.Errorf("leave channel: %w", err)
-			}
-		case tgsrc.PeerGroup:
-			if _, err := api.MessagesDeleteChatUser(ctx, &tg.MessagesDeleteChatUserRequest{ChatID: rawID, UserID: &tg.InputUserSelf{}}); err != nil {
-				return fmt.Errorf("leave group: %w", err)
-			}
-			fallthrough
-		case tgsrc.PeerUser:
-			for {
-				result, err := api.MessagesDeleteHistory(ctx, &tg.MessagesDeleteHistoryRequest{Peer: peer, Revoke: revoke})
-				if err != nil {
-					if kind == tgsrc.PeerGroup {
-						return fmt.Errorf("left the group, but deleting its history failed: %w", err)
-					}
-					return fmt.Errorf("delete history: %w", err)
-				}
-				if result.Offset == 0 {
-					break
-				}
-			}
-		}
-		if err := tgsrc.DeleteChat(db, chatID); err != nil {
-			return fmt.Errorf("chat deleted on Telegram, but local cleanup failed: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if wholeChat {
-		fmt.Fprintf(cmd.OutOrStdout(), "Chat deleted: %d\n", chatID)
-	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "Messages deleted: %v in chat %d\n", ids, chatID)
-	}
-	return nil
+	return client.Run(cmd.Context(), func(ctx context.Context) error { return fn(ctx, client.API()) })
 }
 
-func deleteRemoteMessages(ctx context.Context, api *tg.Client, db *store.DB, chatID int64, peer tg.InputPeerClass, ids []int, revoke bool) error {
-	if p, ok := peer.(*tg.InputPeerChannel); ok {
+func (t *deleteTarget) deleteRemoteChat(ctx context.Context, api *tg.Client) error {
+	switch t.kind {
+	case tgsrc.PeerChannel:
+		p := t.peer.(*tg.InputPeerChannel)
+		if _, err := api.ChannelsLeaveChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash}); err != nil {
+			return fmt.Errorf("leave channel: %w", err)
+		}
+		return nil
+	case tgsrc.PeerGroup:
+		if _, err := api.MessagesDeleteChatUser(ctx, &tg.MessagesDeleteChatUserRequest{ChatID: t.rawID, UserID: &tg.InputUserSelf{}}); err != nil {
+			return fmt.Errorf("leave group: %w", err)
+		}
+	}
+	for {
+		result, err := api.MessagesDeleteHistory(ctx, &tg.MessagesDeleteHistoryRequest{Peer: t.peer, Revoke: t.revoke})
+		if err != nil {
+			return fmt.Errorf("delete history: %w", err)
+		}
+		if result.Offset == 0 {
+			return nil
+		}
+	}
+}
+
+func (t *deleteTarget) deleteRemoteMessages(ctx context.Context, api *tg.Client, ids []int) error {
+	if p, ok := t.peer.(*tg.InputPeerChannel); ok {
 		_, err := api.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash}, ID: ids,
 		})
 		if err != nil {
 			return fmt.Errorf("delete channel messages: %w", err)
 		}
-	} else {
-		inputs := make([]tg.InputMessageClass, len(ids))
-		for i, id := range ids {
-			inputs[i] = &tg.InputMessageID{ID: id}
-		}
-		result, err := api.MessagesGetMessages(ctx, inputs)
-		if err != nil {
-			return fmt.Errorf("verify message chat: %w", err)
-		}
-		messages, ok := result.(interface{ GetMessages() []tg.MessageClass })
+		return nil
+	}
+	inputs := make([]tg.InputMessageClass, len(ids))
+	for i, id := range ids {
+		inputs[i] = &tg.InputMessageID{ID: id}
+	}
+	result, err := api.MessagesGetMessages(ctx, inputs)
+	if err != nil {
+		return fmt.Errorf("verify message chat: %w", err)
+	}
+	messages, ok := result.(interface{ GetMessages() []tg.MessageClass })
+	if !ok {
+		return fmt.Errorf("could not verify message chat")
+	}
+	verified := make(map[int]bool, len(ids))
+	for _, raw := range messages.GetMessages() {
+		message, ok := raw.AsNotEmpty()
 		if !ok {
-			return fmt.Errorf("could not verify message chat")
+			continue
 		}
-		verified := make(map[int]bool, len(ids))
-		for _, raw := range messages.GetMessages() {
-			message, ok := raw.(interface {
-				GetID() int
-				GetPeerID() tg.PeerClass
-			})
-			if !ok {
-				continue
-			}
-			id, ok := tgsrc.ChatIDFromPeer(message.GetPeerID())
-			if !ok || id != chatID {
-				return fmt.Errorf("message %d does not belong to chat %d", message.GetID(), chatID)
-			}
-			verified[message.GetID()] = true
+		if id, ok := tgsrc.ChatIDFromPeer(message.GetPeerID()); !ok || id != t.chat.ChatID {
+			return fmt.Errorf("message %d does not belong to chat %d", message.GetID(), t.chat.ChatID)
 		}
-		for _, id := range ids {
-			if !verified[id] {
-				return fmt.Errorf("message %d was not found in chat %d", id, chatID)
-			}
-		}
-		if _, err := api.MessagesDeleteMessages(ctx, &tg.MessagesDeleteMessagesRequest{ID: ids, Revoke: revoke}); err != nil {
-			return fmt.Errorf("delete messages: %w", err)
+		verified[message.GetID()] = true
+	}
+	for _, id := range ids {
+		if !verified[id] {
+			return fmt.Errorf("message %d was not found in chat %d", id, t.chat.ChatID)
 		}
 	}
-	if err := tgsrc.DeleteMessages(db, chatID, ids); err != nil {
-		return fmt.Errorf("messages deleted on Telegram, but local cleanup failed: %w", err)
+	if _, err := api.MessagesDeleteMessages(ctx, &tg.MessagesDeleteMessagesRequest{ID: ids, Revoke: t.revoke}); err != nil {
+		return fmt.Errorf("delete messages: %w", err)
 	}
 	return nil
 }
