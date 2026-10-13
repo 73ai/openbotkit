@@ -39,7 +39,7 @@ the thread works: a link to a reply returns the whole thread.`,
 			return err
 		}
 
-		client, cache, workspace, err := loadClientAndCache()
+		client, cache, workspace, err := loadClientAndCache(ref)
 		if err != nil {
 			return err
 		}
@@ -50,7 +50,7 @@ the thread works: a link to a reply returns the whole thread.`,
 		var channelID, ts string
 		if ref != nil {
 			if !slacksrc.MatchesWorkspace(ref.Subdomain, workspace) {
-				return fmt.Errorf("permalink belongs to workspace %q but obk is authenticated to %q; run: obk slack auth login", ref.Subdomain, workspace)
+				return fmt.Errorf("permalink belongs to workspace %q but obk has no matching workspace (using %q); run: obk slack auth login", ref.Subdomain, workspace)
 			}
 			channelID = ref.ChannelID
 			if ts, err = ref.RootTS(); err != nil {

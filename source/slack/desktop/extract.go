@@ -14,8 +14,8 @@ type Credentials struct {
 	TeamName string
 }
 
-func Extract() (*Credentials, error) {
-	token, err := ExtractToken()
+func Extract() ([]*Credentials, error) {
+	tokens, err := ExtractTokens()
 	if err != nil {
 		return nil, fmt.Errorf("extract token: %w", err)
 	}
@@ -25,16 +25,32 @@ func Extract() (*Credentials, error) {
 		return nil, fmt.Errorf("extract cookie: %w", err)
 	}
 
-	client := slack.NewClient(token, cookie)
-	teamID, teamName, _, err := client.AuthTest(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("validate credentials: %w", err)
-	}
+	return validateTokens(tokens, cookie, func(token, cookie string) (string, string, error) {
+		teamID, teamName, _, err := slack.NewClient(token, cookie).AuthTest(context.Background())
+		return teamID, teamName, err
+	})
+}
 
-	return &Credentials{
-		Token:    token,
-		Cookie:   cookie,
-		TeamID:   teamID,
-		TeamName: teamName,
-	}, nil
+// validateTokens keeps tokens that pass auth.test, one per team. Stale tokens
+// from signed-out workspaces linger in storage and are skipped.
+func validateTokens(tokens []string, cookie string, authTest func(token, cookie string) (teamID, teamName string, err error)) ([]*Credentials, error) {
+	var creds []*Credentials
+	seenTeams := make(map[string]bool)
+	for _, token := range tokens {
+		teamID, teamName, err := authTest(token, cookie)
+		if err != nil || seenTeams[teamID] {
+			continue
+		}
+		seenTeams[teamID] = true
+		creds = append(creds, &Credentials{
+			Token:    token,
+			Cookie:   cookie,
+			TeamID:   teamID,
+			TeamName: teamName,
+		})
+	}
+	if len(creds) == 0 {
+		return nil, fmt.Errorf("no valid Slack Desktop token found")
+	}
+	return creds, nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/browser/cookies"
+	slackcli "github.com/73ai/openbotkit/internal/cli/slack"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/internal/tty"
 	"github.com/73ai/openbotkit/oauth/google"
@@ -20,7 +21,6 @@ import (
 	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	ansrc "github.com/73ai/openbotkit/source/applenotes"
 	imsrc "github.com/73ai/openbotkit/source/imessage"
-	slacksrc "github.com/73ai/openbotkit/source/slack"
 	"github.com/73ai/openbotkit/source/slack/desktop"
 	xclient "github.com/73ai/openbotkit/source/twitter/client"
 	"github.com/73ai/openbotkit/store"
@@ -782,26 +782,17 @@ func setupSlack(cfg *config.Config) error {
 
 		creds, err := desktop.Extract()
 		if err == nil {
-			workspace := slacksrc.SanitizeWorkspaceName(creds.TeamName)
-			if err := slacksrc.SaveCredentials(workspace, creds.Token, creds.Cookie); err != nil {
-				return fmt.Errorf("save credentials: %w", err)
+			creds, err = slackcli.SelectDesktopWorkspaces(creds)
+			if err != nil {
+				return err
 			}
-
-			if cfg.Slack == nil {
-				cfg.Slack = &config.SlackConfig{}
+			names, err := slackcli.AddDesktopWorkspaces(cfg, creds)
+			if err != nil {
+				return err
 			}
-			if cfg.Slack.Workspaces == nil {
-				cfg.Slack.Workspaces = make(map[string]config.SlackWorkspace)
+			for i, name := range names {
+				fmt.Printf("  Authenticated with workspace %q (team: %s)\n", name, creds[i].TeamName)
 			}
-			cfg.Slack.Workspaces[workspace] = config.SlackWorkspace{
-				TeamID:   creds.TeamID,
-				TeamName: creds.TeamName,
-				AuthMode: "desktop",
-			}
-			if cfg.Slack.DefaultWorkspace == "" {
-				cfg.Slack.DefaultWorkspace = workspace
-			}
-			fmt.Printf("  Authenticated with workspace %q (team: %s)\n", workspace, creds.TeamName)
 			return nil
 		}
 		fmt.Printf("  Desktop auto-detect failed: %v\n", err)

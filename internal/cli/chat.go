@@ -16,7 +16,6 @@ import (
 	historysrc "github.com/73ai/openbotkit/service/history"
 	"github.com/73ai/openbotkit/service/learnings"
 	usagesrc "github.com/73ai/openbotkit/service/usage"
-	slacksrc "github.com/73ai/openbotkit/source/slack"
 	"github.com/73ai/openbotkit/store"
 
 	// Register provider factories.
@@ -94,18 +93,14 @@ var chatCmd = &cobra.Command{
 		subagentLearningsDeps := tools.LearningsDeps{
 			Store: learnings.New(config.LearningsDir()),
 		}
-		slackWS := ""
-		if cfg.Slack != nil {
-			slackWS = cfg.Slack.DefaultWorkspace
-		}
 		toolReg.Register(tools.BuildSubagentTool(tools.SubagentToolConfig{
-			Provider:       p,
-			Model:          modelName,
-			WebDeps:        &subagentWebDeps,
-			LearningsDeps:  &subagentLearningsDeps,
-			ScratchDir:     scratchDir,
-			WorkspaceDir:   workspaceDir,
-			SlackWorkspace: slackWS,
+			Provider:      p,
+			Model:         modelName,
+			WebDeps:       &subagentWebDeps,
+			LearningsDeps: &subagentLearningsDeps,
+			ScratchDir:    scratchDir,
+			WorkspaceDir:  workspaceDir,
+			Slack:         cfg.Slack,
 		}))
 
 		// Register delegate_task if external AI CLIs are available.
@@ -207,22 +202,13 @@ func openAuditLogger() *audit.Logger {
 }
 
 func registerSlackTools(cfg *config.Config, reg *tools.Registry, ch *clicli.Channel, scratchDir string) {
-	if cfg.Slack == nil || cfg.Slack.DefaultWorkspace == "" {
+	deps, ok := tools.LoadSlackToolDeps(cfg.Slack)
+	if !ok {
+		slog.Debug("slack tools not loaded: no default workspace credentials")
 		return
 	}
-	creds, err := slacksrc.LoadCredentials(cfg.Slack.DefaultWorkspace)
-	if err != nil {
-		slog.Debug("slack tools not loaded: no credentials", "workspace", cfg.Slack.DefaultWorkspace)
-		return
-	}
-	client := slacksrc.NewClient(creds.Token, creds.Cookie)
-	inter := NewCLIInteractor(ch)
-	deps := tools.SlackToolDeps{
-		Client:     client,
-		Interactor: inter,
-		Workspace:  cfg.Slack.DefaultWorkspace,
-		ScratchDir: scratchDir,
-	}
+	deps.Interactor = NewCLIInteractor(ch)
+	deps.ScratchDir = scratchDir
 
 	reg.Register(tools.NewSlackSearchTool(deps))
 	reg.Register(tools.NewSlackReadChannelTool(deps))

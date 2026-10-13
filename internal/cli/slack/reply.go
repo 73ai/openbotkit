@@ -50,7 +50,7 @@ confirmation prompt.`,
 			return fmt.Errorf("empty message; pass --text or pipe the body on stdin")
 		}
 
-		client, _, workspace, err := loadClientAndCache()
+		client, _, workspace, err := loadClientAndCache(ref)
 		if err != nil {
 			return err
 		}
@@ -58,7 +58,7 @@ confirmation prompt.`,
 		var channelID, ts string
 		if ref != nil {
 			if !slacksrc.MatchesWorkspace(ref.Subdomain, workspace) {
-				return fmt.Errorf("permalink belongs to workspace %q but obk is authenticated to %q; run: obk slack auth login", ref.Subdomain, workspace)
+				return fmt.Errorf("permalink belongs to workspace %q but obk has no matching workspace (using %q); run: obk slack auth login", ref.Subdomain, workspace)
 			}
 			channelID = ref.ChannelID
 			if ts, err = ref.RootTS(); err != nil {

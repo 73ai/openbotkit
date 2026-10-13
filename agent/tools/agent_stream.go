@@ -114,7 +114,7 @@ func (r *StreamRunner) buildStreamArgs(opts runOptions) []string {
 	case AgentGemini:
 		return []string{"--approval-mode", "yolo", "-o", "stream-json"}
 	case AgentCodex:
-		return []string{"exec", "--json", "--full-auto"}
+		return []string{"exec", "--json", "--sandbox", "workspace-write"}
 	default:
 		return nil
 	}

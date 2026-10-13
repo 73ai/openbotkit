@@ -9,25 +9,24 @@ import (
 )
 
 type SlackReadThreadTool struct {
-	deps     SlackToolDeps
-	resolver *slack.Resolver
+	workspaces slackRouter
 }
 
 func NewSlackReadThreadTool(deps SlackToolDeps) *SlackReadThreadTool {
 	return &SlackReadThreadTool{
-		deps:     deps,
-		resolver: deps.SlackResolver(),
+		workspaces: deps.router(),
 	}
 }
 
 func (t *SlackReadThreadTool) Name() string { return "slack_read_thread" }
 func (t *SlackReadThreadTool) Description() string {
-	return "Read a complete Slack thread, with user IDs resolved to names. Accepts a message permalink, or a channel plus thread_ts. Any message in the thread works: a link to a reply returns the whole thread."
+	return t.workspaces.describe("Read a complete Slack thread, with user IDs resolved to names. Accepts a message permalink, or a channel plus thread_ts. Any message in the thread works: a link to a reply returns the whole thread.")
 }
 func (t *SlackReadThreadTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
+			` + slackWorkspaceProp + `
 			"permalink": {
 				"type": "string",
 				"description": "Slack message permalink, e.g. https://acme.slack.com/archives/C01ABC/p1785334150236249"
@@ -45,6 +44,7 @@ func (t *SlackReadThreadTool) InputSchema() json.RawMessage {
 }
 
 type slackReadThreadInput struct {
+	Workspace string `json:"workspace"`
 	Permalink string `json:"permalink"`
 	Channel   string `json:"channel"`
 	ThreadTS  string `json:"thread_ts"`
@@ -56,12 +56,12 @@ func (t *SlackReadThreadTool) Execute(ctx context.Context, input json.RawMessage
 		return "", fmt.Errorf("parse input: %w", err)
 	}
 
-	channelID, ts, err := t.resolve(ctx, in)
+	ws, channelID, ts, err := t.resolve(ctx, in)
 	if err != nil {
 		return "", err
 	}
 
-	thread, err := slack.FetchThread(ctx, t.deps.Client, t.deps.SlackUserCache(), channelID, ts)
+	thread, err := slack.FetchThread(ctx, ws.Client, ws.UserCache, channelID, ts)
 	if err != nil {
 		return "", err
 	}
@@ -75,28 +75,35 @@ func (t *SlackReadThreadTool) Execute(ctx context.Context, input json.RawMessage
 	return out, nil
 }
 
-func (t *SlackReadThreadTool) resolve(ctx context.Context, in slackReadThreadInput) (channelID, ts string, err error) {
+func (t *SlackReadThreadTool) resolve(ctx context.Context, in slackReadThreadInput) (ws *SlackWorkspace, channelID, ts string, err error) {
 	if in.Permalink != "" {
 		ref, err := slack.ParsePermalink(in.Permalink)
 		if err != nil {
-			return "", "", err
+			return nil, "", "", err
 		}
 		ts, err := ref.RootTS()
 		if err != nil {
-			return "", "", err
+			return nil, "", "", err
 		}
-		return ref.ChannelID, ts, nil
+		ws, err := t.workspaces.forSubdomain(in.Workspace, ref.Subdomain)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return ws, ref.ChannelID, ts, nil
 	}
 
 	if in.Channel == "" || in.ThreadTS == "" {
-		return "", "", fmt.Errorf("provide permalink, or both channel and thread_ts")
+		return nil, "", "", fmt.Errorf("provide permalink, or both channel and thread_ts")
 	}
-	channelID, err = t.resolver.ResolveChannel(ctx, in.Channel)
+	if ws, err = t.workspaces.pick(in.Workspace); err != nil {
+		return nil, "", "", err
+	}
+	channelID, err = ws.Resolver.ResolveChannel(ctx, in.Channel)
 	if err != nil {
-		return "", "", err
+		return nil, "", "", err
 	}
 	if ts, err = slack.MessageIDToTS(in.ThreadTS); err != nil {
-		return "", "", err
+		return nil, "", "", err
 	}
-	return channelID, ts, nil
+	return ws, channelID, ts, nil
 }
