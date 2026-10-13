@@ -4,30 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/73ai/openbotkit/source/slack"
 )
 
 type SlackEditTool struct {
-	deps     SlackToolDeps
-	resolver *slack.Resolver
+	deps       SlackToolDeps
+	workspaces *slackRouter
 }
 
 func NewSlackEditTool(deps SlackToolDeps) *SlackEditTool {
 	return &SlackEditTool{
-		deps:     deps,
-		resolver: deps.SlackResolver(),
+		deps:       deps,
+		workspaces: deps.router(),
 	}
 }
 
 func (t *SlackEditTool) Name() string { return "slack_edit" }
 func (t *SlackEditTool) Description() string {
-	return "Edit a Slack message (requires user approval)"
+	return t.workspaces.describe("Edit a Slack message (requires user approval)")
 }
 func (t *SlackEditTool) InputSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
+			` + slackWorkspaceProp + `
 			"channel": {
 				"type": "string",
 				"description": "Channel name, ID, or URL"
@@ -46,9 +45,10 @@ func (t *SlackEditTool) InputSchema() json.RawMessage {
 }
 
 type slackEditInput struct {
-	Channel string `json:"channel"`
-	TS      string `json:"ts"`
-	Text    string `json:"text"`
+	Workspace string `json:"workspace"`
+	Channel   string `json:"channel"`
+	TS        string `json:"ts"`
+	Text      string `json:"text"`
 }
 
 func (t *SlackEditTool) Execute(ctx context.Context, input json.RawMessage) (string, error) {
@@ -56,17 +56,21 @@ func (t *SlackEditTool) Execute(ctx context.Context, input json.RawMessage) (str
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("parse input: %w", err)
 	}
+	ws, err := t.workspaces.pick(in.Workspace)
+	if err != nil {
+		return "", err
+	}
 	if in.Channel == "" || in.TS == "" || in.Text == "" {
 		return "", fmt.Errorf("channel, ts, and text are required")
 	}
 
-	channelID, err := t.resolver.ResolveChannel(ctx, in.Channel)
+	channelID, err := ws.Resolver.ResolveChannel(ctx, in.Channel)
 	if err != nil {
 		return "", err
 	}
 
 	preview := truncateUTF8(in.Text, 100)
-	desc := fmt.Sprintf("Edit message in %s: %s", in.Channel, preview)
+	desc := fmt.Sprintf("Edit message in %s: %s", t.workspaces.channelLabel(ws, in.Channel), preview)
 
 	var opts []GuardOption
 	if t.deps.ApprovalRules != nil {
@@ -74,7 +78,7 @@ func (t *SlackEditTool) Execute(ctx context.Context, input json.RawMessage) (str
 	}
 
 	return GuardedAction(ctx, t.deps.Interactor, RiskMedium, desc, func() (string, error) {
-		if err := t.deps.Client.UpdateMessage(ctx, channelID, in.TS, in.Text); err != nil {
+		if err := ws.Client.UpdateMessage(ctx, channelID, in.TS, in.Text); err != nil {
 			return "", err
 		}
 		return `{"ok":true}`, nil
