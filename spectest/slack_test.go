@@ -11,7 +11,8 @@ import (
 	"github.com/73ai/openbotkit/source/slack/desktop"
 )
 
-// slackClient extracts credentials from the running Slack Desktop app.
+// slackClient extracts credentials for the first workspace in the running
+// Slack Desktop app.
 // Returns nil if Slack Desktop is not installed or credentials are invalid.
 func slackClient(t *testing.T) *slack.Client {
 	t.Helper()
@@ -19,7 +20,7 @@ func slackClient(t *testing.T) *slack.Client {
 	if err != nil {
 		t.Skipf("slack desktop not available: %v", err)
 	}
-	return slack.NewClient(creds.Token, creds.Cookie)
+	return slack.NewClient(creds[0].Token, creds[0].Cookie)
 }
 
 // slackAgent creates an agent with only read-only Slack tools registered.
