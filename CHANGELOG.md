@@ -3,6 +3,12 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.3] (2026-10-14)
+
+### Fixed
+
+- **release**: Limit goreleaser build parallelism (#176)
+
 ## [0.15.2] (2026-10-13)
 
 ### Fixed
