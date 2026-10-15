@@ -71,4 +71,3 @@ func TestMigrateUniqueConstraint(t *testing.T) {
 		t.Fatalf("different chat_jid should succeed: %v", err)
 	}
 }
-
