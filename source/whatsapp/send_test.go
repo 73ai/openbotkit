@@ -43,6 +43,7 @@ func TestSendText_SentMessageDBFields(t *testing.T) {
 	ts := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 
 	msg := &Message{
+		Account:   DefaultAccount,
 		MessageID: "sent-msg-001",
 		ChatJID:   chatJID,
 		SenderJID: "myphone@s.whatsapp.net",
@@ -54,10 +55,10 @@ func TestSendText_SentMessageDBFields(t *testing.T) {
 	if err := SaveMessage(db, msg); err != nil {
 		t.Fatalf("save sent message: %v", err)
 	}
-	UpsertChat(db, "", chatJID, "", false)
+	UpsertChat(db, DefaultAccount, chatJID, "", false)
 
 	// Verify message was saved.
-	exists, err := MessageExists(db, "", "sent-msg-001", chatJID)
+	exists, err := MessageExists(db, DefaultAccount, "sent-msg-001", chatJID)
 	if err != nil {
 		t.Fatalf("check exists: %v", err)
 	}
@@ -106,6 +107,7 @@ func TestSendText_GroupDetection(t *testing.T) {
 
 	// Individual chat.
 	individual := &Message{
+		Account:   DefaultAccount,
 		MessageID: "ind-001",
 		ChatJID:   "1234@s.whatsapp.net",
 		Text:      "individual msg",
@@ -117,6 +119,7 @@ func TestSendText_GroupDetection(t *testing.T) {
 
 	// Group chat.
 	group := &Message{
+		Account:   DefaultAccount,
 		MessageID: "grp-001",
 		ChatJID:   "120363001234567890@g.us",
 		Text:      "group msg",
@@ -153,6 +156,7 @@ func TestSendText_DuplicateSendUpserts(t *testing.T) {
 
 	chatJID := "1234@s.whatsapp.net"
 	msg := &Message{
+		Account:   DefaultAccount,
 		MessageID: "dup-001",
 		ChatJID:   chatJID,
 		Text:      "first send",
@@ -211,10 +215,10 @@ func TestSendText_ChatUpsertPreservesName(t *testing.T) {
 	chatJID := "1234@s.whatsapp.net"
 
 	// First, the chat exists with a name from sync.
-	UpsertChat(db, "", chatJID, "Alice", false)
+	UpsertChat(db, DefaultAccount, chatJID, "Alice", false)
 
 	// SendText upserts with empty name (it doesn't know the contact name).
-	UpsertChat(db, "", chatJID, "", false)
+	UpsertChat(db, DefaultAccount, chatJID, "", false)
 
 	chats, _ := ListChats(db, "")
 	if len(chats) != 1 {

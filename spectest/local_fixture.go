@@ -440,6 +440,7 @@ func (f *LocalFixture) GivenWhatsAppMessages(t *testing.T, messages []WhatsAppMe
 		}
 
 		msg := &whatsapp.Message{
+			Account:    whatsapp.DefaultAccount,
 			MessageID:  m.MessageID,
 			ChatJID:    m.ChatJID,
 			SenderJID:  m.SenderJID,

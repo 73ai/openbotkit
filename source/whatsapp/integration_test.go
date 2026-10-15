@@ -112,13 +112,13 @@ func TestFullSyncFlowIntegration(t *testing.T) {
 
 	// Simulate history sync: save messages and chats.
 	chatJID := "test-chat@s.whatsapp.net"
-	UpsertChat(db, "", chatJID, "Test Chat", false)
+	UpsertChat(db, DefaultAccount, chatJID, "Test Chat", false)
 
 	now := time.Now()
 	messages := []*Message{
-		{MessageID: "m1", ChatJID: chatJID, SenderJID: "sender1@s.whatsapp.net", SenderName: "Alice", Text: "Hello from history", Timestamp: now.Add(-2 * time.Hour)},
-		{MessageID: "m2", ChatJID: chatJID, SenderJID: "sender2@s.whatsapp.net", SenderName: "Bob", Text: "Reply from history", Timestamp: now.Add(-1 * time.Hour)},
-		{MessageID: "m3", ChatJID: chatJID, SenderJID: "sender1@s.whatsapp.net", SenderName: "Alice", Text: "Another message", Timestamp: now},
+		{Account: DefaultAccount, MessageID: "m1", ChatJID: chatJID, SenderJID: "sender1@s.whatsapp.net", SenderName: "Alice", Text: "Hello from history", Timestamp: now.Add(-2 * time.Hour)},
+		{Account: DefaultAccount, MessageID: "m2", ChatJID: chatJID, SenderJID: "sender2@s.whatsapp.net", SenderName: "Bob", Text: "Reply from history", Timestamp: now.Add(-1 * time.Hour)},
+		{Account: DefaultAccount, MessageID: "m3", ChatJID: chatJID, SenderJID: "sender1@s.whatsapp.net", SenderName: "Alice", Text: "Another message", Timestamp: now},
 	}
 	for _, m := range messages {
 		if err := SaveMessage(db, m); err != nil {
