@@ -22,18 +22,29 @@ var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate WhatsApp by scanning a QR code",
 	Example: `  obk whatsapp auth login
-  obk whatsapp auth login --account assistant`,
+  obk whatsapp auth login --account work
+  obk whatsapp auth login --account assistant --role channel --owner-jid 919876543210@s.whatsapp.net`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
 
+		account, _ := cmd.Flags().GetString("account")
+
 		if cfg.IsRemote() {
+			if account != "default" || cmd.Flags().Changed("role") || cmd.Flags().Changed("owner-jid") {
+				return fmt.Errorf("remote login only supports the default account")
+			}
 			return authLoginRemote(cfg)
 		}
 
-		account, _ := cmd.Flags().GetString("account")
+		entry := accountEntryToRegister(cmd, cfg, account)
+		if entry != nil {
+			if err := cfg.SetWhatsAppAccount(account, *entry); err != nil {
+				return err
+			}
+		}
 
 		if err := config.EnsureSourceDir("whatsapp"); err != nil {
 			return fmt.Errorf("create whatsapp dir: %w", err)
@@ -46,7 +57,9 @@ var authLoginCmd = &cobra.Command{
 		}
 
 		w := wasrc.New(wasrc.Config{
+			Account:       account,
 			SessionDBPath: cfg.WhatsAppAccountSessionDBPath(account),
+			DataDriver:    cfg.WhatsApp.Storage.Driver,
 			DataDSN:       cfg.WhatsAppDataDSN(),
 		})
 
@@ -57,6 +70,11 @@ var authLoginCmd = &cobra.Command{
 
 		if err := config.LinkWhatsAppAccount(account); err != nil {
 			return fmt.Errorf("link account: %w", err)
+		}
+		if entry != nil {
+			if err := cfg.Save(); err != nil {
+				return fmt.Errorf("save config: %w", err)
+			}
 		}
 
 		fmt.Printf("\nSuccessfully authenticated WhatsApp (account: %s)\n", account)
@@ -149,6 +167,28 @@ var authStatusCmd = &cobra.Command{
 	},
 }
 
+// accountEntryToRegister returns the config entry to save for this login, or
+// nil when the account is already configured and no flags change it.
+func accountEntryToRegister(cmd *cobra.Command, cfg *config.Config, account string) *config.WhatsAppAccount {
+	flagsChanged := cmd.Flags().Changed("role") || cmd.Flags().Changed("owner-jid")
+	acct := config.WhatsAppAccount{Role: "source"}
+	for _, e := range cfg.WhatsAppAccountList() {
+		if e.Label == account {
+			if !flagsChanged {
+				return nil
+			}
+			acct = config.WhatsAppAccount{Role: e.Role, OwnerJID: e.OwnerJID}
+		}
+	}
+	if cmd.Flags().Changed("role") {
+		acct.Role, _ = cmd.Flags().GetString("role")
+	}
+	if cmd.Flags().Changed("owner-jid") {
+		acct.OwnerJID, _ = cmd.Flags().GetString("owner-jid")
+	}
+	return &acct
+}
+
 func authLoginRemote(cfg *config.Config) error {
 	if cfg.Remote == nil || cfg.Remote.Server == "" {
 		return fmt.Errorf("remote server not configured — run 'obk setup' to configure")
@@ -175,6 +215,8 @@ func authLoginRemote(cfg *config.Config) error {
 
 func init() {
 	authLoginCmd.Flags().String("account", "default", "Account label")
+	authLoginCmd.Flags().String("role", "source", "Account role: source, channel or both")
+	authLoginCmd.Flags().String("owner-jid", "", "Owner JID the assistant talks to (channel and both roles)")
 	authLogoutCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	authLogoutCmd.Flags().String("account", "default", "Account label")
 	authStatusCmd.Flags().Bool("json", false, "Output as JSON")
