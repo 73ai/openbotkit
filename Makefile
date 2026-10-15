@@ -9,12 +9,18 @@ ASSISTANT_SKILLS = assistant/.claude/skills
 build:
 	go build -o $(BINARY) .
 
-build-obkmacos:
+OBKMACOS = $(HOME)/.obk/bin/obkmacos
+
 ifeq ($(shell uname),Darwin)
-	@mkdir -p $(HOME)/.obk/bin
-	swiftc -O -o $(HOME)/.obk/bin/obkmacos swift/obkmacos.swift
-	@echo "Built obkmacos -> $(HOME)/.obk/bin/obkmacos"
+build-obkmacos: $(OBKMACOS)
+else
+build-obkmacos:
 endif
+
+$(OBKMACOS): swift/obkmacos.swift
+	@mkdir -p $(dir $@)
+	swiftc -O -o $@ $<
+	@echo "Built obkmacos -> $@"
 
 install: build-obkmacos
 	go install .
