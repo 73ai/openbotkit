@@ -54,13 +54,13 @@ var contactsListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "PHONE\tNAME\tPUSH NAME\tBUSINESS")
+		fmt.Fprintln(w, "ACCOUNT\tPHONE\tNAME\tPUSH NAME\tBUSINESS")
 		for _, c := range contacts {
 			name := c.FullName
 			if name == "" {
 				name = c.FirstName
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", c.Phone, name, c.PushName, c.BusinessName)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Account, c.Phone, name, c.PushName, c.BusinessName)
 		}
 		return w.Flush()
 	},

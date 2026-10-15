@@ -63,7 +63,7 @@ var messagesListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "TIMESTAMP\tCHAT\tSENDER\tTEXT")
+		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
 			text := m.Text
 			if len(text) > 60 {
@@ -80,8 +80,8 @@ var messagesListCmd = &cobra.Command{
 			if len(chat) > 30 {
 				chat = chat[:27] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				m.Timestamp.Format("2006-01-02 15:04"), chat, sender, text)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				m.Account, m.Timestamp.Format("2006-01-02 15:04"), chat, sender, text)
 		}
 		return w.Flush()
 	},
@@ -124,7 +124,7 @@ var messagesSearchCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "TIMESTAMP\tCHAT\tSENDER\tTEXT")
+		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
 			text := m.Text
 			if len(text) > 60 {
@@ -134,8 +134,8 @@ var messagesSearchCmd = &cobra.Command{
 			if sender == "" {
 				sender = m.SenderJID
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				m.Timestamp.Format("2006-01-02 15:04"), m.ChatJID, sender, text)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				m.Account, m.Timestamp.Format("2006-01-02 15:04"), m.ChatJID, sender, text)
 		}
 		return w.Flush()
 	},
@@ -181,7 +181,7 @@ var chatsListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "JID\tNAME\tGROUP\tLAST MESSAGE")
+		fmt.Fprintln(w, "ACCOUNT\tJID\tNAME\tGROUP\tLAST MESSAGE")
 		for _, c := range chats {
 			group := "no"
 			if c.IsGroup {
@@ -199,7 +199,7 @@ var chatsListCmd = &cobra.Command{
 			if len(jid) > 30 {
 				jid = jid[:27] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", jid, name, group, lastMsg)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Account, jid, name, group, lastMsg)
 		}
 		return w.Flush()
 	},
