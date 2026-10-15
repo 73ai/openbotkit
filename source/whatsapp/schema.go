@@ -1,10 +1,15 @@
 package whatsapp
 
-import "github.com/73ai/openbotkit/store"
+import (
+	"fmt"
 
-const schemaSQLite = `
+	"github.com/73ai/openbotkit/store"
+)
+
+const messagesTableSQLite = `
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	account TEXT NOT NULL DEFAULT 'default',
 	message_id TEXT NOT NULL,
 	chat_jid TEXT NOT NULL,
 	sender_jid TEXT,
@@ -17,35 +22,44 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 	is_from_me INTEGER DEFAULT 0,
 	reply_to_id TEXT,
 	synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	UNIQUE(message_id, chat_jid)
-);
+	UNIQUE(account, message_id, chat_jid)
+);`
 
+const chatsTableSQLite = `
 CREATE TABLE IF NOT EXISTS whatsapp_chats (
-	jid TEXT PRIMARY KEY,
+	account TEXT NOT NULL DEFAULT 'default',
+	jid TEXT NOT NULL,
 	name TEXT,
 	is_group INTEGER DEFAULT 0,
-	last_message_at DATETIME
-);
+	last_message_at DATETIME,
+	PRIMARY KEY(account, jid)
+);`
 
+const contactsTableSQLite = `
 CREATE TABLE IF NOT EXISTS whatsapp_contacts (
-	jid TEXT PRIMARY KEY,
+	account TEXT NOT NULL DEFAULT 'default',
+	jid TEXT NOT NULL,
 	phone TEXT,
 	first_name TEXT,
 	full_name TEXT,
 	push_name TEXT,
 	business_name TEXT,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY(account, jid)
+);`
 
+const indexes = `
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat ON whatsapp_messages(chat_jid);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_timestamp ON whatsapp_messages(timestamp);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_sender ON whatsapp_messages(sender_jid);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_account ON whatsapp_messages(account);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_contacts_phone ON whatsapp_contacts(phone);
 `
 
 const schemaPostgres = `
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
 	id BIGSERIAL PRIMARY KEY,
+	account TEXT NOT NULL DEFAULT 'default',
 	message_id TEXT NOT NULL,
 	chat_jid TEXT NOT NULL,
 	sender_jid TEXT,
@@ -58,37 +72,118 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 	is_from_me BOOLEAN DEFAULT FALSE,
 	reply_to_id TEXT,
 	synced_at TIMESTAMPTZ DEFAULT NOW(),
-	UNIQUE(message_id, chat_jid)
+	UNIQUE(account, message_id, chat_jid)
 );
 
 CREATE TABLE IF NOT EXISTS whatsapp_chats (
-	jid TEXT PRIMARY KEY,
+	account TEXT NOT NULL DEFAULT 'default',
+	jid TEXT NOT NULL,
 	name TEXT,
 	is_group BOOLEAN DEFAULT FALSE,
-	last_message_at TIMESTAMPTZ
+	last_message_at TIMESTAMPTZ,
+	PRIMARY KEY(account, jid)
 );
 
 CREATE TABLE IF NOT EXISTS whatsapp_contacts (
-	jid TEXT PRIMARY KEY,
+	account TEXT NOT NULL DEFAULT 'default',
+	jid TEXT NOT NULL,
 	phone TEXT,
 	first_name TEXT,
 	full_name TEXT,
 	push_name TEXT,
 	business_name TEXT,
-	updated_at TIMESTAMPTZ DEFAULT NOW()
+	updated_at TIMESTAMPTZ DEFAULT NOW(),
+	PRIMARY KEY(account, jid)
 );
-
-CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat ON whatsapp_messages(chat_jid);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_timestamp ON whatsapp_messages(timestamp);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_sender ON whatsapp_messages(sender_jid);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_contacts_phone ON whatsapp_contacts(phone);
 `
 
+type accountTable struct {
+	name          string
+	createSQLite  string
+	columns       string
+	oldConstraint string
+	newConstraint string
+}
+
+var accountTables = []accountTable{
+	{
+		name:          "whatsapp_messages",
+		createSQLite:  messagesTableSQLite,
+		columns:       "id, message_id, chat_jid, sender_jid, sender_name, text, timestamp, media_type, media_path, is_group, is_from_me, reply_to_id, synced_at",
+		oldConstraint: "whatsapp_messages_message_id_chat_jid_key",
+		newConstraint: "UNIQUE(account, message_id, chat_jid)",
+	},
+	{
+		name:          "whatsapp_chats",
+		createSQLite:  chatsTableSQLite,
+		columns:       "jid, name, is_group, last_message_at",
+		oldConstraint: "whatsapp_chats_pkey",
+		newConstraint: "PRIMARY KEY(account, jid)",
+	},
+	{
+		name:          "whatsapp_contacts",
+		createSQLite:  contactsTableSQLite,
+		columns:       "jid, phone, first_name, full_name, push_name, business_name, updated_at",
+		oldConstraint: "whatsapp_contacts_pkey",
+		newConstraint: "PRIMARY KEY(account, jid)",
+	},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
+	for _, t := range accountTables {
+		if err := addAccountColumn(db, t); err != nil {
+			return fmt.Errorf("add account to %s: %w", t.name, err)
+		}
+	}
+	schema := messagesTableSQLite + chatsTableSQLite + contactsTableSQLite + indexes
 	if db.IsPostgres() {
-		schema = schemaPostgres
+		schema = schemaPostgres + indexes
 	}
 	_, err := db.Exec(schema)
 	return err
+}
+
+func addAccountColumn(db *store.DB, t accountTable) error {
+	tableQuery := "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
+	columnQuery := "SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = 'account'"
+	if db.IsPostgres() {
+		tableQuery = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1"
+		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'account'"
+	}
+	var tables, columns int
+	if err := db.QueryRow(tableQuery, t.name).Scan(&tables); err != nil || tables == 0 {
+		return err
+	}
+	if err := db.QueryRow(columnQuery, t.name).Scan(&columns); err != nil || columns > 0 {
+		return err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var stmts []string
+	if db.IsPostgres() {
+		stmts = []string{
+			fmt.Sprintf("ALTER TABLE %s ADD COLUMN account TEXT NOT NULL DEFAULT 'default'", t.name),
+			fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", t.name, t.oldConstraint),
+			fmt.Sprintf("ALTER TABLE %s ADD %s", t.name, t.newConstraint),
+		}
+	} else {
+		legacy := t.name + "_legacy"
+		stmts = []string{
+			fmt.Sprintf("ALTER TABLE %s RENAME TO %s", t.name, legacy),
+			t.createSQLite,
+			fmt.Sprintf("INSERT INTO %s (account, %s) SELECT 'default', %s FROM %s", t.name, t.columns, t.columns, legacy),
+			fmt.Sprintf("DROP TABLE %s", legacy),
+		}
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
