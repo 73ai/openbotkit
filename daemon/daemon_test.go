@@ -46,3 +46,14 @@ func TestDaemon_RunAndShutdown(t *testing.T) {
 		t.Fatal("daemon did not shut down within 10s")
 	}
 }
+
+func TestNewChannelRegistryRegistersConfiguredTelegram(t *testing.T) {
+	cfg := config.Default()
+	if _, err := newChannelRegistry(cfg).Get("telegram"); err == nil {
+		t.Fatal("telegram registered without a bot token")
+	}
+	cfg.Channels = &config.ChannelsConfig{Telegram: &config.TelegramConfig{BotToken: "7012345678:AAH-test-token", OwnerID: 8084721928}}
+	if _, err := newChannelRegistry(cfg).Get("telegram"); err != nil {
+		t.Fatalf("configured telegram not registered: %v", err)
+	}
+}

@@ -76,7 +76,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	notifier := NewSyncNotifier()
 
-	chanReg := channel.NewRegistry()
+	chanReg := newChannelRegistry(d.cfg)
 	hooksDB, err := d.openHooksDB()
 	if err != nil {
 		return fmt.Errorf("open hooks db: %w", err)
@@ -184,4 +184,15 @@ func (d *Daemon) openHooksDB() (*store.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func newChannelRegistry(cfg *config.Config) *channel.Registry {
+	reg := channel.NewRegistry()
+	if cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.BotToken != "" {
+		tg := *cfg.Channels.Telegram
+		reg.Register("telegram", channel.NewLazyPusher(func() (channel.Pusher, error) {
+			return channel.NewTelegramPusher(tg.BotToken, tg.OwnerID)
+		}))
+	}
+	return reg
 }
