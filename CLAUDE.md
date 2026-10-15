@@ -17,6 +17,7 @@
 
 ## Git Branch Rules
 
+  - Never create a branch unless explicitly asked. Keep working on the current branch.
   - No slashes in branch names (e.g., use `fix-something` not `fix/something`).
 
 ## Git Commit Rules
