@@ -3,7 +3,6 @@ package migratetest
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -272,9 +271,7 @@ func postgres(t *testing.T) func(t *testing.T, fx Fixture) opener {
 	if testing.Short() {
 		t.Skip("skipping postgres test in short mode")
 	}
-	if err := exec.Command("docker", "info").Run(); err != nil {
-		t.Skip("skipping: Docker is not running")
-	}
+	testcontainers.SkipIfProviderIsNotHealthy(t)
 	ctx := context.Background()
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
