@@ -10,8 +10,9 @@ import (
 )
 
 type whatsappSendRequest struct {
-	To   string `json:"to"`
-	Text string `json:"text"`
+	Account string `json:"account"`
+	To      string `json:"to"`
+	Text    string `json:"text"`
 }
 
 type whatsappSendResponse struct {
@@ -35,7 +36,15 @@ func (s *Server) handleWhatsAppSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := wasrc.NewClient(r.Context(), s.cfg.WhatsAppSessionDBPath())
+	if req.Account == "" {
+		req.Account = wasrc.DefaultAccount
+	}
+	if !s.hasWhatsAppAccount(req.Account) {
+		writeError(w, http.StatusBadRequest, "unknown WhatsApp account "+req.Account)
+		return
+	}
+
+	client, err := wasrc.NewClient(r.Context(), s.cfg.WhatsAppAccountSessionDBPath(req.Account))
 	if err != nil {
 		slog.Error("whatsapp handler: create client", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to create WhatsApp client")
@@ -60,7 +69,7 @@ func (s *Server) handleWhatsAppSend(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	result, err := wasrc.SendText(r.Context(), client, db, wasrc.SendInput{
-		Account: wasrc.DefaultAccount,
+		Account: req.Account,
 		ChatJID: req.To,
 		Text:    req.Text,
 	})
@@ -75,4 +84,13 @@ func (s *Server) handleWhatsAppSend(w http.ResponseWriter, r *http.Request) {
 		MessageID: result.MessageID,
 		Timestamp: result.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 	})
+}
+
+func (s *Server) hasWhatsAppAccount(label string) bool {
+	for _, a := range s.cfg.WhatsAppAccountList() {
+		if a.Label == label {
+			return true
+		}
+	}
+	return false
 }

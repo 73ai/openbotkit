@@ -37,7 +37,7 @@ var messagesSendCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			result, err := client.WhatsAppSend(to, text)
+			result, err := client.WhatsAppSend(account, to, text)
 			if err != nil {
 				return fmt.Errorf("send message: %w", err)
 			}

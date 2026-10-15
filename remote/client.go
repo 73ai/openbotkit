@@ -211,8 +211,8 @@ func (c *Client) WaitWhatsAppAuth(account string) error {
 }
 
 // WhatsAppSend sends a WhatsApp message via the remote server.
-func (c *Client) WhatsAppSend(to, text string) (*WhatsAppSendResult, error) {
-	req := map[string]string{"to": to, "text": text}
+func (c *Client) WhatsAppSend(account, to, text string) (*WhatsAppSendResult, error) {
+	req := map[string]string{"account": account, "to": to, "text": text}
 	var resp WhatsAppSendResult
 	if err := c.post("/api/whatsapp/send", req, &resp); err != nil {
 		return nil, err
