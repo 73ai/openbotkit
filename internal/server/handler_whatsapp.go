@@ -60,6 +60,7 @@ func (s *Server) handleWhatsAppSend(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	result, err := wasrc.SendText(r.Context(), client, db, wasrc.SendInput{
+		Account: wasrc.DefaultAccount,
 		ChatJID: req.To,
 		Text:    req.Text,
 	})

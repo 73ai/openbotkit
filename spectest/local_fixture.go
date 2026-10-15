@@ -433,7 +433,7 @@ func (f *LocalFixture) GivenWhatsAppMessages(t *testing.T, messages []WhatsAppMe
 		}
 
 		if !seenChats[m.ChatJID] {
-			if err := whatsapp.UpsertChat(db, m.ChatJID, m.ChatName, false); err != nil {
+			if err := whatsapp.UpsertChat(db, whatsapp.DefaultAccount, m.ChatJID, m.ChatName, false); err != nil {
 				t.Fatalf("upsert chat %s: %v", m.ChatJID, err)
 			}
 			seenChats[m.ChatJID] = true

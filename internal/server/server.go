@@ -240,7 +240,7 @@ func (s *Server) startWhatsAppChannels(ctx context.Context) {
 			continue
 		}
 
-		sender := &whatsAppSender{client: client, db: db}
+		sender := &whatsAppSender{client: client, db: db, account: acct.Label}
 		ch := wachannel.NewChannel(sender, acct.OwnerJID)
 
 		interactor := channel.NewInteractor(ch)
@@ -266,12 +266,14 @@ func (s *Server) startWhatsAppChannels(ctx context.Context) {
 
 // whatsAppSender implements wachannel.messageSender using the real whatsmeow client.
 type whatsAppSender struct {
-	client *wasrc.Client
-	db     *store.DB
+	client  *wasrc.Client
+	db      *store.DB
+	account string
 }
 
 func (s *whatsAppSender) SendText(ctx context.Context, jid, text string) error {
 	_, err := wasrc.SendText(ctx, s.client, s.db, wasrc.SendInput{
+		Account: s.account,
 		ChatJID: jid,
 		Text:    text,
 	})

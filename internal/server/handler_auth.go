@@ -113,7 +113,7 @@ func (wa *whatsAppAuth) run(s *Server) {
 			db.Close()
 		}
 	}
-	wasrc.WaitForSync(client, 45, 10, dataDB)
+	wasrc.WaitForSync(client, wasrc.DefaultAccount, 45, 10, dataDB)
 	if dataDB != nil {
 		dataDB.Close()
 	}

@@ -69,7 +69,8 @@ func runWhatsAppSyncForAccount(ctx context.Context, cfg *config.Config, label st
 
 		slog.Info("whatsapp: starting sync", "account", label)
 		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{
-			Follow: true,
+			Account: label,
+			Follow:  true,
 		})
 		if err != nil {
 			slog.Error("whatsapp: sync error", "account", label, "error", err)

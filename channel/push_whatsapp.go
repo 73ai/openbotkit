@@ -11,6 +11,7 @@ import (
 
 type WhatsAppPusher struct {
 	client   *wasrc.Client
+	account  string
 	ownerJID string
 	dataDB   *store.DB
 }
@@ -32,11 +33,12 @@ func NewWhatsAppPusher(cfg *config.Config, accountLabel, ownerJID string) (*What
 		return nil, fmt.Errorf("open whatsapp data db: %w", err)
 	}
 
-	return &WhatsAppPusher{client: client, ownerJID: ownerJID, dataDB: db}, nil
+	return &WhatsAppPusher{client: client, account: accountLabel, ownerJID: ownerJID, dataDB: db}, nil
 }
 
 func (p *WhatsAppPusher) Push(ctx context.Context, message string) error {
 	_, err := wasrc.SendText(ctx, p.client, p.dataDB, wasrc.SendInput{
+		Account: p.account,
 		ChatJID: p.ownerJID,
 		Text:    message,
 	})
