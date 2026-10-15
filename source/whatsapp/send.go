@@ -32,6 +32,7 @@ func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput
 	isGroup := strings.HasSuffix(input.ChatJID, "@g.us")
 
 	msg := &Message{
+		Account:   input.Account,
 		MessageID: resp.ID,
 		ChatJID:   input.ChatJID,
 		SenderJID: client.WM().Store.ID.String(),
@@ -44,7 +45,7 @@ func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput
 		return nil, fmt.Errorf("save sent message: %w", err)
 	}
 
-	UpsertChat(db, input.ChatJID, "", isGroup)
+	UpsertChat(db, input.Account, input.ChatJID, "", isGroup)
 
 	return &SendResult{
 		MessageID: resp.ID,

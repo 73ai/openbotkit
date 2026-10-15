@@ -61,7 +61,7 @@ func (w *WhatsApp) Login(ctx context.Context) error {
 
 	var dataDB *store.DB
 	if w.cfg.DataDSN != "" {
-		dataDB, err = store.Open(store.Config{Driver: "sqlite", DSN: w.cfg.DataDSN})
+		dataDB, err = store.Open(store.Config{Driver: w.cfg.DataDriver, DSN: w.cfg.DataDSN})
 		if err != nil {
 			slog.Warn("whatsapp login: could not open data db for history backfill", "error", err)
 		} else {
@@ -73,7 +73,7 @@ func (w *WhatsApp) Login(ctx context.Context) error {
 		}
 	}
 
-	return ServeQR(ctx, client, "127.0.0.1:8085", dataDB)
+	return ServeQR(ctx, client, "127.0.0.1:8085", dataDB, w.cfg.Account)
 }
 
 func (w *WhatsApp) Logout(ctx context.Context) error {
