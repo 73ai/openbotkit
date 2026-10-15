@@ -4,6 +4,8 @@
 obk whatsapp messages send --to <jid> --text "<message>"
 ```
 
+Messages go out from the `default` account. Add `--account <label>` (for example `--account work`) only when the user asks to send from another account.
+
 ## Finding the recipient
 
 Always resolve the recipient before sending. Use unified contacts first, then fall back to WhatsApp-specific queries.
@@ -16,10 +18,10 @@ obk contacts search "David"
 obk whatsapp messages send --to "<jid>" --text "..."
 
 # Fallback: search WhatsApp contacts directly
-obk db whatsapp "SELECT jid, phone, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
+obk db whatsapp "SELECT account, jid, phone, full_name, push_name FROM whatsapp_contacts WHERE LOWER(full_name) LIKE '%name%' OR LOWER(push_name) LIKE '%name%' OR LOWER(first_name) LIKE '%name%';"
 
 # Fallback: search chats if not found in contacts
-obk db whatsapp "SELECT jid, name FROM whatsapp_chats WHERE LOWER(name) LIKE '%name%';"
+obk db whatsapp "SELECT account, jid, name FROM whatsapp_chats WHERE LOWER(name) LIKE '%name%';"
 ```
 
 JID formats:
