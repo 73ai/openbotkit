@@ -54,10 +54,10 @@ func TestSendText_SentMessageDBFields(t *testing.T) {
 	if err := SaveMessage(db, msg); err != nil {
 		t.Fatalf("save sent message: %v", err)
 	}
-	UpsertChat(db, chatJID, "", false)
+	UpsertChat(db, "", chatJID, "", false)
 
 	// Verify message was saved.
-	exists, err := MessageExists(db, "sent-msg-001", chatJID)
+	exists, err := MessageExists(db, "", "sent-msg-001", chatJID)
 	if err != nil {
 		t.Fatalf("check exists: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestSendText_SentMessageDBFields(t *testing.T) {
 	}
 
 	// Verify chat was upserted.
-	chats, err := ListChats(db)
+	chats, err := ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list chats: %v", err)
 	}
@@ -211,12 +211,12 @@ func TestSendText_ChatUpsertPreservesName(t *testing.T) {
 	chatJID := "1234@s.whatsapp.net"
 
 	// First, the chat exists with a name from sync.
-	UpsertChat(db, chatJID, "Alice", false)
+	UpsertChat(db, "", chatJID, "Alice", false)
 
 	// SendText upserts with empty name (it doesn't know the contact name).
-	UpsertChat(db, chatJID, "", false)
+	UpsertChat(db, "", chatJID, "", false)
 
-	chats, _ := ListChats(db)
+	chats, _ := ListChats(db, "")
 	if len(chats) != 1 {
 		t.Fatalf("expected 1 chat, got %d", len(chats))
 	}

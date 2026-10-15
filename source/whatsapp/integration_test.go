@@ -112,7 +112,7 @@ func TestFullSyncFlowIntegration(t *testing.T) {
 
 	// Simulate history sync: save messages and chats.
 	chatJID := "test-chat@s.whatsapp.net"
-	UpsertChat(db, chatJID, "Test Chat", false)
+	UpsertChat(db, "", chatJID, "Test Chat", false)
 
 	now := time.Now()
 	messages := []*Message{
@@ -149,7 +149,7 @@ func TestFullSyncFlowIntegration(t *testing.T) {
 	}
 
 	// Verify search.
-	results, err := SearchMessages(db, "reply", 10)
+	results, err := SearchMessages(db, "", "reply", 10)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestFullSyncFlowIntegration(t *testing.T) {
 	}
 
 	// Verify chats.
-	chats, err := ListChats(db)
+	chats, err := ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list chats: %v", err)
 	}
