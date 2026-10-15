@@ -80,10 +80,11 @@ CREATE INDEX IF NOT EXISTS idx_use_cases_visibility ON use_cases(visibility);
 CREATE INDEX IF NOT EXISTS idx_use_cases_author ON use_cases(author_id);
 `
 
-var migrations = []store.Migration{
-	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
-}
-
 func Migrate(db *store.DB) error {
-	return db.Migrate("usecase", migrations)
+	schema := schemaSQLite
+	if db.IsPostgres() {
+		schema = schemaPostgres
+	}
+	_, err := db.Exec(schema)
+	return err
 }
