@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/73ai/openbotkit/config"
@@ -65,7 +66,7 @@ var messagesListCmd = &cobra.Command{
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
-			text := m.Text
+			text := strings.Join(strings.Fields(m.Text), " ")
 			if len(text) > 60 {
 				text = text[:57] + "..."
 			}
@@ -126,7 +127,7 @@ var messagesSearchCmd = &cobra.Command{
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
-			text := m.Text
+			text := strings.Join(strings.Fields(m.Text), " ")
 			if len(text) > 60 {
 				text = text[:57] + "..."
 			}

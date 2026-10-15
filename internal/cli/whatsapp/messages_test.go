@@ -48,7 +48,7 @@ func TestReadCommandsFilterAndLabelAccounts(t *testing.T) {
 	}
 	ravi := "919812345678@s.whatsapp.net"
 	for i, m := range []wasrc.Message{
-		{Account: "default", MessageID: "BAE5F3", Text: "dinner on friday?"},
+		{Account: "default", MessageID: "BAE5F3", Text: "dinner on friday?\nor saturday works too"},
 		{Account: "work", MessageID: "3EB0B7", Text: "sent the invoice"},
 	} {
 		m.ChatJID, m.SenderJID, m.SenderName = ravi, ravi, "Ravi"
@@ -64,6 +64,9 @@ func TestReadCommandsFilterAndLabelAccounts(t *testing.T) {
 	all := run(t, "messages", "list")
 	if len(all) != 3 || !strings.HasPrefix(all[0], "ACCOUNT") || !strings.HasPrefix(all[1], "work ") || !strings.HasPrefix(all[2], "default ") {
 		t.Fatalf("messages list:\n%s", strings.Join(all, "\n"))
+	}
+	if !strings.Contains(all[2], "dinner on friday? or saturday works too") {
+		t.Fatalf("multi-line message not kept on one row:\n%s", strings.Join(all, "\n"))
 	}
 	work := run(t, "messages", "search", "invoice", "--account", "work")
 	if len(work) != 2 || !strings.HasPrefix(work[1], "work ") || !strings.Contains(work[1], "sent the invoice") {
