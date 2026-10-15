@@ -1,6 +1,8 @@
 package whatsapp
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/73ai/openbotkit/store"
@@ -130,20 +132,39 @@ var accountTables = []accountTable{
 }
 
 func Migrate(db *store.DB) error {
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	begin := []string{"PRAGMA busy_timeout=30000", "BEGIN IMMEDIATE"}
+	schema := messagesTableSQLite + chatsTableSQLite + contactsTableSQLite + indexes
+	if db.IsPostgres() {
+		begin = []string{"BEGIN", "SELECT pg_advisory_xact_lock(hashtext('whatsapp_migrate'))"}
+		schema = schemaPostgres + indexes
+	}
+	for _, stmt := range begin {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	defer conn.ExecContext(ctx, "ROLLBACK")
+
 	for _, t := range accountTables {
-		if err := addAccountColumn(db, t); err != nil {
+		if err := addAccountColumn(ctx, conn, db, t); err != nil {
 			return fmt.Errorf("add account to %s: %w", t.name, err)
 		}
 	}
-	schema := messagesTableSQLite + chatsTableSQLite + contactsTableSQLite + indexes
-	if db.IsPostgres() {
-		schema = schemaPostgres + indexes
+	if _, err := conn.ExecContext(ctx, schema); err != nil {
+		return err
 	}
-	_, err := db.Exec(schema)
+	_, err = conn.ExecContext(ctx, "COMMIT")
 	return err
 }
 
-func addAccountColumn(db *store.DB, t accountTable) error {
+func addAccountColumn(ctx context.Context, conn *sql.Conn, db *store.DB, t accountTable) error {
 	tableQuery := "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
 	columnQuery := "SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = 'account'"
 	if db.IsPostgres() {
@@ -151,27 +172,19 @@ func addAccountColumn(db *store.DB, t accountTable) error {
 		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'account'"
 	}
 	var tables, columns int
-	if err := db.QueryRow(tableQuery, t.name).Scan(&tables); err != nil || tables == 0 {
+	if err := conn.QueryRowContext(ctx, tableQuery, t.name).Scan(&tables); err != nil || tables == 0 {
 		return err
 	}
-	if err := db.QueryRow(columnQuery, t.name).Scan(&columns); err != nil || columns > 0 {
+	if err := conn.QueryRowContext(ctx, columnQuery, t.name).Scan(&columns); err != nil || columns > 0 {
 		return err
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		return err
+	stmts := []string{
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN account TEXT NOT NULL DEFAULT 'default'", t.name),
+		fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", t.name, t.oldConstraint),
+		fmt.Sprintf("ALTER TABLE %s ADD %s", t.name, t.newConstraint),
 	}
-	defer tx.Rollback()
-
-	var stmts []string
-	if db.IsPostgres() {
-		stmts = []string{
-			fmt.Sprintf("ALTER TABLE %s ADD COLUMN account TEXT NOT NULL DEFAULT 'default'", t.name),
-			fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", t.name, t.oldConstraint),
-			fmt.Sprintf("ALTER TABLE %s ADD %s", t.name, t.newConstraint),
-		}
-	} else {
+	if db.IsSQLite() {
 		legacy := t.name + "_legacy"
 		stmts = []string{
 			fmt.Sprintf("ALTER TABLE %s RENAME TO %s", t.name, legacy),
@@ -181,9 +194,9 @@ func addAccountColumn(db *store.DB, t accountTable) error {
 		}
 	}
 	for _, stmt := range stmts {
-		if _, err := tx.Exec(stmt); err != nil {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
