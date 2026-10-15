@@ -101,7 +101,7 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	for _, name := range []string{
 		"history-read", "memory-save", "web-search", "web-fetch",
 		"email-read", "email-send", "whatsapp-read", "whatsapp-send",
-		"applenotes-read", "contacts-search",
+		"applenotes-read", "contacts-search", "finance-read",
 	} {
 		if !slices.Contains(result.Installed, name) {
 			t.Errorf("%s should be installed (built-in skills are always installed)", name)
