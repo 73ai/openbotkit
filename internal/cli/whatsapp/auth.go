@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/daemon/service"
 	"github.com/73ai/openbotkit/internal/browser"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/spf13/cobra"
@@ -36,10 +37,35 @@ var authLoginCmd = &cobra.Command{
 		if cfg.IsRemote() {
 			return authLoginRemote(cfg, account, role, ownerJID)
 		}
-		return loginLocal(cfg, account, role, ownerJID, func(c wasrc.Config) error {
+		if err := loginLocal(cfg, account, role, ownerJID, func(c wasrc.Config) error {
 			return wasrc.New(c).Login(context.Background())
-		})
+		}); err != nil {
+			return err
+		}
+		restartRunningServices()
+		return nil
 	},
+}
+
+func restartRunningServices() {
+	for _, name := range []string{"daemon", "server"} {
+		mgr, err := service.NewManager(name)
+		if err != nil {
+			fmt.Printf("warning: %v. Run 'obk service restart' so the account starts syncing.\n", err)
+			return
+		}
+		if status, _ := mgr.Status(); status != "running" {
+			continue
+		}
+		if err = mgr.Stop(); err == nil {
+			err = mgr.Start()
+		}
+		if err != nil {
+			fmt.Printf("warning: could not restart %s: %v. Run 'obk service restart %s'.\n", name, err, name)
+			continue
+		}
+		fmt.Printf("Restarted %s so the account starts syncing.\n", name)
+	}
 }
 
 func loginLocal(cfg *config.Config, account, role, ownerJID string, login func(wasrc.Config) error) error {
