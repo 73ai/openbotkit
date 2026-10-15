@@ -64,21 +64,27 @@ func (c *Client) ConnectWithQR(ctx context.Context, qrChan chan string) error {
 		return fmt.Errorf("connect: %w", err)
 	}
 
+	return forwardQREvents(ch, qrChan)
+}
+
+func forwardQREvents(ch <-chan whatsmeow.QRChannelItem, qrChan chan string) error {
+	defer close(qrChan)
 	for evt := range ch {
 		switch evt.Event {
 		case "code":
 			qrChan <- evt.Code
 		case "success":
-			close(qrChan)
 			return nil
 		case "timeout":
-			close(qrChan)
 			return fmt.Errorf("qr code scan timed out")
+		default:
+			if evt.Error != nil {
+				return fmt.Errorf("whatsapp login failed (%s): %w", evt.Event, evt.Error)
+			}
+			return fmt.Errorf("whatsapp login failed: %s", evt.Event)
 		}
 	}
-
-	close(qrChan)
-	return nil
+	return fmt.Errorf("whatsapp login ended before the QR code was scanned")
 }
 
 func (c *Client) Disconnect() {

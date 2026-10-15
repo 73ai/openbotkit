@@ -249,7 +249,11 @@ func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB,
 		historyMsgs.Add(int64(n))
 	})
 
-	connectErr := client.ConnectWithQR(ctx, qrChan)
+	if err := client.ConnectWithQR(ctx, qrChan); err != nil {
+		client.WM().RemoveEventHandler(handlerID)
+		server.Shutdown(context.Background())
+		return err
+	}
 
 	// Transition from linking → syncing and wait for initial history sync.
 	mu.Lock()
@@ -280,5 +284,5 @@ func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB,
 	default:
 	}
 
-	return connectErr
+	return nil
 }
