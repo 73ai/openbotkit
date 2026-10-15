@@ -60,11 +60,10 @@ CREATE INDEX IF NOT EXISTS idx_applenotes_notes_modified ON applenotes_notes(mod
 CREATE INDEX IF NOT EXISTS idx_applenotes_folders_apple_id ON applenotes_folders(apple_id);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("applenotes", migrations)
 }
