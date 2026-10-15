@@ -159,6 +159,31 @@ func TestSaveHistorySyncTagsAccount(t *testing.T) {
 	}
 }
 
+func TestSaveHistorySyncCountsChatFailures(t *testing.T) {
+	db := migratedDB(t)
+	if _, err := db.Exec("DROP TABLE whatsapp_chats"); err != nil {
+		t.Fatalf("drop chats: %v", err)
+	}
+	evt := &events.HistorySync{Data: &waHistorySync.HistorySync{
+		Conversations: []*waHistorySync.Conversation{{
+			ID:          proto.String("alice@s.whatsapp.net"),
+			DisplayName: proto.String("Alice"),
+			Messages: []*waHistorySync.HistorySyncMsg{{
+				Message: &waWeb.WebMessageInfo{
+					Key:              &waCommon.MessageKey{RemoteJID: proto.String("alice@s.whatsapp.net"), ID: proto.String("h1")},
+					Message:          &waE2E.Message{Conversation: proto.String("from history")},
+					MessageTimestamp: proto.Uint64(uint64(time.Now().Unix())),
+				},
+			}},
+		}},
+	}}
+
+	saved, failed := saveHistorySync(db, "work", evt)
+	if saved != 1 || failed != 1 {
+		t.Fatalf("saved %d failed %d, want the message saved and the chat counted as failed", saved, failed)
+	}
+}
+
 func TestSaveLiveMessageTagsAccount(t *testing.T) {
 	db := migratedDB(t)
 	ravi := types.NewJID("919812345678", types.DefaultUserServer)

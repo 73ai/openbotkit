@@ -126,7 +126,9 @@ func saveHistorySync(db *store.DB, account string, evt *events.HistorySync) (sav
 			displayName = conv.GetName()
 		}
 		isGroup := strings.HasSuffix(chatJID, "@g.us")
-		UpsertChat(db, account, chatJID, displayName, isGroup)
+		if err := UpsertChat(db, account, chatJID, displayName, isGroup); err != nil {
+			failed++
+		}
 
 		for _, hMsg := range conv.GetMessages() {
 			msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
