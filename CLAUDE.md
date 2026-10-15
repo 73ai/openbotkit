@@ -1,6 +1,7 @@
 ## Project Guidelines
 
 - Do not call the task done until it is fully complete and tested.
+- Never call a task done without manually testing it end to end with the real installed binary against real services. Unit tests and dry runs are not enough. If a step needs the user (QR scan, phone, login), say so explicitly and do not claim it works.
 - Always write tests for new features and bug fixes.
 - Do not dismiss bug as a pre-existing" issue even if it was present before your change. It does not matter, it's still your responsibility to fix it. When you see a bug, fix it. Don't ignore it.
 
