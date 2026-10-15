@@ -2,7 +2,9 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,6 +148,7 @@ func TestWork_NoModelsConfigured(t *testing.T) {
 	cfg.Models = nil // no models configured
 
 	chanReg := channel.NewRegistry()
+	chanReg.Register("telegram", &recordingPusher{})
 
 	w := &EventHookWorker{
 		Cfg:     cfg,
@@ -154,7 +157,49 @@ func TestWork_NoModelsConfigured(t *testing.T) {
 	}
 
 	err = w.Work(context.Background(), makeJob(hookID, []int64{1}))
-	if err == nil {
-		t.Error("expected error for nil models")
+	if err == nil || !strings.Contains(err.Error(), "resolve provider") {
+		t.Errorf("err = %v, want resolve provider failure", err)
 	}
+}
+
+func TestWork_UnregisteredChannelCancelsJob(t *testing.T) {
+	dir := t.TempDir()
+	hooksDB, _, chanReg := setupHookTest(t)
+
+	gmailDBPath := filepath.Join(dir, "gmail.db")
+	gmailDB, _ := store.Open(store.SQLiteConfig(gmailDBPath))
+	gmailsrc.Migrate(gmailDB)
+	gmailsrc.SaveEmail(gmailDB, &gmailsrc.Email{
+		MessageID: "18f2c9a7b4e1d3f0",
+		Account:   "pj@example.com",
+		From:      "billing@aws.amazon.com",
+		Subject:   "Your AWS account is suspended",
+		Body:      "Payment failed. Update your card within 24 hours.",
+		Date:      time.Now(),
+	})
+	gmailDB.Close()
+
+	hookID, _ := hooks.Create(hooksDB, &hooks.EventHook{
+		EventType: "gmail_sync",
+		Prompt:    "You will receive an email. Decide if it is urgent.",
+		Channel:   "telegram",
+		ModelTier: "nano",
+	})
+	cfg := config.Default()
+	cfg.Gmail.Storage.Driver = "sqlite"
+	cfg.Gmail.Storage.DSN = gmailDBPath
+
+	w := &EventHookWorker{Cfg: cfg, ChanReg: chanReg, HooksDB: hooksDB}
+	err := w.Work(context.Background(), makeJob(hookID, []int64{1}))
+	var cancel *river.JobCancelError
+	if !errors.As(err, &cancel) || !strings.Contains(err.Error(), `channel "telegram" not registered`) {
+		t.Fatalf("err = %v, want job cancelled for unregistered channel", err)
+	}
+}
+
+type recordingPusher struct{ messages []string }
+
+func (p *recordingPusher) Push(_ context.Context, message string) error {
+	p.messages = append(p.messages, message)
+	return nil
 }
