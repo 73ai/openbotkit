@@ -1,6 +1,8 @@
 package whatsapp
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -90,14 +92,31 @@ func TestAccountsKeepSeparateMessagesChatsAndContacts(t *testing.T) {
 	}
 }
 
-func TestEmptyAccountStoresAsDefault(t *testing.T) {
+func TestAccountScopedCallsRequireAccount(t *testing.T) {
 	db := migratedDB(t)
-	if err := SaveMessage(db, &Message{MessageID: "m1", ChatJID: "c1"}); err != nil {
-		t.Fatalf("save: %v", err)
+	ctx := context.Background()
+	chat := "919812345678@s.whatsapp.net"
+
+	calls := map[string]error{
+		"SaveMessage": SaveMessage(db, &Message{MessageID: "m1", ChatJID: chat, Text: "hi", Timestamp: time.Now()}),
+		"UpsertChat":  UpsertChat(db, "", chat, "Ravi", false),
+		"SaveContact": SaveContact(db, &Contact{JID: chat, FullName: "Ravi"}),
 	}
-	msgs, err := ListMessages(db, ListOptions{Account: DefaultAccount})
-	if err != nil || len(msgs) != 1 {
-		t.Fatalf("default messages = %d, err %v", len(msgs), err)
+	_, calls["SendText"] = SendText(ctx, nil, db, SendInput{ChatJID: chat, Text: "hi"})
+	_, calls["Sync"] = Sync(ctx, nil, db, SyncOptions{Follow: true})
+	_, calls["MessageExists"] = MessageExists(db, "", "m1", chat)
+	_, calls["GetContact"] = GetContact(db, "", chat)
+	for name, err := range calls {
+		if !errors.Is(err, errNoAccount) {
+			t.Errorf("%s without account: err = %v, want errNoAccount", name, err)
+		}
+	}
+
+	for _, table := range []string{"whatsapp_messages", "whatsapp_chats", "whatsapp_contacts"} {
+		var n int
+		if err := db.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("%s rows = %d, err %v", table, n, err)
+		}
 	}
 }
 

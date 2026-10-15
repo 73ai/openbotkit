@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,9 @@ import (
 )
 
 func SaveMessage(db *store.DB, msg *Message) error {
+	if msg.Account == "" {
+		return errNoAccount
+	}
 	_, err := db.Exec(
 		db.Rebind(`INSERT INTO whatsapp_messages
 			(account, message_id, chat_jid, sender_jid, sender_name, text, timestamp, media_type, media_path, is_group, is_from_me, reply_to_id)
@@ -19,7 +23,7 @@ func SaveMessage(db *store.DB, msg *Message) error {
 				sender_name = excluded.sender_name,
 				media_type = excluded.media_type,
 				media_path = excluded.media_path`),
-		accountOrDefault(msg.Account), msg.MessageID, msg.ChatJID, msg.SenderJID, msg.SenderName,
+		msg.Account, msg.MessageID, msg.ChatJID, msg.SenderJID, msg.SenderName,
 		msg.Text, msg.Timestamp, msg.MediaType, msg.MediaPath,
 		msg.IsGroup, msg.IsFromMe, msg.ReplyToID,
 	)
@@ -30,13 +34,16 @@ func SaveMessage(db *store.DB, msg *Message) error {
 }
 
 func UpsertChat(db *store.DB, account, jid, name string, isGroup bool) error {
+	if account == "" {
+		return errNoAccount
+	}
 	_, err := db.Exec(
 		db.Rebind(`INSERT INTO whatsapp_chats (account, jid, name, is_group, last_message_at)
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(account, jid) DO UPDATE SET
 				name = CASE WHEN excluded.name != '' THEN excluded.name ELSE whatsapp_chats.name END,
 				last_message_at = excluded.last_message_at`),
-		accountOrDefault(account), jid, name, isGroup, time.Now(),
+		account, jid, name, isGroup, time.Now(),
 	)
 	if err != nil {
 		return fmt.Errorf("upsert chat: %w", err)
@@ -45,10 +52,13 @@ func UpsertChat(db *store.DB, account, jid, name string, isGroup bool) error {
 }
 
 func MessageExists(db *store.DB, account, messageID, chatJID string) (bool, error) {
+	if account == "" {
+		return false, errNoAccount
+	}
 	var count int
 	err := db.QueryRow(
 		db.Rebind("SELECT COUNT(*) FROM whatsapp_messages WHERE account = ? AND message_id = ? AND chat_jid = ?"),
-		accountOrDefault(account), messageID, chatJID,
+		account, messageID, chatJID,
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check message exists: %w", err)
@@ -199,6 +209,9 @@ func LastSyncTime(db *store.DB) (*time.Time, error) {
 }
 
 func SaveContact(db *store.DB, c *Contact) error {
+	if c.Account == "" {
+		return errNoAccount
+	}
 	_, err := db.Exec(
 		db.Rebind(`INSERT INTO whatsapp_contacts (account, jid, phone, first_name, full_name, push_name, business_name, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -209,7 +222,7 @@ func SaveContact(db *store.DB, c *Contact) error {
 				push_name = CASE WHEN excluded.push_name != '' THEN excluded.push_name ELSE whatsapp_contacts.push_name END,
 				business_name = CASE WHEN excluded.business_name != '' THEN excluded.business_name ELSE whatsapp_contacts.business_name END,
 				updated_at = CURRENT_TIMESTAMP`),
-		accountOrDefault(c.Account), c.JID, c.Phone, c.FirstName, c.FullName, c.PushName, c.BusinessName,
+		c.Account, c.JID, c.Phone, c.FirstName, c.FullName, c.PushName, c.BusinessName,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert contact: %w", err)
@@ -221,27 +234,15 @@ func ListContacts(db *store.DB, account, query string, limit int) ([]Contact, er
 	if limit <= 0 {
 		limit = 50
 	}
-
-	var conditions []string
-	var args []any
-	if account != "" {
-		conditions = append(conditions, "account = ?")
-		args = append(args, account)
-	}
-	if query != "" {
-		pattern := "%" + strings.ToLower(query) + "%"
-		conditions = append(conditions, "(LOWER(full_name) LIKE ? OR LOWER(push_name) LIKE ? OR LOWER(first_name) LIKE ? OR phone LIKE ?)")
-		args = append(args, pattern, pattern, pattern, pattern)
-	}
-	where := ""
-	if len(conditions) > 0 {
-		where = "WHERE " + strings.Join(conditions, " AND ")
-	}
-	args = append(args, limit)
-
-	rows, err := db.Query(db.Rebind(fmt.Sprintf(
-		`SELECT account, jid, phone, first_name, full_name, push_name, business_name
-			FROM whatsapp_contacts %s ORDER BY full_name LIMIT ?`, where)), args...)
+	pattern := "%" + strings.ToLower(query) + "%"
+	rows, err := db.Query(
+		db.Rebind(`SELECT account, jid, phone, first_name, full_name, push_name, business_name
+			FROM whatsapp_contacts
+			WHERE (? = '' OR account = ?)
+				AND (? = '' OR LOWER(full_name) LIKE ? OR LOWER(push_name) LIKE ? OR LOWER(first_name) LIKE ? OR phone LIKE ?)
+			ORDER BY full_name LIMIT ?`),
+		account, account, query, pattern, pattern, pattern, pattern, limit,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list contacts: %w", err)
 	}
@@ -259,11 +260,14 @@ func ListContacts(db *store.DB, account, query string, limit int) ([]Contact, er
 }
 
 func GetContact(db *store.DB, account, jid string) (*Contact, error) {
+	if account == "" {
+		return nil, errNoAccount
+	}
 	var c Contact
 	err := db.QueryRow(
 		db.Rebind(`SELECT account, jid, phone, first_name, full_name, push_name, business_name
 			FROM whatsapp_contacts WHERE account = ? AND jid = ?`),
-		accountOrDefault(account), jid,
+		account, jid,
 	).Scan(&c.Account, &c.JID, &c.Phone, &c.FirstName, &c.FullName, &c.PushName, &c.BusinessName)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -299,9 +303,4 @@ func ListChats(db *store.DB, account string) ([]Chat, error) {
 	return chats, rows.Err()
 }
 
-func accountOrDefault(account string) string {
-	if account == "" {
-		return DefaultAccount
-	}
-	return account
-}
+var errNoAccount = errors.New("whatsapp account is required")

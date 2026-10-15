@@ -16,6 +16,9 @@ import (
 )
 
 func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (*SyncResult, error) {
+	if opts.Account == "" {
+		return nil, errNoAccount
+	}
 	if err := Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}

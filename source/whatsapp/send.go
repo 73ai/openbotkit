@@ -13,6 +13,9 @@ import (
 )
 
 func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput) (*SendResult, error) {
+	if input.Account == "" {
+		return nil, errNoAccount
+	}
 	jid, err := types.ParseJID(input.ChatJID)
 	if err != nil {
 		return nil, fmt.Errorf("parse JID %q: %w", input.ChatJID, err)
