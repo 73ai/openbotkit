@@ -42,11 +42,10 @@ CREATE TABLE IF NOT EXISTS fetch_cache (
 );
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("websearch", migrations)
 }
