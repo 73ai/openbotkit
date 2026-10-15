@@ -8,6 +8,88 @@ import (
 	"github.com/73ai/openbotkit/store"
 )
 
+const baselineSQLite = `
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	message_id TEXT NOT NULL,
+	chat_jid TEXT NOT NULL,
+	sender_jid TEXT,
+	sender_name TEXT,
+	text TEXT,
+	timestamp DATETIME,
+	media_type TEXT,
+	media_path TEXT,
+	is_group INTEGER DEFAULT 0,
+	is_from_me INTEGER DEFAULT 0,
+	reply_to_id TEXT,
+	synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(message_id, chat_jid)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_chats (
+	jid TEXT PRIMARY KEY,
+	name TEXT,
+	is_group INTEGER DEFAULT 0,
+	last_message_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_contacts (
+	jid TEXT PRIMARY KEY,
+	phone TEXT,
+	first_name TEXT,
+	full_name TEXT,
+	push_name TEXT,
+	business_name TEXT,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat ON whatsapp_messages(chat_jid);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_timestamp ON whatsapp_messages(timestamp);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_sender ON whatsapp_messages(sender_jid);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_contacts_phone ON whatsapp_contacts(phone);
+`
+
+const baselinePostgres = `
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+	id BIGSERIAL PRIMARY KEY,
+	message_id TEXT NOT NULL,
+	chat_jid TEXT NOT NULL,
+	sender_jid TEXT,
+	sender_name TEXT,
+	text TEXT,
+	timestamp TIMESTAMPTZ,
+	media_type TEXT,
+	media_path TEXT,
+	is_group BOOLEAN DEFAULT FALSE,
+	is_from_me BOOLEAN DEFAULT FALSE,
+	reply_to_id TEXT,
+	synced_at TIMESTAMPTZ DEFAULT NOW(),
+	UNIQUE(message_id, chat_jid)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_chats (
+	jid TEXT PRIMARY KEY,
+	name TEXT,
+	is_group BOOLEAN DEFAULT FALSE,
+	last_message_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_contacts (
+	jid TEXT PRIMARY KEY,
+	phone TEXT,
+	first_name TEXT,
+	full_name TEXT,
+	push_name TEXT,
+	business_name TEXT,
+	updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat ON whatsapp_messages(chat_jid);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_timestamp ON whatsapp_messages(timestamp);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_sender ON whatsapp_messages(sender_jid);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_contacts_phone ON whatsapp_contacts(phone);
+`
+
 const messagesTableSQLite = `
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,47 +140,6 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_account ON whatsapp_messages(ac
 CREATE INDEX IF NOT EXISTS idx_whatsapp_contacts_phone ON whatsapp_contacts(phone);
 `
 
-const schemaPostgres = `
-CREATE TABLE IF NOT EXISTS whatsapp_messages (
-	id BIGSERIAL PRIMARY KEY,
-	account TEXT NOT NULL DEFAULT 'default',
-	message_id TEXT NOT NULL,
-	chat_jid TEXT NOT NULL,
-	sender_jid TEXT,
-	sender_name TEXT,
-	text TEXT,
-	timestamp TIMESTAMPTZ,
-	media_type TEXT,
-	media_path TEXT,
-	is_group BOOLEAN DEFAULT FALSE,
-	is_from_me BOOLEAN DEFAULT FALSE,
-	reply_to_id TEXT,
-	synced_at TIMESTAMPTZ DEFAULT NOW(),
-	UNIQUE(account, message_id, chat_jid)
-);
-
-CREATE TABLE IF NOT EXISTS whatsapp_chats (
-	account TEXT NOT NULL DEFAULT 'default',
-	jid TEXT NOT NULL,
-	name TEXT,
-	is_group BOOLEAN DEFAULT FALSE,
-	last_message_at TIMESTAMPTZ,
-	PRIMARY KEY(account, jid)
-);
-
-CREATE TABLE IF NOT EXISTS whatsapp_contacts (
-	account TEXT NOT NULL DEFAULT 'default',
-	jid TEXT NOT NULL,
-	phone TEXT,
-	first_name TEXT,
-	full_name TEXT,
-	push_name TEXT,
-	business_name TEXT,
-	updated_at TIMESTAMPTZ DEFAULT NOW(),
-	PRIMARY KEY(account, jid)
-);
-`
-
 type accountTable struct {
 	name          string
 	createSQLite  string
@@ -131,51 +172,27 @@ var accountTables = []accountTable{
 	},
 }
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: baselineSQLite, Postgres: baselinePostgres},
+	{Version: 2, Func: addAccount},
+}
+
 func Migrate(db *store.DB) error {
-	ctx := context.Background()
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	return db.Migrate("whatsapp", migrations)
+}
 
-	begin := []string{"PRAGMA busy_timeout=30000", "BEGIN IMMEDIATE"}
-	schema := messagesTableSQLite + chatsTableSQLite + contactsTableSQLite + indexes
-	if db.IsPostgres() {
-		begin = []string{"BEGIN", "SELECT pg_advisory_xact_lock(hashtext('whatsapp_migrate'))"}
-		schema = schemaPostgres + indexes
-	}
-	for _, stmt := range begin {
-		if _, err := conn.ExecContext(ctx, stmt); err != nil {
-			return err
-		}
-	}
-	defer conn.ExecContext(ctx, "ROLLBACK")
-
+func addAccount(ctx context.Context, conn *sql.Conn, db *store.DB) error {
 	for _, t := range accountTables {
 		if err := addAccountColumn(ctx, conn, db, t); err != nil {
 			return fmt.Errorf("add account to %s: %w", t.name, err)
 		}
 	}
-	if _, err := conn.ExecContext(ctx, schema); err != nil {
-		return err
-	}
-	_, err = conn.ExecContext(ctx, "COMMIT")
+	_, err := conn.ExecContext(ctx, indexes)
 	return err
 }
 
 func addAccountColumn(ctx context.Context, conn *sql.Conn, db *store.DB, t accountTable) error {
-	tableQuery := "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
-	columnQuery := "SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = 'account'"
-	if db.IsPostgres() {
-		tableQuery = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1"
-		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'account'"
-	}
-	var tables, columns int
-	if err := conn.QueryRowContext(ctx, tableQuery, t.name).Scan(&tables); err != nil || tables == 0 {
-		return err
-	}
-	if err := conn.QueryRowContext(ctx, columnQuery, t.name).Scan(&columns); err != nil || columns > 0 {
+	if ok, err := store.HasColumn(ctx, conn, db, t.name, "account"); err != nil || ok {
 		return err
 	}
 
