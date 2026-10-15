@@ -43,6 +43,7 @@ type Server struct {
 	addr string
 	ctx  context.Context
 
+	cfgMu  sync.Mutex
 	waMu   sync.Mutex
 	waAuth map[string]*whatsAppAuth
 

@@ -73,3 +73,22 @@ func TestRegisterWhatsAppAccountLinksAndSaves(t *testing.T) {
 		t.Fatalf("saved accounts = %+v", saved.WhatsApp.Accounts)
 	}
 }
+
+func TestRegisterWhatsAppAccountWhileAuthPageResolves(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+	s := &Server{cfg: config.Default()}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, label := range []string{"work", "family", "side"} {
+			if err := s.registerWhatsAppAccount(label, &config.WhatsAppAccount{Role: "source"}); err != nil {
+				t.Errorf("register %s: %v", label, err)
+			}
+		}
+	}()
+	for i := 0; i < 50; i++ {
+		rec := httptest.NewRecorder()
+		s.handleWhatsAppAuthPage(rec, httptest.NewRequest("GET", "/auth/whatsapp?account=assistant&role=reader", nil))
+	}
+	<-done
+}

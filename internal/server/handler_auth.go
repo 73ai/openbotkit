@@ -37,7 +37,9 @@ func whatsAppAccountParam(r *http.Request) string {
 
 func (s *Server) handleWhatsAppAuthPage(w http.ResponseWriter, r *http.Request) {
 	account := whatsAppAccountParam(r)
+	s.cfgMu.Lock()
 	entry, err := s.cfg.ResolveWhatsAppAccount(account, r.URL.Query().Get("role"), r.URL.Query().Get("owner_jid"))
+	s.cfgMu.Unlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -169,6 +171,8 @@ func (s *Server) registerWhatsAppAccount(account string, entry *config.WhatsAppA
 	if entry == nil {
 		return nil
 	}
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	s.cfg.SetWhatsAppAccount(account, *entry)
 	if err := s.cfg.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
