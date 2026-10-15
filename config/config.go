@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -194,6 +195,7 @@ func (c *Config) WhatsAppAccountList() []WhatsAppAccountEntry {
 			OwnerJID: acct.OwnerJID,
 		})
 	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 	return entries
 }
 
