@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -194,6 +195,34 @@ func (c *Config) WhatsAppAccountList() []WhatsAppAccountEntry {
 		})
 	}
 	return entries
+}
+
+var whatsAppLabelPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// SetWhatsAppAccount adds or replaces an account entry. The first explicit
+// entry also records the implicit "default" account so it keeps syncing.
+func (c *Config) SetWhatsAppAccount(label string, acct WhatsAppAccount) error {
+	if !whatsAppLabelPattern.MatchString(label) {
+		return fmt.Errorf("invalid account label %q: use letters, digits, '-' or '_'", label)
+	}
+	switch acct.Role {
+	case "source":
+	case "channel", "both":
+		if acct.OwnerJID == "" {
+			return fmt.Errorf("role %q needs an owner JID", acct.Role)
+		}
+	default:
+		return fmt.Errorf("invalid role %q (valid: source, channel, both)", acct.Role)
+	}
+
+	if c.WhatsApp == nil {
+		c.WhatsApp = &WhatsAppConfig{}
+	}
+	if len(c.WhatsApp.Accounts) == 0 {
+		c.WhatsApp.Accounts = map[string]*WhatsAppAccount{"default": {Role: "source"}}
+	}
+	c.WhatsApp.Accounts[label] = &acct
+	return nil
 }
 
 // WhatsAppAccountDir returns the directory for an account's state files.

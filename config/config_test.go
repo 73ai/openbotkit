@@ -893,3 +893,72 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("expected custom DSN after reload, got %q", loaded.WhatsApp.Storage.DSN)
 	}
 }
+
+func TestSetWhatsAppAccountKeepsImplicitDefault(t *testing.T) {
+	cfg := Default()
+	if err := cfg.SetWhatsAppAccount("work", WhatsAppAccount{Role: "source"}); err != nil {
+		t.Fatalf("set work: %v", err)
+	}
+	labels := map[string]string{}
+	for _, e := range cfg.WhatsAppAccountList() {
+		labels[e.Label] = e.Role
+	}
+	if len(labels) != 2 || labels["default"] != "source" || labels["work"] != "source" {
+		t.Fatalf("accounts = %v", labels)
+	}
+}
+
+func TestSetWhatsAppAccountLeavesExistingEntries(t *testing.T) {
+	cfg := Default()
+	cfg.WhatsApp.Accounts = map[string]*WhatsAppAccount{"assistant": {Role: "channel", OwnerJID: "1@s.whatsapp.net"}}
+	if err := cfg.SetWhatsAppAccount("work", WhatsAppAccount{Role: "source"}); err != nil {
+		t.Fatalf("set work: %v", err)
+	}
+	if _, ok := cfg.WhatsApp.Accounts["default"]; ok {
+		t.Fatal("default added to an explicit account list")
+	}
+	if len(cfg.WhatsApp.Accounts) != 2 {
+		t.Fatalf("accounts = %v", cfg.WhatsApp.Accounts)
+	}
+}
+
+func TestSetWhatsAppAccountValidates(t *testing.T) {
+	cases := []struct {
+		label string
+		acct  WhatsAppAccount
+	}{
+		{"../escape", WhatsAppAccount{Role: "source"}},
+		{"", WhatsAppAccount{Role: "source"}},
+		{"work", WhatsAppAccount{Role: "reader"}},
+		{"bot", WhatsAppAccount{Role: "channel"}},
+		{"bot", WhatsAppAccount{Role: "both"}},
+	}
+	for _, c := range cases {
+		cfg := Default()
+		if err := cfg.SetWhatsAppAccount(c.label, c.acct); err == nil {
+			t.Errorf("SetWhatsAppAccount(%q, %+v) succeeded", c.label, c.acct)
+		}
+		if len(cfg.WhatsApp.Accounts) != 0 {
+			t.Errorf("invalid input %q changed config", c.label)
+		}
+	}
+}
+
+func TestSetWhatsAppAccountSurvivesSaveAndLoad(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Default()
+	if err := cfg.SetWhatsAppAccount("bot", WhatsAppAccount{Role: "channel", OwnerJID: "1@s.whatsapp.net"}); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := cfg.SaveTo(path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := LoadFrom(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	bot := loaded.WhatsApp.Accounts["bot"]
+	if bot == nil || bot.Role != "channel" || bot.OwnerJID != "1@s.whatsapp.net" || loaded.WhatsApp.Accounts["default"] == nil {
+		t.Fatalf("loaded accounts = %+v", loaded.WhatsApp.Accounts)
+	}
+}
