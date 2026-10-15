@@ -10,6 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
@@ -153,5 +154,35 @@ func TestSaveHistorySyncTagsAccount(t *testing.T) {
 	}
 	if msgs, _ := ListMessages(db, ListOptions{Account: DefaultAccount}); len(msgs) != 0 {
 		t.Fatalf("history leaked into default: %d", len(msgs))
+	}
+}
+
+func TestSaveLiveMessageTagsAccount(t *testing.T) {
+	db := migratedDB(t)
+	ravi := types.NewJID("919812345678", types.DefaultUserServer)
+	evt := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{Chat: ravi, Sender: ravi},
+			ID:            "3EB0C4F1A2",
+			PushName:      "Ravi",
+			Timestamp:     time.Date(2026, 3, 4, 10, 30, 0, 0, time.UTC),
+		},
+		Message: &waE2E.Message{Conversation: proto.String("are we still on for lunch?")},
+	}
+
+	msg, err := saveLiveMessage(db, "work", evt)
+	if err != nil || msg == nil {
+		t.Fatalf("save live message: %+v, err %v", msg, err)
+	}
+	stored, err := ListMessages(db, ListOptions{Account: "work"})
+	if err != nil || len(stored) != 1 || stored[0].Text != "are we still on for lunch?" || stored[0].ChatJID != ravi.String() {
+		t.Fatalf("work messages = %+v, err %v", stored, err)
+	}
+	chats, err := ListChats(db, "work")
+	if err != nil || len(chats) != 1 || chats[0].Name != "Ravi" {
+		t.Fatalf("work chats = %+v, err %v", chats, err)
+	}
+	if others, _ := ListMessages(db, ListOptions{Account: DefaultAccount}); len(others) != 0 {
+		t.Fatalf("live message leaked into default: %+v", others)
 	}
 }

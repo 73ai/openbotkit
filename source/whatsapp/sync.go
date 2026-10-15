@@ -30,17 +30,15 @@ func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (
 	client.WM().AddEventHandler(func(rawEvt any) {
 		switch evt := rawEvt.(type) {
 		case *events.Message:
-			msg := parseMessage(evt)
-			if msg == nil {
-				return
-			}
-			msg.Account = opts.Account
-			if err := SaveMessage(db, msg); err != nil {
+			msg, err := saveLiveMessage(db, opts.Account, evt)
+			if err != nil {
 				slog.Error("save message", "account", opts.Account, "error", err)
 				errors.Add(1)
 				return
 			}
-			UpsertChat(db, opts.Account, msg.ChatJID, chatName(evt), msg.IsGroup)
+			if msg == nil {
+				return
+			}
 			received.Add(1)
 			slog.Info("message received", "sender", msg.SenderName, "chat", msg.ChatJID, "text", truncate(msg.Text, 80))
 
@@ -106,6 +104,18 @@ func syncContacts(ctx context.Context, client *Client, db *store.DB, account str
 		saved++
 	}
 	slog.Info("contacts synced", "saved", saved, "total", len(contacts))
+}
+
+func saveLiveMessage(db *store.DB, account string, evt *events.Message) (*Message, error) {
+	msg := parseMessage(evt)
+	if msg == nil {
+		return nil, nil
+	}
+	msg.Account = account
+	if err := SaveMessage(db, msg); err != nil {
+		return nil, err
+	}
+	return msg, UpsertChat(db, account, msg.ChatJID, chatName(evt), msg.IsGroup)
 }
 
 func saveHistorySync(db *store.DB, account string, evt *events.HistorySync) (saved, failed int) {
