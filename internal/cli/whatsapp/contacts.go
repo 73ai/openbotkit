@@ -37,8 +37,9 @@ var contactsListCmd = &cobra.Command{
 		query, _ := cmd.Flags().GetString("query")
 		limit, _ := cmd.Flags().GetInt("limit")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
-		contacts, err := wasrc.ListContacts(db, query, limit)
+		contacts, err := wasrc.ListContacts(db, account, query, limit)
 		if err != nil {
 			return fmt.Errorf("list contacts: %w", err)
 		}
@@ -69,6 +70,7 @@ func init() {
 	contactsListCmd.Flags().String("query", "", "Search contacts by name or phone")
 	contactsListCmd.Flags().Int("limit", 50, "Maximum number of results")
 	contactsListCmd.Flags().Bool("json", false, "Output as JSON")
+	contactsListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	contactsCmd.AddCommand(contactsListCmd)
 }

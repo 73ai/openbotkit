@@ -75,6 +75,7 @@ var messagesSendCmd = &cobra.Command{
 		}
 
 		result, err := wasrc.SendText(ctx, client, db, wasrc.SendInput{
+			Account: account,
 			ChatJID: to,
 			Text:    text,
 		})

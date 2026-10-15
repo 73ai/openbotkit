@@ -40,8 +40,10 @@ var messagesListCmd = &cobra.Command{
 		before, _ := cmd.Flags().GetString("before")
 		limit, _ := cmd.Flags().GetInt("limit")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
 		messages, err := wasrc.ListMessages(db, wasrc.ListOptions{
+			Account: account,
 			ChatJID: chat,
 			After:   after,
 			Before:  before,
@@ -105,8 +107,9 @@ var messagesSearchCmd = &cobra.Command{
 
 		jsonOut, _ := cmd.Flags().GetBool("json")
 		limit, _ := cmd.Flags().GetInt("limit")
+		account, _ := cmd.Flags().GetString("account")
 
-		messages, err := wasrc.SearchMessages(db, args[0], limit)
+		messages, err := wasrc.SearchMessages(db, account, args[0], limit)
 		if err != nil {
 			return fmt.Errorf("search messages: %w", err)
 		}
@@ -161,8 +164,9 @@ var chatsListCmd = &cobra.Command{
 		defer db.Close()
 
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
-		chats, err := wasrc.ListChats(db)
+		chats, err := wasrc.ListChats(db, account)
 		if err != nil {
 			return fmt.Errorf("list chats: %w", err)
 		}
@@ -207,15 +211,18 @@ func init() {
 	messagesListCmd.Flags().String("before", "", "Messages on or before this date (YYYY-MM-DD)")
 	messagesListCmd.Flags().Int("limit", 50, "Maximum number of results")
 	messagesListCmd.Flags().Bool("json", false, "Output as JSON")
+	messagesListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	messagesSearchCmd.Flags().Bool("json", false, "Output as JSON")
 	messagesSearchCmd.Flags().Int("limit", 50, "Maximum number of results")
+	messagesSearchCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	messagesCmd.AddCommand(messagesListCmd)
 	messagesCmd.AddCommand(messagesSearchCmd)
 	messagesCmd.AddCommand(messagesSendCmd)
 
 	chatsListCmd.Flags().Bool("json", false, "Output as JSON")
+	chatsListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 	chatsCmd.AddCommand(chatsListCmd)
 }
 
