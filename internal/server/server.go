@@ -44,7 +44,7 @@ type Server struct {
 	ctx  context.Context
 
 	waMu   sync.Mutex
-	waAuth *whatsAppAuth
+	waAuth map[string]*whatsAppAuth
 
 	scopeWaiter *google.ScopeWaiter
 	google      *google.Google

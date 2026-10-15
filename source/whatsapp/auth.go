@@ -84,6 +84,7 @@ var qrEl=document.getElementById("qr"),statusEl=document.getElementById("status"
     mainEl=document.getElementById("main"),linkingEl=document.getElementById("linking"),
     syncingEl=document.getElementById("syncing"),doneEl=document.getElementById("done"),qrCode=null,hasQR=false;
 function poll(){fetch("/api/qr").then(function(r){return r.json()}).then(function(d){
+  if(d.error){mainEl.style.display="block";linkingEl.style.display="none";syncingEl.style.display="none";statusEl.textContent="Login failed: "+d.error;statusEl.className="";qrEl.innerHTML="";return}
   if(d.authenticated){mainEl.style.display="none";linkingEl.style.display="none";syncingEl.style.display="none";doneEl.style.display="block";return}
   if(d.syncing){mainEl.style.display="none";linkingEl.style.display="none";syncingEl.style.display="block";setTimeout(poll,2000);return}
   if(d.linking){mainEl.style.display="none";linkingEl.style.display="block";setTimeout(poll,2000);return}
