@@ -38,10 +38,11 @@ type Contact struct {
 }
 
 type Config struct {
-	Account       string
-	SessionDBPath string
-	DataDriver    string
-	DataDSN       string
+	Account        string
+	SessionDBPath  string
+	SessionDBPaths []string
+	DataDriver     string
+	DataDSN        string
 }
 
 type SyncOptions struct {

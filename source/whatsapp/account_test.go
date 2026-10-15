@@ -3,6 +3,8 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -184,5 +186,29 @@ func TestSaveLiveMessageTagsAccount(t *testing.T) {
 	}
 	if others, _ := ListMessages(db, ListOptions{Account: DefaultAccount}); len(others) != 0 {
 		t.Fatalf("live message leaked into default: %+v", others)
+	}
+}
+
+func TestStatusCoversAllAccountsWithoutCreatingSessions(t *testing.T) {
+	db := migratedDB(t)
+	for _, account := range []string{"default", "work"} {
+		if err := SaveMessage(db, &Message{Account: account, MessageID: "m-" + account, ChatJID: "919812345678@s.whatsapp.net", Timestamp: time.Now()}); err != nil {
+			t.Fatalf("save %s: %v", account, err)
+		}
+	}
+	dir := t.TempDir()
+	sessions := []string{filepath.Join(dir, "session.db"), filepath.Join(dir, "work", "session.db")}
+
+	st, err := New(Config{SessionDBPaths: sessions}).Status(context.Background(), db)
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st.Connected || len(st.Accounts) != 0 || st.ItemCount != 2 {
+		t.Fatalf("status = %+v, want disconnected with 2 messages", st)
+	}
+	for _, p := range sessions {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Fatalf("status created session %s", p)
+		}
 	}
 }

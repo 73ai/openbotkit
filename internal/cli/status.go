@@ -61,9 +61,11 @@ var statusCmd = &cobra.Command{
 		g := gmailsrc.New(gmailsrc.Config{Provider: gp})
 		source.Register(g)
 
-		wa := wasrc.New(wasrc.Config{
-			SessionDBPath: cfg.WhatsAppSessionDBPath(),
-		})
+		var waSessions []string
+		for _, acct := range cfg.WhatsAppAccountList() {
+			waSessions = append(waSessions, cfg.WhatsAppAccountSessionDBPath(acct.Label))
+		}
+		wa := wasrc.New(wasrc.Config{SessionDBPaths: waSessions})
 		source.Register(wa)
 
 		an := ansrc.New(ansrc.Config{})
