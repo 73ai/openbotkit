@@ -32,11 +32,10 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_started_at ON tasks(started_at);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("tasks", migrations)
 }

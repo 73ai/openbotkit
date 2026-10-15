@@ -104,11 +104,10 @@ CREATE INDEX IF NOT EXISTS idx_contact_aliases_contact ON contact_aliases(contac
 CREATE INDEX IF NOT EXISTS idx_contact_interactions_contact ON contact_interactions(contact_id);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("contacts", migrations)
 }
