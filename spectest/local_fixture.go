@@ -161,14 +161,14 @@ func availableProviders(t *testing.T) []providerCase {
 	testutil.LoadEnv(t)
 	var cases []providerCase
 
-	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" && testutil.ProviderEnabled("gemini") {
 		cases = append(cases, providerCase{
 			Name:     "gemini",
 			Provider: gemini.New(key),
 			Model:    "gemini-2.5-flash",
 		})
 	}
-	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" && testutil.ProviderEnabled("anthropic-vertex") {
 		region := os.Getenv("GOOGLE_CLOUD_REGION")
 		if region == "" {
 			region = "us-east5"
@@ -184,7 +184,7 @@ func availableProviders(t *testing.T) []providerCase {
 			Model:    model,
 		})
 	}
-	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" && testutil.ProviderEnabled("openai") {
 		cases = append(cases, providerCase{
 			Name:     "openai",
 			Provider: openai.New(key),

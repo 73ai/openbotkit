@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/73ai/openbotkit/internal/testutil"
+
 	"github.com/73ai/openbotkit/provider"
 )
 
@@ -243,8 +245,8 @@ func TestChat_SystemBlocks(t *testing.T) {
 
 func TestOpenAIIntegration(t *testing.T) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY not set")
+	if apiKey == "" || !testutil.ProviderEnabled("openai") {
+		t.Skip("OPENAI_API_KEY not set or openai not in OBK_TEST_PROVIDERS")
 	}
 
 	p := New(apiKey)
