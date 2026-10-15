@@ -8,7 +8,15 @@
 ## Coding Guidelines
 
   - Keep code simple and easy to read.
-  - Avoid excessive comments — only comment when absolutely necessary.
+  - Write code in the minimum number of lines.
+  - No comments unless they are extremely necessary, the 0.1% case where the code cannot explain itself.
+
+## Testing Guidelines
+
+  - Test quality ranks above code quality. Tests are the gatekeepers.
+  - Never compromise on test quality, even if it delays a release by a week.
+  - Think hard before writing any test. Every test must be the highest quality you can write.
+  - Bad tests are never accepted: no shallow unit tests, no unrealistic scenarios, no toy examples. Test realistic inputs and real behaviour.
 
 ## Destructive Actions
 
