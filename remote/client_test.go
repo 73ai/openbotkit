@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -147,5 +148,32 @@ func TestClient_MemoryDelete(t *testing.T) {
 	c := NewClient(srv.URL, "", "")
 	if err := c.MemoryDelete(1); err != nil {
 		t.Fatalf("delete: %v", err)
+	}
+}
+
+func TestClient_WaitWhatsAppAuth(t *testing.T) {
+	cases := []struct {
+		name    string
+		status  map[string]any
+		wantErr string
+	}{
+		{"linked", map[string]any{"authenticated": true, "error": ""}, ""},
+		{"failed", map[string]any{"authenticated": false, "error": "whatsapp login failed (err-client-outdated)"}, "err-client-outdated"},
+	}
+	for _, tc := range cases {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/auth/whatsapp/api/qr" || r.URL.Query().Get("account") != "work" {
+				t.Errorf("%s: unexpected request %s", tc.name, r.URL)
+			}
+			json.NewEncoder(w).Encode(tc.status)
+		}))
+		err := NewClient(srv.URL, "", "").WaitWhatsAppAuth("work")
+		srv.Close()
+		if tc.wantErr == "" && err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+		}
+		if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+			t.Errorf("%s: err = %v, want %q", tc.name, err, tc.wantErr)
+		}
 	}
 }

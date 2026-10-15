@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -29,57 +30,52 @@ var authLoginCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
-
 		account, _ := cmd.Flags().GetString("account")
-
+		role, _ := cmd.Flags().GetString("role")
+		ownerJID, _ := cmd.Flags().GetString("owner-jid")
 		if cfg.IsRemote() {
-			if account != "default" || cmd.Flags().Changed("role") || cmd.Flags().Changed("owner-jid") {
-				return fmt.Errorf("remote login only supports the default account")
-			}
-			return authLoginRemote(cfg)
+			return authLoginRemote(cfg, account, role, ownerJID)
 		}
-
-		entry := accountEntryToRegister(cmd, cfg, account)
-		if entry != nil {
-			if err := cfg.SetWhatsAppAccount(account, *entry); err != nil {
-				return err
-			}
-		}
-
-		if err := config.EnsureSourceDir("whatsapp"); err != nil {
-			return fmt.Errorf("create whatsapp dir: %w", err)
-		}
-		if account != "default" {
-			dir := cfg.WhatsAppAccountDir(account)
-			if err := os.MkdirAll(dir, 0700); err != nil {
-				return fmt.Errorf("create account dir: %w", err)
-			}
-		}
-
-		w := wasrc.New(wasrc.Config{
-			Account:       account,
-			SessionDBPath: cfg.WhatsAppAccountSessionDBPath(account),
-			DataDriver:    cfg.WhatsApp.Storage.Driver,
-			DataDSN:       cfg.WhatsAppDataDSN(),
+		return loginLocal(cfg, account, role, ownerJID, func(c wasrc.Config) error {
+			return wasrc.New(c).Login(context.Background())
 		})
-
-		ctx := context.Background()
-		if err := w.Login(ctx); err != nil {
-			return fmt.Errorf("login failed: %w", err)
-		}
-
-		if err := config.LinkWhatsAppAccount(account); err != nil {
-			return fmt.Errorf("link account: %w", err)
-		}
-		if entry != nil {
-			if err := cfg.Save(); err != nil {
-				return fmt.Errorf("save config: %w", err)
-			}
-		}
-
-		fmt.Printf("\nSuccessfully authenticated WhatsApp (account: %s)\n", account)
-		return nil
 	},
+}
+
+func loginLocal(cfg *config.Config, account, role, ownerJID string, login func(wasrc.Config) error) error {
+	entry, err := cfg.ResolveWhatsAppAccount(account, role, ownerJID)
+	if err != nil {
+		return err
+	}
+	if err := config.EnsureSourceDir("whatsapp"); err != nil {
+		return fmt.Errorf("create whatsapp dir: %w", err)
+	}
+	if account != "default" {
+		if err := os.MkdirAll(cfg.WhatsAppAccountDir(account), 0700); err != nil {
+			return fmt.Errorf("create account dir: %w", err)
+		}
+	}
+
+	if err := login(wasrc.Config{
+		Account:       account,
+		SessionDBPath: cfg.WhatsAppAccountSessionDBPath(account),
+		DataDriver:    cfg.WhatsApp.Storage.Driver,
+		DataDSN:       cfg.WhatsAppDataDSN(),
+	}); err != nil {
+		return fmt.Errorf("login failed: %w", err)
+	}
+
+	if err := config.LinkWhatsAppAccount(account); err != nil {
+		return fmt.Errorf("link account: %w", err)
+	}
+	if entry != nil {
+		cfg.SetWhatsAppAccount(account, *entry)
+		if err := cfg.Save(); err != nil {
+			return fmt.Errorf("save config: %w", err)
+		}
+	}
+	fmt.Printf("\nSuccessfully authenticated WhatsApp (account: %s)\n", account)
+	return nil
 }
 
 var authLogoutCmd = &cobra.Command{
@@ -167,38 +163,23 @@ var authStatusCmd = &cobra.Command{
 	},
 }
 
-// accountEntryToRegister returns the config entry to save for this login, or
-// nil when the account is already configured and no flags change it.
-func accountEntryToRegister(cmd *cobra.Command, cfg *config.Config, account string) *config.WhatsAppAccount {
-	flagsChanged := cmd.Flags().Changed("role") || cmd.Flags().Changed("owner-jid")
-	acct := config.WhatsAppAccount{Role: "source"}
-	for _, e := range cfg.WhatsAppAccountList() {
-		if e.Label == account {
-			if !flagsChanged {
-				return nil
-			}
-			acct = config.WhatsAppAccount{Role: e.Role, OwnerJID: e.OwnerJID}
-		}
-	}
-	if cmd.Flags().Changed("role") {
-		acct.Role, _ = cmd.Flags().GetString("role")
-	}
-	if cmd.Flags().Changed("owner-jid") {
-		acct.OwnerJID, _ = cmd.Flags().GetString("owner-jid")
-	}
-	return &acct
-}
-
-func authLoginRemote(cfg *config.Config) error {
+func authLoginRemote(cfg *config.Config, account, role, ownerJID string) error {
 	if cfg.Remote == nil || cfg.Remote.Server == "" {
 		return fmt.Errorf("remote server not configured — run 'obk setup' to configure")
 	}
 
-	url := strings.TrimRight(cfg.Remote.Server, "/") + "/auth/whatsapp"
-	if err := browser.Open(url); err != nil {
-		fmt.Printf("Open this URL in your browser to authenticate WhatsApp:\n%s\n", url)
+	q := url.Values{"account": {account}}
+	if role != "" {
+		q.Set("role", role)
+	}
+	if ownerJID != "" {
+		q.Set("owner_jid", ownerJID)
+	}
+	authURL := strings.TrimRight(cfg.Remote.Server, "/") + "/auth/whatsapp?" + q.Encode()
+	if err := browser.Open(authURL); err != nil {
+		fmt.Printf("Open this URL in your browser to authenticate WhatsApp:\n%s\n", authURL)
 	} else {
-		fmt.Printf("Opening this URL in your browser to authenticate WhatsApp:\n%s\n", url)
+		fmt.Printf("Opening this URL in your browser to authenticate WhatsApp:\n%s\n", authURL)
 	}
 
 	client, err := newRemoteClient(cfg)
@@ -206,16 +187,16 @@ func authLoginRemote(cfg *config.Config) error {
 		return err
 	}
 	fmt.Println("\nWaiting for authentication to complete...")
-	if err := client.WaitWhatsAppAuth(); err != nil {
+	if err := client.WaitWhatsAppAuth(account); err != nil {
 		return err
 	}
-	fmt.Println("WhatsApp authenticated successfully!")
+	fmt.Printf("WhatsApp authenticated successfully (account: %s)\n", account)
 	return nil
 }
 
 func init() {
 	authLoginCmd.Flags().String("account", "default", "Account label")
-	authLoginCmd.Flags().String("role", "source", "Account role: source, channel or both")
+	authLoginCmd.Flags().String("role", "", "Account role: source, channel or both (new accounts default to source)")
 	authLoginCmd.Flags().String("owner-jid", "", "Owner JID the assistant talks to (channel and both roles)")
 	authLogoutCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	authLogoutCmd.Flags().String("account", "default", "Account label")
