@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os/exec"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/internal/skills"
@@ -23,14 +22,11 @@ var updateCmd = &cobra.Command{
 
 		if !updateSkillsOnly {
 			fmt.Println("Updating obk binary...")
-			install := exec.Command("go", "install", "github.com/73ai/openbotkit@latest")
-			install.Stdout = cmd.OutOrStdout()
-			install.Stderr = cmd.ErrOrStderr()
-			if err := install.Run(); err != nil {
-				fmt.Printf("  warning: binary update failed: %v\n", err)
-			} else {
-				fmt.Println("  obk binary updated")
+			tag, err := selfUpdate()
+			if err != nil {
+				return fmt.Errorf("update obk binary: %w", err)
 			}
+			fmt.Printf("  obk %s installed\n", tag)
 		}
 
 		fmt.Println("Updating skills...")
