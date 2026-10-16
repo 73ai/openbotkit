@@ -20,7 +20,7 @@ func BuildTree(svc *Service) []Node {
 		{Category: generalCategory()},
 		{Category: workspaceCategory()},
 		{Category: modelsCategory(svc)},
-		{Category: channelsCategory()},
+		{Category: channelsCategory(svc)},
 		{Category: dataSourcesCategory(svc)},
 		{Category: integrationsCategory()},
 		{Category: backupCategory(svc)},
@@ -500,7 +500,9 @@ func providersCategory(svc *Service) *Category {
 	}
 }
 
-func channelsCategory() *Category {
+const telegramBotTokenRef = "keychain:obk/telegram-bot-token"
+
+func channelsCategory(svc *Service) *Category {
 	return &Category{
 		Key:   "channels",
 		Label: "Channels",
@@ -514,7 +516,7 @@ func channelsCategory() *Category {
 						Label: "Bot Token",
 						Type:  TypePassword,
 						Get: func(c *config.Config) string {
-							if c.Channels == nil || c.Channels.Telegram == nil || c.Channels.Telegram.BotToken == "" {
+							if c.Channels == nil || c.Channels.Telegram == nil || !c.Channels.Telegram.HasBotToken() {
 								return "not configured"
 							}
 							return "configured"
@@ -526,7 +528,11 @@ func channelsCategory() *Category {
 							if c.Channels.Telegram == nil {
 								c.Channels.Telegram = &config.TelegramConfig{}
 							}
-							c.Channels.Telegram.BotToken = v
+							if err := svc.StoreCredential(telegramBotTokenRef, v); err != nil {
+								return fmt.Errorf("store credential: %w", err)
+							}
+							c.Channels.Telegram.BotToken = ""
+							c.Channels.Telegram.BotTokenRef = telegramBotTokenRef
 							return nil
 						},
 					}},

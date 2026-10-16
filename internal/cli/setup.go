@@ -141,7 +141,7 @@ var setupCmd = &cobra.Command{
 		// Step 3: If Telegram is configured and Google sources are selected,
 		// set up ngrok first so we know the callback URL before creating
 		// Google OAuth credentials.
-		hasTelegram := cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.BotToken != ""
+		hasTelegram := cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.HasBotToken()
 		if hasTelegram && needsGoogle {
 			if err := setupNgrok(cfg); err != nil {
 				return err
@@ -346,6 +346,8 @@ func setupRemote() error {
 	return nil
 }
 
+const telegramBotTokenRef = "keychain:obk/telegram-bot-token"
+
 func setupTelegram(cfg *config.Config) error {
 	fmt.Println("\n  -- Telegram Bot Setup --")
 
@@ -394,7 +396,14 @@ func setupTelegram(cfg *config.Config) error {
 	if cfg.Channels.Telegram == nil {
 		cfg.Channels.Telegram = &config.TelegramConfig{}
 	}
-	cfg.Channels.Telegram.BotToken = botToken
+	if err := provider.StoreCredential(telegramBotTokenRef, botToken); err != nil {
+		fmt.Printf("  Warning: could not store bot token in keychain: %v\n", err)
+		cfg.Channels.Telegram.BotToken = botToken
+		cfg.Channels.Telegram.BotTokenRef = ""
+	} else {
+		cfg.Channels.Telegram.BotToken = ""
+		cfg.Channels.Telegram.BotTokenRef = telegramBotTokenRef
+	}
 	cfg.Channels.Telegram.OwnerID = ownerID
 
 	fmt.Printf("  Telegram bot configured (owner: %d)\n", ownerID)
