@@ -307,3 +307,24 @@ func init() {
 	serviceLogsCmd.Flags().Int("tail", 50, "number of lines to show from the end")
 	serviceCmd.AddCommand(serviceLogsCmd)
 }
+
+func reinstallServices() error {
+	for _, name := range allServices {
+		mgr, err := service.NewManager(name)
+		if err != nil || !mgr.Installed() {
+			continue
+		}
+		cfg, err := service.DefaultConfig(name, []string{"service", "run", name})
+		if err != nil {
+			return err
+		}
+		if err := mgr.Uninstall(); err != nil {
+			return fmt.Errorf("reinstall %s: %w", name, err)
+		}
+		if err := mgr.Install(cfg); err != nil {
+			return fmt.Errorf("reinstall %s: %w", name, err)
+		}
+		fmt.Printf("  %s service restarted on the new binary\n", name)
+	}
+	return nil
+}

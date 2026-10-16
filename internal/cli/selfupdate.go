@@ -119,37 +119,37 @@ func latestReleaseTag() (string, error) {
 	return release.TagName, nil
 }
 
-func selfUpdate() (string, error) {
+func selfUpdate() (string, bool, error) {
 	tag, err := latestReleaseTag()
 	if err != nil {
-		return "", fmt.Errorf("find latest release: %w", err)
+		return "", false, fmt.Errorf("find latest release: %w", err)
 	}
 	if strings.TrimPrefix(tag, "v") == strings.TrimPrefix(Version, "v") {
-		return tag, nil
+		return tag, false, nil
 	}
 	base := "https://github.com/" + releaseRepo + "/releases/download/" + tag + "/"
 	asset := releaseAssetName(tag, runtime.GOOS, runtime.GOARCH)
 	archive, err := httpGet(base + asset)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	checksums, err := httpGet(base + checksumsAssetName(tag))
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if err := verifyChecksum(archive, asset, checksums); err != nil {
-		return "", err
+		return "", false, err
 	}
 	bin, err := extractBinary(archive, "obk")
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	target, err := runningBinaryPath()
 	if err != nil {
-		return "", fmt.Errorf("locate running binary: %w", err)
+		return "", false, fmt.Errorf("locate running binary: %w", err)
 	}
 	if err := replaceBinary(target, bin); err != nil {
-		return "", fmt.Errorf("replace %s: %w", target, err)
+		return "", false, fmt.Errorf("replace %s: %w", target, err)
 	}
-	return tag, nil
+	return tag, true, nil
 }
