@@ -95,11 +95,9 @@ install_from_source() {
     fi
 
     log "Building obk from source"
-    go install "github.com/${REPO}@latest"
-
-    GOBIN="$(go env GOPATH)/bin"
-    ln -sf "$GOBIN/openbotkit" "$GOBIN/obk"
-    INSTALL_DIR="$GOBIN"
+    mkdir -p "$INSTALL_DIR"
+    GOBIN="$INSTALL_DIR" go install "github.com/${REPO}@latest"
+    ln -sf "$INSTALL_DIR/openbotkit" "$INSTALL_DIR/obk"
 }
 
 install_macos_helper() {
