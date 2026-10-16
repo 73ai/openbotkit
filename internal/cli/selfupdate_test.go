@@ -92,3 +92,18 @@ func TestExtractBinaryAndReplaceThroughSymlink(t *testing.T) {
 		t.Errorf("leftover temp files: %v", entries)
 	}
 }
+
+func TestNixManaged(t *testing.T) {
+	cases := map[string]bool{
+		"/nix/store/9w3k2l1q-openbotkit-0.16.0/bin/obk": true,
+		"/Users/me/.local/bin/obk":                      false,
+		"/home/me/.local/bin/obk":                       false,
+		"/nix/storefront/bin/obk":                       false,
+		"/opt/nix/store/abc-openbotkit/bin/obk":         false,
+	}
+	for path, want := range cases {
+		if got := nixManaged(path); got != want {
+			t.Errorf("nixManaged(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
