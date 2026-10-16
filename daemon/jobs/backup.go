@@ -80,10 +80,15 @@ func (w *BackupWorker) notifyFailure(ctx context.Context, backupErr error) {
 		return
 	}
 	tg := w.Cfg.Channels.Telegram
-	if tg == nil || tg.BotToken == "" {
+	if tg == nil || !tg.HasBotToken() {
 		return
 	}
-	pusher, err := channel.NewTelegramPusher(tg.BotToken, tg.OwnerID)
+	token, err := tg.ResolvedBotToken(provider.LoadCredential)
+	if err != nil {
+		slog.Error("backup: telegram bot token", "error", err)
+		return
+	}
+	pusher, err := channel.NewTelegramPusher(token, tg.OwnerID)
 	if err != nil {
 		slog.Error("backup: create telegram pusher", "error", err)
 		return
