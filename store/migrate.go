@@ -3,8 +3,11 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
+
+var ErrSchemaTooNew = errors.New("update obk")
 
 type Migration struct {
 	Version  int
@@ -56,6 +59,16 @@ func (db *DB) Migrate(source string, steps []Migration) error {
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
+	}
+
+	known := 0
+	for _, step := range steps {
+		known = max(known, step.Version)
+	}
+	for v := range applied {
+		if v > known {
+			return fmt.Errorf("database %s is at schema version %d but this obk only knows up to %d; %w", source, v, known, ErrSchemaTooNew)
+		}
 	}
 
 	for _, step := range steps {
