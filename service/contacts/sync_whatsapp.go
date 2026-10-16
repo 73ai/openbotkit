@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/73ai/openbotkit/store"
@@ -12,7 +13,11 @@ import (
 func syncFromWhatsApp(contactsDB, waDB *store.DB) (*SyncResult, error) {
 	result := &SyncResult{}
 
-	rows, err := waDB.Query("SELECT jid, MAX(phone), MAX(first_name), MAX(full_name), MAX(push_name), MAX(business_name) FROM whatsapp_contacts GROUP BY jid")
+	var fields []string
+	for _, f := range []string{"phone", "first_name", "full_name", "push_name", "business_name"} {
+		fields = append(fields, fmt.Sprintf("COALESCE(NULLIF(MAX(CASE WHEN account = 'default' THEN %s END), ''), MAX(%s))", f, f))
+	}
+	rows, err := waDB.Query("SELECT jid, " + strings.Join(fields, ", ") + " FROM whatsapp_contacts GROUP BY jid")
 	if err != nil {
 		return nil, fmt.Errorf("query whatsapp contacts: %w", err)
 	}

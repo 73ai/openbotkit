@@ -109,6 +109,29 @@ func TestSyncWhatsAppAcrossAccounts(t *testing.T) {
 	}
 }
 
+func TestSyncWhatsAppPrefersDefaultAccountNames(t *testing.T) {
+	contactsDB := testDB(t)
+	waDB := openSourceDB(t, wasrc.Migrate)
+
+	ravi := "919812345678@s.whatsapp.net"
+	for _, c := range []wasrc.Contact{
+		{Account: "work", JID: ravi, Phone: "919812345678", FullName: "Ravi Sharma (Acme)", PushName: "ravi.acme", BusinessName: "Acme Logistics"},
+		{Account: "default", JID: ravi, Phone: "919812345678", FullName: "Ravi Kumar", PushName: "ravi"},
+	} {
+		if err := wasrc.SaveContact(waDB, &c); err != nil {
+			t.Fatalf("seed contact: %v", err)
+		}
+	}
+
+	if _, err := syncFromWhatsApp(contactsDB, waDB); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	contacts, _ := ListContacts(contactsDB, 10, 0)
+	if len(contacts) != 1 || contacts[0].DisplayName != "Ravi Kumar" {
+		t.Fatalf("contacts = %+v, want the default account's name", contacts)
+	}
+}
+
 func TestSyncWhatsAppIncremental(t *testing.T) {
 	contactsDB := testDB(t)
 	waDB := openSourceDB(t, wasrc.Migrate)
