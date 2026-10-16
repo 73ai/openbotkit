@@ -18,15 +18,11 @@ import (
 	tgchannel "github.com/73ai/openbotkit/channel/telegram"
 	wachannel "github.com/73ai/openbotkit/channel/whatsapp"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/schema"
 	"github.com/73ai/openbotkit/internal/skills"
 	"github.com/73ai/openbotkit/oauth/google"
 	"github.com/73ai/openbotkit/provider"
-	contactsrc "github.com/73ai/openbotkit/service/contacts"
 	learningssvc "github.com/73ai/openbotkit/service/learnings"
-	schedsrc "github.com/73ai/openbotkit/service/scheduler"
-	ansrc "github.com/73ai/openbotkit/source/applenotes"
-	gmailsrc "github.com/73ai/openbotkit/source/gmail"
-	imsrc "github.com/73ai/openbotkit/source/imessage"
 	wasrc "github.com/73ai/openbotkit/source/whatsapp"
 	"github.com/73ai/openbotkit/store"
 
@@ -80,7 +76,9 @@ func (s *Server) Run(ctx context.Context) error {
 
 	s.learnings = learningssvc.New(config.LearningsDir())
 
-	s.migrateDBs()
+	if err := schema.MigrateAll(s.cfg); err != nil {
+		return err
+	}
 
 	go func() {
 		if err := skills.RefreshGWSSkills(s.cfg); err != nil {
@@ -309,32 +307,4 @@ func (s *whatsAppSender) SendText(ctx context.Context, jid, text string) error {
 		Text:    text,
 	})
 	return err
-}
-
-// migrateDBs runs database migrations once at startup for all configured sources.
-func (s *Server) migrateDBs() {
-	migrations := []struct {
-		name   string
-		driver string
-		dsn    string
-		fn     func(*store.DB) error
-	}{
-		{"applenotes", s.cfg.AppleNotes.Storage.Driver, s.cfg.AppleNotesDataDSN(), ansrc.Migrate},
-		{"imessage", s.cfg.IMessage.Storage.Driver, s.cfg.IMessageDataDSN(), imsrc.Migrate},
-		{"whatsapp", s.cfg.WhatsApp.Storage.Driver, s.cfg.WhatsAppDataDSN(), wasrc.Migrate},
-		{"gmail", s.cfg.Gmail.Storage.Driver, s.cfg.GmailDataDSN(), gmailsrc.Migrate},
-		{"contacts", s.cfg.Contacts.Storage.Driver, s.cfg.ContactsDataDSN(), contactsrc.Migrate},
-		{"scheduler", s.cfg.Scheduler.Storage.Driver, s.cfg.SchedulerDataDSN(), schedsrc.Migrate},
-	}
-	for _, m := range migrations {
-		db, err := store.Open(store.Config{Driver: m.driver, DSN: m.dsn})
-		if err != nil {
-			slog.Warn("migrate: open failed", "source", m.name, "error", err)
-			continue
-		}
-		if err := m.fn(db); err != nil {
-			slog.Warn("migrate: failed", "source", m.name, "error", err)
-		}
-		db.Close()
-	}
 }
