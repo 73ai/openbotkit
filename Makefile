@@ -4,7 +4,7 @@ ALIAS = obk
 SKILLS_DIR = $(HOME)/.obk/skills
 ASSISTANT_SKILLS = assistant/.claude/skills
 
-.PHONY: build build-obkmacos install uninstall update-local
+.PHONY: FORCE build build-obkmacos install uninstall update-local
 
 build:
 	go build -o $(BINARY) .
@@ -13,6 +13,7 @@ OBKMACOS = $(HOME)/.obk/bin/obkmacos
 
 ifeq ($(shell uname),Darwin)
 SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1)
+OBKMACOS_RESIGN = $(if $(SIGN_IDENTITY),$(shell codesign -v -R='identifier "com.73ai.obkmacos" and anchor apple generic' $(OBKMACOS) 2>/dev/null || echo FORCE))
 build-obkmacos: $(OBKMACOS)
 else
 build-obkmacos:
@@ -28,9 +29,11 @@ define sign
 	fi
 endef
 
-$(OBKMACOS): swift/obkmacos.swift
+FORCE:
+
+$(OBKMACOS): swift/obkmacos.swift $(OBKMACOS_RESIGN)
 	@mkdir -p $(dir $@)
-	swiftc -O -o $@ $<
+	swiftc -O -o $@ swift/obkmacos.swift
 	$(call sign,$@,com.73ai.obkmacos)
 	@echo "Built obkmacos -> $@"
 
