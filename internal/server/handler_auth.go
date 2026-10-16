@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -160,8 +161,25 @@ func (wa *whatsAppAuth) run(s *Server) {
 		return
 	}
 	wasrc.WaitForSync(client, wa.account, 45, 10, db)
+	client.Disconnect()
 
-	wa.finish(s.registerWhatsAppAccount(wa.account, wa.entry))
+	if err := s.registerWhatsAppAccount(wa.account, wa.entry); err != nil {
+		wa.finish(err)
+		return
+	}
+	s.startRegisteredWhatsAppChannel(ctx, wa.account)
+	wa.finish(nil)
+}
+
+func (s *Server) startRegisteredWhatsAppChannel(ctx context.Context, label string) {
+	s.cfgMu.Lock()
+	entries := s.cfg.WhatsAppAccountList()
+	s.cfgMu.Unlock()
+	for _, e := range entries {
+		if e.Label == label {
+			s.startWhatsAppChannel(ctx, e)
+		}
+	}
 }
 
 func (s *Server) registerWhatsAppAccount(account string, entry *config.WhatsAppAccount) error {

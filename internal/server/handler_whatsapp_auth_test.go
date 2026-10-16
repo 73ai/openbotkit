@@ -1,14 +1,17 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 )
 
 func qrStatus(t *testing.T, s *Server, query string) map[string]any {
@@ -91,4 +94,40 @@ func TestRegisterWhatsAppAccountWhileAuthPageResolves(t *testing.T) {
 		s.handleWhatsAppAuthPage(rec, httptest.NewRequest("GET", "/auth/whatsapp?account=assistant&role=reader", nil))
 	}
 	<-done
+}
+
+func TestStartRegisteredWhatsAppChannelOnlyOpensUnstartedChannelAccounts(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+	s := &Server{cfg: config.Default(), chProvider: struct{ provider.Provider }{}, chName: "gemini", chModel: "gemini-2.5-flash"}
+	for label, entry := range map[string]config.WhatsAppAccount{
+		"work":      {Role: "source"},
+		"assistant": {Role: "channel", OwnerJID: "919876543210@s.whatsapp.net"},
+		"family":    {Role: "both", OwnerJID: "919812345678@s.whatsapp.net"},
+	} {
+		if err := s.registerWhatsAppAccount(label, &entry); err != nil {
+			t.Fatalf("register %s: %v", label, err)
+		}
+	}
+	s.chStarted = map[string]bool{"family": true}
+
+	for _, label := range []string{"work", "assistant", "family"} {
+		s.startRegisteredWhatsAppChannel(context.Background(), label)
+	}
+
+	opened := func(label string) bool {
+		_, err := os.Stat(s.cfg.WhatsAppAccountSessionDBPath(label))
+		return err == nil
+	}
+	if opened("work") {
+		t.Error("opened a whatsapp session for a source-only account")
+	}
+	if opened("family") {
+		t.Error("opened a second session for a channel that is already running")
+	}
+	if !opened("assistant") {
+		t.Error("did not try to start the newly registered channel account")
+	}
+	if s.chStarted["assistant"] {
+		t.Error("marked an unauthenticated channel as started")
+	}
 }
