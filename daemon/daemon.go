@@ -11,6 +11,7 @@ import (
 
 	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/internal/schema"
 	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/service/hooks"
 	"github.com/73ai/openbotkit/store"
@@ -75,6 +76,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 	defer releaseLock(lock)
 
 	slog.Info("starting daemon")
+
+	if err := schema.MigrateAll(d.cfg); err != nil {
+		return err
+	}
 
 	notifier := NewSyncNotifier()
 
