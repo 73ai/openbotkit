@@ -119,7 +119,11 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) startTelegram(ctx context.Context) error {
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" && s.cfg.Channels != nil && s.cfg.Channels.Telegram != nil {
-		token = s.cfg.Channels.Telegram.BotToken
+		var err error
+		token, err = s.cfg.Channels.Telegram.ResolvedBotToken(provider.LoadCredential)
+		if err != nil {
+			return err
+		}
 	}
 	if token == "" {
 		return fmt.Errorf("no telegram bot token configured")

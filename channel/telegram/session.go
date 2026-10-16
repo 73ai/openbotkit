@@ -517,11 +517,19 @@ func (sm *SessionManager) registerDelegateTool(reg *tools.Registry) {
 	reg.Register(tools.NewCheckTaskTool(sm.taskTracker))
 }
 
+func (sm *SessionManager) telegramBotToken() string {
+	token, err := sm.cfg.Channels.Telegram.ResolvedBotToken(provider.LoadCredential)
+	if err != nil {
+		slog.Error("telegram bot token", "error", err)
+	}
+	return token
+}
+
 func (sm *SessionManager) registerScheduleTools(reg *tools.Registry) {
 	var botToken string
 	var ownerID int64
 	if sm.cfg.Channels != nil && sm.cfg.Channels.Telegram != nil {
-		botToken = sm.cfg.Channels.Telegram.BotToken
+		botToken = sm.telegramBotToken()
 		ownerID = sm.cfg.Channels.Telegram.OwnerID
 	}
 	if botToken == "" || ownerID == 0 {
@@ -552,7 +560,7 @@ func (sm *SessionManager) registerLearningsTools(reg *tools.Registry) {
 	var botToken string
 	var ownerID int64
 	if sm.cfg.Channels != nil && sm.cfg.Channels.Telegram != nil {
-		botToken = sm.cfg.Channels.Telegram.BotToken
+		botToken = sm.telegramBotToken()
 		ownerID = sm.cfg.Channels.Telegram.OwnerID
 	}
 	if botToken != "" && ownerID != 0 {
