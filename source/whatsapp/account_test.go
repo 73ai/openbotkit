@@ -237,3 +237,40 @@ func TestStatusCoversAllAccountsWithoutCreatingSessions(t *testing.T) {
 		}
 	}
 }
+
+func TestStatsByAccount(t *testing.T) {
+	db := migratedDB(t)
+	chat := "919812345678@s.whatsapp.net"
+	for _, m := range []struct{ account, id, syncedAt string }{
+		{"default", "3EB0A1", "2026-10-14 08:00:00"},
+		{"default", "3EB0A2", "2026-10-15 21:40:00"},
+		{"work", "3EB0B1", "2026-09-30 12:15:00"},
+	} {
+		if err := SaveMessage(db, &Message{Account: m.account, MessageID: m.id, ChatJID: chat, Timestamp: time.Now()}); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		if _, err := db.Exec("UPDATE whatsapp_messages SET synced_at = ? WHERE message_id = ?", m.syncedAt, m.id); err != nil {
+			t.Fatalf("set synced_at: %v", err)
+		}
+	}
+
+	stats, err := StatsByAccount(db)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	want := map[string]AccountStats{
+		"default": {Messages: 2, LastSyncedAt: ptrTime(time.Date(2026, 10, 15, 21, 40, 0, 0, time.UTC))},
+		"work":    {Messages: 1, LastSyncedAt: ptrTime(time.Date(2026, 9, 30, 12, 15, 0, 0, time.UTC))},
+	}
+	if len(stats) != len(want) {
+		t.Fatalf("stats = %+v", stats)
+	}
+	for account, w := range want {
+		got := stats[account]
+		if got.Messages != w.Messages || got.LastSyncedAt == nil || !got.LastSyncedAt.Equal(*w.LastSyncedAt) {
+			t.Errorf("%s = %+v, want %+v", account, got, w)
+		}
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }

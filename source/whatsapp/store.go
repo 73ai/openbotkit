@@ -189,23 +189,47 @@ func CountMessages(db *store.DB, chatJID string) (int64, error) {
 
 func LastSyncTime(db *store.DB) (*time.Time, error) {
 	var raw sql.NullString
-	err := db.QueryRow("SELECT MAX(synced_at) FROM whatsapp_messages").Scan(&raw)
-	if err != nil {
+	if err := db.QueryRow("SELECT MAX(synced_at) FROM whatsapp_messages").Scan(&raw); err != nil {
 		return nil, err
 	}
-	if !raw.Valid || raw.String == "" {
-		return nil, nil
+	return parseSyncTime(raw), nil
+}
+
+type AccountStats struct {
+	Messages     int64
+	LastSyncedAt *time.Time
+}
+
+func StatsByAccount(db *store.DB) (map[string]AccountStats, error) {
+	rows, err := db.Query("SELECT account, COUNT(*), MAX(synced_at) FROM whatsapp_messages GROUP BY account")
+	if err != nil {
+		return nil, fmt.Errorf("account stats: %w", err)
 	}
-	for _, fmt := range []string{
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05Z",
-		time.RFC3339,
-	} {
-		if t, err := time.Parse(fmt, raw.String); err == nil {
-			return &t, nil
+	defer rows.Close()
+	stats := map[string]AccountStats{}
+	for rows.Next() {
+		var account string
+		var s AccountStats
+		var raw sql.NullString
+		if err := rows.Scan(&account, &s.Messages, &raw); err != nil {
+			return nil, fmt.Errorf("scan account stats: %w", err)
+		}
+		s.LastSyncedAt = parseSyncTime(raw)
+		stats[account] = s
+	}
+	return stats, rows.Err()
+}
+
+func parseSyncTime(raw sql.NullString) *time.Time {
+	if !raw.Valid || raw.String == "" {
+		return nil
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05Z", time.RFC3339} {
+		if t, err := time.Parse(layout, raw.String); err == nil {
+			return &t
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func SaveContact(db *store.DB, c *Contact) error {
