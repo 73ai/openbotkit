@@ -178,3 +178,8 @@ func (m *launchdManager) Status() (string, error) {
 
 	return "not running", nil
 }
+
+func (m *launchdManager) Installed() bool {
+	path, err := m.plistPath()
+	return err == nil && fileExists(path)
+}

@@ -14,7 +14,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%s %s
+ExecStart="%s" %s
 %sRestart=on-failure
 RestartSec=5
 
@@ -110,4 +110,9 @@ func (m *systemdManager) Status() (string, error) {
 		return "not running", nil
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func (m *systemdManager) Installed() bool {
+	path, err := m.unitPath()
+	return err == nil && fileExists(path)
 }
