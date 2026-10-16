@@ -11,6 +11,7 @@ import (
 
 	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/service/hooks"
 	"github.com/73ai/openbotkit/store"
 )
@@ -77,7 +78,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	notifier := NewSyncNotifier()
 
-	chanReg := newChannelRegistry(d.cfg)
+	chanReg := newChannelRegistry(d.cfg, provider.LoadCredential)
 	hooksDB, err := d.openHooksDB()
 	if err != nil {
 		return fmt.Errorf("open hooks db: %w", err)
@@ -182,12 +183,16 @@ func (d *Daemon) openHooksDB() (*store.DB, error) {
 	return db, nil
 }
 
-func newChannelRegistry(cfg *config.Config) *channel.Registry {
+func newChannelRegistry(cfg *config.Config, resolve func(string) (string, error)) *channel.Registry {
 	reg := channel.NewRegistry()
-	if cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.BotToken != "" {
+	if cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.HasBotToken() {
 		tg := *cfg.Channels.Telegram
 		reg.Register("telegram", channel.NewLazyPusher(func() (channel.Pusher, error) {
-			return channel.NewTelegramPusher(tg.BotToken, tg.OwnerID)
+			token, err := tg.ResolvedBotToken(resolve)
+			if err != nil {
+				return nil, err
+			}
+			return channel.NewTelegramPusher(token, tg.OwnerID)
 		}))
 	}
 	return reg
