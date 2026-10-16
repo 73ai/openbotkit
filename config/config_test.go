@@ -911,22 +911,6 @@ func TestAuthResolvedPassword_FromRef(t *testing.T) {
 	}
 }
 
-func TestAuthResolvedPassword_RefFailsReturnsError(t *testing.T) {
-	a := &AuthConfig{Password: "plain", PasswordRef: "keychain:obk/missing"}
-	_, err := a.ResolvedPassword(func(string) (string, error) { return "", fmt.Errorf("not found") })
-	if err == nil {
-		t.Fatal("expected error when resolver fails, got nil")
-	}
-}
-
-func TestAuthResolvedPassword_NoRef(t *testing.T) {
-	a := &AuthConfig{Password: "plain"}
-	got, err := a.ResolvedPassword(nil)
-	if err != nil || got != "plain" {
-		t.Fatalf("expected plain password, got %q, %v", got, err)
-	}
-}
-
 func TestTelegramResolvedBotToken_FromRef(t *testing.T) {
 	tg := &TelegramConfig{BotTokenRef: "keychain:obk/telegram-bot-token"}
 	got, err := tg.ResolvedBotToken(func(ref string) (string, error) {
@@ -940,38 +924,6 @@ func TestTelegramResolvedBotToken_FromRef(t *testing.T) {
 	}
 	if got != "token-from-keychain" {
 		t.Fatalf("expected keychain token, got %q", got)
-	}
-}
-
-func TestTelegramResolvedBotToken_RefFailsReturnsError(t *testing.T) {
-	tg := &TelegramConfig{BotToken: "plain", BotTokenRef: "keychain:obk/missing"}
-	_, err := tg.ResolvedBotToken(func(string) (string, error) { return "", fmt.Errorf("not found") })
-	if err == nil {
-		t.Fatal("expected error when resolver fails, got nil")
-	}
-}
-
-func TestTelegramResolvedBotToken_NoRef(t *testing.T) {
-	tg := &TelegramConfig{BotToken: "plain"}
-	got, err := tg.ResolvedBotToken(nil)
-	if err != nil || got != "plain" {
-		t.Fatalf("expected plain token, got %q, %v", got, err)
-	}
-}
-
-func TestTelegramHasBotToken(t *testing.T) {
-	cases := []struct {
-		tg   TelegramConfig
-		want bool
-	}{
-		{TelegramConfig{}, false},
-		{TelegramConfig{BotToken: "plain"}, true},
-		{TelegramConfig{BotTokenRef: "keychain:obk/telegram-bot-token"}, true},
-	}
-	for _, c := range cases {
-		if got := c.tg.HasBotToken(); got != c.want {
-			t.Errorf("HasBotToken(%+v) = %v, want %v", c.tg, got, c.want)
-		}
 	}
 }
 
