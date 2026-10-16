@@ -153,3 +153,7 @@ func selfUpdate() (string, error) {
 	}
 	return tag, nil
 }
+
+func nixManaged(path string) bool {
+	return strings.HasPrefix(path, "/nix/store/")
+}
