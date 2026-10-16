@@ -893,3 +893,107 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("expected custom DSN after reload, got %q", loaded.WhatsApp.Storage.DSN)
 	}
 }
+
+func TestAuthResolvedPassword_FromRef(t *testing.T) {
+	a := &AuthConfig{Username: "pj", Password: "plain", PasswordRef: "keychain:obk/auth"}
+	resolver := func(ref string) (string, error) {
+		if ref == "keychain:obk/auth" {
+			return "secret-from-keychain", nil
+		}
+		return "", fmt.Errorf("not found")
+	}
+	got, err := a.ResolvedPassword(resolver)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "secret-from-keychain" {
+		t.Fatalf("expected keychain password, got %q", got)
+	}
+}
+
+func TestAuthResolvedPassword_RefFailsReturnsError(t *testing.T) {
+	a := &AuthConfig{Password: "plain", PasswordRef: "keychain:obk/missing"}
+	_, err := a.ResolvedPassword(func(string) (string, error) { return "", fmt.Errorf("not found") })
+	if err == nil {
+		t.Fatal("expected error when resolver fails, got nil")
+	}
+}
+
+func TestAuthResolvedPassword_NoRef(t *testing.T) {
+	a := &AuthConfig{Password: "plain"}
+	got, err := a.ResolvedPassword(nil)
+	if err != nil || got != "plain" {
+		t.Fatalf("expected plain password, got %q, %v", got, err)
+	}
+}
+
+func TestTelegramResolvedBotToken_FromRef(t *testing.T) {
+	tg := &TelegramConfig{BotTokenRef: "keychain:obk/telegram-bot-token"}
+	got, err := tg.ResolvedBotToken(func(ref string) (string, error) {
+		if ref == "keychain:obk/telegram-bot-token" {
+			return "token-from-keychain", nil
+		}
+		return "", fmt.Errorf("not found")
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "token-from-keychain" {
+		t.Fatalf("expected keychain token, got %q", got)
+	}
+}
+
+func TestTelegramResolvedBotToken_RefFailsReturnsError(t *testing.T) {
+	tg := &TelegramConfig{BotToken: "plain", BotTokenRef: "keychain:obk/missing"}
+	_, err := tg.ResolvedBotToken(func(string) (string, error) { return "", fmt.Errorf("not found") })
+	if err == nil {
+		t.Fatal("expected error when resolver fails, got nil")
+	}
+}
+
+func TestTelegramResolvedBotToken_NoRef(t *testing.T) {
+	tg := &TelegramConfig{BotToken: "plain"}
+	got, err := tg.ResolvedBotToken(nil)
+	if err != nil || got != "plain" {
+		t.Fatalf("expected plain token, got %q, %v", got, err)
+	}
+}
+
+func TestTelegramHasBotToken(t *testing.T) {
+	cases := []struct {
+		tg   TelegramConfig
+		want bool
+	}{
+		{TelegramConfig{}, false},
+		{TelegramConfig{BotToken: "plain"}, true},
+		{TelegramConfig{BotTokenRef: "keychain:obk/telegram-bot-token"}, true},
+	}
+	for _, c := range cases {
+		if got := c.tg.HasBotToken(); got != c.want {
+			t.Errorf("HasBotToken(%+v) = %v, want %v", c.tg, got, c.want)
+		}
+	}
+}
+
+func TestBotTokenRef_RoundTrip(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Default()
+	cfg.Channels = &ChannelsConfig{Telegram: &TelegramConfig{BotTokenRef: "keychain:obk/telegram-bot-token", OwnerID: 42}}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if strings.Contains(string(data), "bot_token:") {
+		t.Fatalf("plain bot_token written to config:\n%s", data)
+	}
+	loaded, err := LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Channels.Telegram.BotTokenRef != "keychain:obk/telegram-bot-token" {
+		t.Fatalf("bot_token_ref lost on round trip: %+v", loaded.Channels.Telegram)
+	}
+}

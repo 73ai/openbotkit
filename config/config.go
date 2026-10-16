@@ -76,22 +76,31 @@ type RemoteConfig struct {
 // instead of silently falling back to plain text. When PasswordRef is empty,
 // the plain-text Password field is returned.
 func (r *RemoteConfig) ResolvedPassword(resolve func(string) (string, error)) (string, error) {
-	if r.PasswordRef != "" {
-		if resolve == nil {
-			return "", fmt.Errorf("password_ref %q set but no credential resolver available", r.PasswordRef)
-		}
-		pw, err := resolve(r.PasswordRef)
-		if err != nil {
-			return "", fmt.Errorf("resolving password_ref %q: %w", r.PasswordRef, err)
-		}
-		return pw, nil
+	return resolveSecret("password_ref", r.PasswordRef, r.Password, resolve)
+}
+
+func resolveSecret(field, ref, plain string, resolve func(string) (string, error)) (string, error) {
+	if ref == "" {
+		return plain, nil
 	}
-	return r.Password, nil
+	if resolve == nil {
+		return "", fmt.Errorf("%s %q set but no credential resolver available", field, ref)
+	}
+	v, err := resolve(ref)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s %q: %w", field, ref, err)
+	}
+	return v, nil
 }
 
 type AuthConfig struct {
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
+	Username    string `yaml:"username,omitempty"`
+	Password    string `yaml:"password,omitempty"`
+	PasswordRef string `yaml:"password_ref,omitempty"`
+}
+
+func (a *AuthConfig) ResolvedPassword(resolve func(string) (string, error)) (string, error) {
+	return resolveSecret("password_ref", a.PasswordRef, a.Password, resolve)
 }
 
 type ChannelsConfig struct {
@@ -99,8 +108,17 @@ type ChannelsConfig struct {
 }
 
 type TelegramConfig struct {
-	BotToken string `yaml:"bot_token,omitempty"`
-	OwnerID  int64  `yaml:"owner_id,omitempty"`
+	BotToken    string `yaml:"bot_token,omitempty"`
+	BotTokenRef string `yaml:"bot_token_ref,omitempty"`
+	OwnerID     int64  `yaml:"owner_id,omitempty"`
+}
+
+func (t *TelegramConfig) HasBotToken() bool {
+	return t.BotToken != "" || t.BotTokenRef != ""
+}
+
+func (t *TelegramConfig) ResolvedBotToken(resolve func(string) (string, error)) (string, error) {
+	return resolveSecret("bot_token_ref", t.BotTokenRef, t.BotToken, resolve)
 }
 
 // ModelsConfig configures LLM model providers and routing.
