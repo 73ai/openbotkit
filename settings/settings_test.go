@@ -192,6 +192,16 @@ func TestNilChannels(t *testing.T) {
 	if cfg.Channels == nil || cfg.Channels.Telegram == nil {
 		t.Fatal("Channels.Telegram should be initialized after set")
 	}
+	tg := cfg.Channels.Telegram
+	if tg.BotToken != "" || tg.BotTokenRef != telegramBotTokenRef {
+		t.Fatalf("bot token should be stored as a ref, got token=%q ref=%q", tg.BotToken, tg.BotTokenRef)
+	}
+	if got, _ := svc.LoadCredential(telegramBotTokenRef); got != "123:ABC" {
+		t.Fatalf("stored bot token = %q, want %q", got, "123:ABC")
+	}
+	if got := svc.GetValue(field); got != "configured" {
+		t.Errorf("after set, bot_token = %q, want %q", got, "configured")
+	}
 }
 
 func TestTreeStructure(t *testing.T) {
