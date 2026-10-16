@@ -2,8 +2,11 @@ package server
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/73ai/openbotkit/provider"
 )
 
 const maxRequestBody = 1 << 20 // 1 MB
@@ -37,7 +40,12 @@ func (s *Server) authCredentials() (string, string) {
 		return u, os.Getenv("OBK_AUTH_PASSWORD")
 	}
 	if s.cfg.Auth != nil {
-		return s.cfg.Auth.Username, s.cfg.Auth.Password
+		password, err := s.cfg.Auth.ResolvedPassword(provider.LoadCredential)
+		if err != nil {
+			slog.Error("server auth", "error", err)
+			return "", ""
+		}
+		return s.cfg.Auth.Username, password
 	}
 	return "", ""
 }
