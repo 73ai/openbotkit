@@ -3,7 +3,6 @@ package service
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 )
@@ -39,14 +38,11 @@ func DetectPlatform() Platform {
 }
 
 func DefaultConfig(name string, args []string) (*ServiceConfig, error) {
-	binPath, err := exec.LookPath("obk")
+	exe, err := os.Executable()
 	if err != nil {
-		binPath, err = os.Executable()
-		if err != nil {
-			return nil, fmt.Errorf("find obk binary: %w", err)
-		}
+		return nil, fmt.Errorf("find obk binary: %w", err)
 	}
-	binPath, err = filepath.Abs(binPath)
+	binPath, err := filepath.EvalSymlinks(exe)
 	if err != nil {
 		return nil, fmt.Errorf("resolve binary path: %w", err)
 	}
@@ -70,6 +66,7 @@ func DefaultConfig(name string, args []string) (*ServiceConfig, error) {
 
 type Manager interface {
 	Install(cfg *ServiceConfig) error
+	Installed() bool
 	Uninstall() error
 	Start() error
 	Stop() error
@@ -87,4 +84,9 @@ func NewManager(name string) (Manager, error) {
 	default:
 		return nil, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

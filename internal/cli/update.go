@@ -20,13 +20,22 @@ var updateCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		if !updateSkillsOnly {
+		if exe, err := runningBinaryPath(); !updateSkillsOnly && err == nil && nixManaged(exe) {
+			fmt.Println("obk is installed by Nix; update it through your flake or profile")
+		} else if !updateSkillsOnly {
 			fmt.Println("Updating obk binary...")
-			tag, err := selfUpdate()
+			tag, updated, err := selfUpdate()
 			if err != nil {
 				return fmt.Errorf("update obk binary: %w", err)
 			}
-			fmt.Printf("  obk %s installed\n", tag)
+			if !updated {
+				fmt.Printf("  obk %s is already the latest\n", tag)
+			} else {
+				fmt.Printf("  obk %s installed\n", tag)
+				if err := reinstallServices(); err != nil {
+					return err
+				}
+			}
 		}
 
 		fmt.Println("Updating skills...")

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.BinaryPath == "" {
 		t.Error("BinaryPath is empty")
+	}
+	if resolved, err := filepath.EvalSymlinks(cfg.BinaryPath); err != nil || resolved != cfg.BinaryPath {
+		t.Errorf("BinaryPath %q is not the resolved executable path (%q, %v)", cfg.BinaryPath, resolved, err)
 	}
 	if cfg.LogPath == "" {
 		t.Error("LogPath is empty")

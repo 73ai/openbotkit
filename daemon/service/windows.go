@@ -60,3 +60,5 @@ func (m *windowsManager) Status() (string, error) {
 	}
 	return "installed (not running)", nil
 }
+
+func (m *windowsManager) Installed() bool { return false }
