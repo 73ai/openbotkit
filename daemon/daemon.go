@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/riverqueue/river"
 
@@ -106,14 +107,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 
-	var waErrChs []<-chan error
+	var waDone <-chan struct{}
 	if !d.skipWhatsApp {
-		for _, acct := range d.cfg.WhatsAppAccountList() {
-			if acct.Role == "source" || acct.Role == "both" {
-				ch := runWhatsAppSyncForAccount(ctx, d.cfg, acct.Label, notifier)
-				waErrChs = append(waErrChs, ch)
-			}
-		}
+		waDone = watchWhatsAppAccounts(ctx, 30*time.Second, func(ctx context.Context, cfg *config.Config, label string) <-chan error {
+			return runWhatsAppSyncForAccount(ctx, cfg, label, notifier)
+		})
 	}
 	var anErrCh, imErrCh, ctErrCh, tgErrCh <-chan error
 	if !d.skipTelegram {
@@ -134,10 +132,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	slog.Info("shutting down daemon")
 
 	// Drain sync errors.
-	for _, waErrCh := range waErrChs {
-		if err := <-waErrCh; err != nil {
-			slog.Error("whatsapp error during shutdown", "error", err)
-		}
+	if waDone != nil {
+		<-waDone
 	}
 	if tgErrCh != nil {
 		if err := <-tgErrCh; err != nil {

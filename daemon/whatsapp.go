@@ -84,3 +84,50 @@ func runWhatsAppSyncForAccount(ctx context.Context, cfg *config.Config, label st
 
 	return errCh
 }
+
+type whatsAppSyncStarter func(ctx context.Context, cfg *config.Config, label string) <-chan error
+
+func watchWhatsAppAccounts(ctx context.Context, interval time.Duration, start whatsAppSyncStarter) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		started := map[string]bool{}
+		var errChs []<-chan error
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			cfg, err := config.Load()
+			if err != nil {
+				slog.Error("whatsapp: reload config", "error", err)
+			}
+			for _, acct := range accountsToStart(cfg, started) {
+				started[acct] = true
+				errChs = append(errChs, start(ctx, cfg, acct))
+			}
+			select {
+			case <-ctx.Done():
+				for _, ch := range errChs {
+					if err := <-ch; err != nil {
+						slog.Error("whatsapp error during shutdown", "error", err)
+					}
+				}
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return done
+}
+
+func accountsToStart(cfg *config.Config, started map[string]bool) []string {
+	if cfg == nil {
+		return nil
+	}
+	var labels []string
+	for _, acct := range cfg.WhatsAppAccountList() {
+		if (acct.Role == "source" || acct.Role == "both") && !started[acct.Label] && config.IsWhatsAppAccountLinked(acct.Label) {
+			labels = append(labels, acct.Label)
+		}
+	}
+	return labels
+}
