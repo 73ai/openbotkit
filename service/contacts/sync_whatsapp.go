@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/73ai/openbotkit/store"
@@ -12,7 +13,11 @@ import (
 func syncFromWhatsApp(contactsDB, waDB *store.DB) (*SyncResult, error) {
 	result := &SyncResult{}
 
-	rows, err := waDB.Query("SELECT jid, phone, first_name, full_name, push_name, business_name FROM whatsapp_contacts")
+	var fields []string
+	for _, f := range []string{"phone", "first_name", "full_name", "push_name", "business_name"} {
+		fields = append(fields, fmt.Sprintf("COALESCE(NULLIF(MAX(CASE WHEN account = 'default' THEN %s END), ''), MAX(%s))", f, f))
+	}
+	rows, err := waDB.Query("SELECT jid, " + strings.Join(fields, ", ") + " FROM whatsapp_contacts GROUP BY jid")
 	if err != nil {
 		return nil, fmt.Errorf("query whatsapp contacts: %w", err)
 	}
@@ -97,7 +102,7 @@ func syncWhatsAppInteractions(contactsDB, waDB *store.DB, contactID int64, jid s
 	var count int
 	var lastAtRaw sql.NullString
 	err := waDB.QueryRow(
-		waDB.Rebind("SELECT COUNT(*), MAX(timestamp) FROM whatsapp_messages WHERE sender_jid = ?"),
+		waDB.Rebind("SELECT COUNT(DISTINCT chat_jid || ' ' || message_id), MAX(timestamp) FROM whatsapp_messages WHERE sender_jid = ?"),
 		jid,
 	).Scan(&count, &lastAtRaw)
 	if err != nil {

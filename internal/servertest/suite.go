@@ -1,6 +1,7 @@
 package servertest
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/remote"
@@ -202,20 +203,25 @@ func testGmailSendValidation(t *testing.T, b Backend) {
 
 func testWhatsAppSendValidation(t *testing.T, b Backend) {
 	// Empty to should fail
-	_, err := b.Client.WhatsAppSend("", "hello")
+	_, err := b.Client.WhatsAppSend("default", "", "hello")
 	if err == nil {
 		t.Fatal("expected error for empty to")
 	}
 
 	// Empty text should fail
-	_, err = b.Client.WhatsAppSend("123@s.whatsapp.net", "")
+	_, err = b.Client.WhatsAppSend("default", "123@s.whatsapp.net", "")
 	if err == nil {
 		t.Fatal("expected error for empty text")
 	}
 
+	_, err = b.Client.WhatsAppSend("work", "123@s.whatsapp.net", "hello")
+	if err == nil || !strings.Contains(err.Error(), "unknown WhatsApp account work") {
+		t.Fatalf("unconfigured account: err = %v", err)
+	}
+
 	// No auth should fail
 	if b.NoAuthClient != nil {
-		_, err = b.NoAuthClient.WhatsAppSend("123@s.whatsapp.net", "hello")
+		_, err = b.NoAuthClient.WhatsAppSend("default", "123@s.whatsapp.net", "hello")
 		if err == nil {
 			t.Fatal("expected auth error for whatsapp send")
 		}

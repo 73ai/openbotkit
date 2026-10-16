@@ -16,6 +16,9 @@ import (
 )
 
 func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (*SyncResult, error) {
+	if opts.Account == "" {
+		return nil, errNoAccount
+	}
 	if err := Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
@@ -27,44 +30,22 @@ func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (
 	client.WM().AddEventHandler(func(rawEvt any) {
 		switch evt := rawEvt.(type) {
 		case *events.Message:
-			msg := parseMessage(evt)
-			if msg == nil {
-				return
-			}
-			if err := SaveMessage(db, msg); err != nil {
-				slog.Error("save message", "error", err)
+			msg, err := saveLiveMessage(db, opts.Account, evt)
+			if err != nil {
+				slog.Error("save message", "account", opts.Account, "error", err)
 				errors.Add(1)
 				return
 			}
-			UpsertChat(db, msg.ChatJID, chatName(evt), msg.IsGroup)
+			if msg == nil {
+				return
+			}
 			received.Add(1)
 			slog.Info("message received", "sender", msg.SenderName, "chat", msg.ChatJID, "text", truncate(msg.Text, 80))
 
 		case *events.HistorySync:
-			for _, conv := range evt.Data.GetConversations() {
-				chatJID := conv.GetID()
-				chatDisplayName := conv.GetDisplayName()
-				if chatDisplayName == "" {
-					chatDisplayName = conv.GetName()
-				}
-				isGroup := strings.HasSuffix(chatJID, "@g.us")
-				UpsertChat(db, chatJID, chatDisplayName, isGroup)
-
-				for _, hMsg := range conv.GetMessages() {
-					msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
-					if msg == nil {
-						continue
-					}
-					if msg.SenderName == "" && !isGroup {
-						msg.SenderName = chatDisplayName
-					}
-					if err := SaveMessage(db, msg); err != nil {
-						errors.Add(1)
-						continue
-					}
-					historyMsgs.Add(1)
-				}
-			}
+			saved, failed := saveHistorySync(db, opts.Account, evt)
+			historyMsgs.Add(int64(saved))
+			errors.Add(int64(failed))
 			slog.Info("history sync", "conversations", len(evt.Data.GetConversations()))
 
 		case *events.Connected:
@@ -86,7 +67,7 @@ func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (
 		return nil, fmt.Errorf("connect: %w", err)
 	}
 
-	go syncContacts(ctx, client, db)
+	go syncContacts(ctx, client, db, opts.Account)
 
 	if opts.Follow {
 		<-ctx.Done()
@@ -103,7 +84,7 @@ func Sync(ctx context.Context, client *Client, db *store.DB, opts SyncOptions) (
 	}, nil
 }
 
-func syncContacts(ctx context.Context, client *Client, db *store.DB) {
+func syncContacts(ctx context.Context, client *Client, db *store.DB, account string) {
 	// Wait a bit for the connection to stabilize and contacts to load.
 	time.Sleep(5 * time.Second)
 
@@ -115,6 +96,7 @@ func syncContacts(ctx context.Context, client *Client, db *store.DB) {
 
 	var saved int
 	for _, c := range contacts {
+		c.Account = account
 		if err := SaveContact(db, &c); err != nil {
 			slog.Error("save contact", "jid", c.JID, "error", err)
 			continue
@@ -122,6 +104,49 @@ func syncContacts(ctx context.Context, client *Client, db *store.DB) {
 		saved++
 	}
 	slog.Info("contacts synced", "saved", saved, "total", len(contacts))
+}
+
+func saveLiveMessage(db *store.DB, account string, evt *events.Message) (*Message, error) {
+	msg := parseMessage(evt)
+	if msg == nil {
+		return nil, nil
+	}
+	msg.Account = account
+	if err := SaveMessage(db, msg); err != nil {
+		return nil, err
+	}
+	return msg, UpsertChat(db, account, msg.ChatJID, chatName(evt), msg.IsGroup)
+}
+
+func saveHistorySync(db *store.DB, account string, evt *events.HistorySync) (saved, failed int) {
+	for _, conv := range evt.Data.GetConversations() {
+		chatJID := conv.GetID()
+		displayName := conv.GetDisplayName()
+		if displayName == "" {
+			displayName = conv.GetName()
+		}
+		isGroup := strings.HasSuffix(chatJID, "@g.us")
+		if err := UpsertChat(db, account, chatJID, displayName, isGroup); err != nil {
+			failed++
+		}
+
+		for _, hMsg := range conv.GetMessages() {
+			msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
+			if msg == nil {
+				continue
+			}
+			msg.Account = account
+			if msg.SenderName == "" && !isGroup {
+				msg.SenderName = displayName
+			}
+			if err := SaveMessage(db, msg); err != nil {
+				failed++
+				continue
+			}
+			saved++
+		}
+	}
+	return saved, failed
 }
 
 func parseMessage(evt *events.Message) *Message {

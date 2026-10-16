@@ -1,12 +1,15 @@
 package skills
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
+	embeddedSkills "github.com/73ai/openbotkit/skills"
 )
 
 func TestParseScopeMap(t *testing.T) {
@@ -101,7 +104,8 @@ func TestInstallBuiltinSkillsNoAuth(t *testing.T) {
 	for _, name := range []string{
 		"history-read", "memory-save", "web-search", "web-fetch",
 		"email-read", "email-send", "whatsapp-read", "whatsapp-send",
-		"applenotes-read", "contacts-search",
+		"applenotes-read", "contacts-search", "finance-read",
+		"memory-read", "schedule-task", "web-news",
 	} {
 		if !slices.Contains(result.Installed, name) {
 			t.Errorf("%s should be installed (built-in skills are always installed)", name)
@@ -386,5 +390,21 @@ func TestInstallIdempotent(t *testing.T) {
 	// No removals on second run.
 	if len(result2.Removed) != 0 {
 		t.Errorf("second run removed %d skills, want 0", len(result2.Removed))
+	}
+}
+
+func TestEveryShippedSkillIsRegistered(t *testing.T) {
+	entries, err := fs.ReadDir(embeddedSkills.FS, ".")
+	if err != nil {
+		t.Fatalf("read embedded skills: %v", err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !e.IsDir() || strings.HasPrefix(name, "gws-") || strings.HasPrefix(name, "recipe-") || strings.HasPrefix(name, "persona-") {
+			continue
+		}
+		if _, ok := builtinSkills[name]; !ok {
+			t.Errorf("skills/%s is shipped but missing from builtinSkills, so it is never installed", name)
+		}
 	}
 }

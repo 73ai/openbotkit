@@ -64,6 +64,74 @@ func TestSyncWhatsApp(t *testing.T) {
 	}
 }
 
+func TestSyncWhatsAppAcrossAccounts(t *testing.T) {
+	contactsDB := testDB(t)
+	waDB := openSourceDB(t, wasrc.Migrate)
+
+	ravi := "919812345678@s.whatsapp.net"
+	group := "120363041234567890@g.us"
+	for _, c := range []wasrc.Contact{
+		{Account: "default", JID: ravi, Phone: "919812345678", FullName: "Ravi Kumar", PushName: "ravi"},
+		{Account: "work", JID: ravi, Phone: "919812345678", PushName: "Ravi K"},
+	} {
+		if err := wasrc.SaveContact(waDB, &c); err != nil {
+			t.Fatalf("seed contact: %v", err)
+		}
+	}
+	base := time.Date(2026, 3, 2, 9, 0, 0, 0, time.UTC)
+	for i, m := range []wasrc.Message{
+		{Account: "default", MessageID: "3EB0A1", ChatJID: group, Text: "standup moved to 11"},
+		{Account: "work", MessageID: "3EB0A1", ChatJID: group, Text: "standup moved to 11"},
+		{Account: "default", MessageID: "BAE5F3", ChatJID: ravi, Text: "call me when free"},
+		{Account: "work", MessageID: "3EB0B7", ChatJID: ravi, Text: "sent the invoice"},
+	} {
+		m.SenderJID = ravi
+		m.Timestamp = base.Add(time.Duration(i) * time.Hour)
+		if err := wasrc.SaveMessage(waDB, &m); err != nil {
+			t.Fatalf("seed message: %v", err)
+		}
+	}
+
+	result, err := syncFromWhatsApp(contactsDB, waDB)
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if result.Created != 1 || result.Linked != 0 || result.Errors != 0 {
+		t.Fatalf("result = %+v, want one contact created once", result)
+	}
+	contacts, _ := ListContacts(contactsDB, 10, 0)
+	if len(contacts) != 1 || contacts[0].DisplayName != "Ravi Kumar" {
+		t.Fatalf("contacts = %+v", contacts)
+	}
+	full, _ := GetContact(contactsDB, contacts[0].ID)
+	if len(full.Interactions) != 1 || full.Interactions[0].MessageCount != 3 {
+		t.Fatalf("interactions = %+v, want 3 distinct messages", full.Interactions)
+	}
+}
+
+func TestSyncWhatsAppPrefersDefaultAccountNames(t *testing.T) {
+	contactsDB := testDB(t)
+	waDB := openSourceDB(t, wasrc.Migrate)
+
+	ravi := "919812345678@s.whatsapp.net"
+	for _, c := range []wasrc.Contact{
+		{Account: "work", JID: ravi, Phone: "919812345678", FullName: "Ravi Sharma (Acme)", PushName: "ravi.acme", BusinessName: "Acme Logistics"},
+		{Account: "default", JID: ravi, Phone: "919812345678", FullName: "Ravi Kumar", PushName: "ravi"},
+	} {
+		if err := wasrc.SaveContact(waDB, &c); err != nil {
+			t.Fatalf("seed contact: %v", err)
+		}
+	}
+
+	if _, err := syncFromWhatsApp(contactsDB, waDB); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	contacts, _ := ListContacts(contactsDB, 10, 0)
+	if len(contacts) != 1 || contacts[0].DisplayName != "Ravi Kumar" {
+		t.Fatalf("contacts = %+v, want the default account's name", contacts)
+	}
+}
+
 func TestSyncWhatsAppIncremental(t *testing.T) {
 	contactsDB := testDB(t)
 	waDB := openSourceDB(t, wasrc.Migrate)

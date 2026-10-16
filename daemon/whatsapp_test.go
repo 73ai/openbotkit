@@ -93,3 +93,62 @@ func TestDaemon_MultiAccountDispatch(t *testing.T) {
 		t.Fatal("daemon did not shut down within 10s")
 	}
 }
+
+func TestWatchWhatsAppAccountsStartsAccountsLinkedLater(t *testing.T) {
+	t.Setenv("OBK_CONFIG_DIR", t.TempDir())
+	if err := config.LinkWhatsAppAccount("default"); err != nil {
+		t.Fatalf("link default: %v", err)
+	}
+	cfg := config.Default()
+	cfg.SetWhatsAppAccount("assistant", config.WhatsAppAccount{Role: "channel", OwnerJID: "919876543210@s.whatsapp.net"})
+	cfg.SetWhatsAppAccount("work", config.WhatsAppAccount{Role: "source"})
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	started := make(chan string, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := watchWhatsAppAccounts(ctx, 10*time.Millisecond, func(ctx context.Context, _ *config.Config, label string) <-chan error {
+		started <- label
+		errCh := make(chan error, 1)
+		go func() { <-ctx.Done(); close(errCh) }()
+		return errCh
+	})
+
+	expect := func(want string) {
+		t.Helper()
+		select {
+		case got := <-started:
+			if got != want {
+				t.Fatalf("started %q, want %q", got, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%q not started", want)
+		}
+	}
+	expect("default")
+
+	cfg.SetWhatsAppAccount("family", config.WhatsAppAccount{Role: "both", OwnerJID: "919812345678@s.whatsapp.net"})
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if err := config.LinkWhatsAppAccount("family"); err != nil {
+		t.Fatalf("link family: %v", err)
+	}
+	expect("family")
+	if err := config.LinkWhatsAppAccount("work"); err != nil {
+		t.Fatalf("link work: %v", err)
+	}
+	expect("work")
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher did not stop")
+	}
+	if len(started) != 0 {
+		t.Fatalf("started again: %q", <-started)
+	}
+}

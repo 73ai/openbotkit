@@ -13,6 +13,9 @@ import (
 )
 
 func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput) (*SendResult, error) {
+	if input.Account == "" {
+		return nil, errNoAccount
+	}
 	jid, err := types.ParseJID(input.ChatJID)
 	if err != nil {
 		return nil, fmt.Errorf("parse JID %q: %w", input.ChatJID, err)
@@ -32,6 +35,7 @@ func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput
 	isGroup := strings.HasSuffix(input.ChatJID, "@g.us")
 
 	msg := &Message{
+		Account:   input.Account,
 		MessageID: resp.ID,
 		ChatJID:   input.ChatJID,
 		SenderJID: client.WM().Store.ID.String(),
@@ -44,7 +48,7 @@ func SendText(ctx context.Context, client *Client, db *store.DB, input SendInput
 		return nil, fmt.Errorf("save sent message: %w", err)
 	}
 
-	UpsertChat(db, input.ChatJID, "", isGroup)
+	UpsertChat(db, input.Account, input.ChatJID, "", isGroup)
 
 	return &SendResult{
 		MessageID: resp.ID,

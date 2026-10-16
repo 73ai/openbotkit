@@ -34,11 +34,10 @@ CREATE INDEX IF NOT EXISTS idx_event_hooks_type ON event_hooks(event_type);
 CREATE INDEX IF NOT EXISTS idx_event_hooks_enabled ON event_hooks(enabled);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("hooks", migrations)
 }

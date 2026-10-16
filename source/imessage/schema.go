@@ -88,11 +88,10 @@ CREATE INDEX IF NOT EXISTS idx_imessage_messages_date ON imessage_messages(date_
 CREATE INDEX IF NOT EXISTS idx_imessage_messages_apple_rowid ON imessage_messages(apple_rowid);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	_, err := db.Exec(schema)
-	return err
+	return db.Migrate("imessage", migrations)
 }

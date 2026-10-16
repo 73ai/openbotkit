@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +20,7 @@ func TestServerAPI_Docker(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping Docker test in short mode")
 	}
-	if err := exec.Command("docker", "info").Run(); err != nil {
-		t.Skip("skipping: Docker is not running")
-	}
+	testcontainers.SkipIfProviderIsNotHealthy(t)
 
 	testutil.LoadEnv(t)
 	geminiKey := testutil.RequireGeminiKey(t)

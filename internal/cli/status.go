@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/73ai/openbotkit/config"
 	"github.com/73ai/openbotkit/oauth/google"
@@ -61,9 +62,11 @@ var statusCmd = &cobra.Command{
 		g := gmailsrc.New(gmailsrc.Config{Provider: gp})
 		source.Register(g)
 
-		wa := wasrc.New(wasrc.Config{
-			SessionDBPath: cfg.WhatsAppSessionDBPath(),
-		})
+		var waSessions []string
+		for _, acct := range cfg.WhatsAppAccountList() {
+			waSessions = append(waSessions, cfg.WhatsAppAccountSessionDBPath(acct.Label))
+		}
+		wa := wasrc.New(wasrc.Config{SessionDBPaths: waSessions})
 		source.Register(wa)
 
 		an := ansrc.New(ansrc.Config{})
@@ -167,7 +170,7 @@ var statusCmd = &cobra.Command{
 
 			var lastSync *string
 			if st.LastSyncedAt != nil {
-				ts := st.LastSyncedAt.Format("2006-01-02 15:04")
+				ts := formatSyncTime(*st.LastSyncedAt)
 				lastSync = &ts
 			}
 
@@ -205,7 +208,7 @@ var statusCmd = &cobra.Command{
 			lastCapture, _ := histStore.LastCaptureTime()
 			var lastSync *string
 			if lastCapture != nil {
-				ts := lastCapture.Format("2006-01-02 15:04")
+				ts := formatSyncTime(*lastCapture)
 				lastSync = &ts
 			}
 			statuses = append(statuses, sourceStatus{
@@ -250,4 +253,8 @@ var statusCmd = &cobra.Command{
 func init() {
 	statusCmd.Flags().Bool("json", false, "Output as JSON")
 	rootCmd.AddCommand(statusCmd)
+}
+
+func formatSyncTime(t time.Time) string {
+	return t.Local().Format("2006-01-02 15:04")
 }

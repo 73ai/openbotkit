@@ -1,7 +1,8 @@
 package telegram
 
 import (
-	"fmt"
+	"context"
+	"database/sql"
 
 	"github.com/73ai/openbotkit/store"
 )
@@ -124,25 +125,22 @@ CREATE INDEX IF NOT EXISTS idx_telegram_messages_sender ON telegram_messages(sen
 CREATE INDEX IF NOT EXISTS idx_telegram_users_username ON telegram_users(username);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+	{Version: 2, Func: addDialogMembership},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	if _, err := db.Exec(schema); err != nil {
+	return db.Migrate("telegram", migrations)
+}
+
+func addDialogMembership(ctx context.Context, conn *sql.Conn, db *store.DB) error {
+	if ok, err := store.HasColumn(ctx, conn, db, "telegram_chats", "is_current_dialog"); err != nil || ok {
 		return err
 	}
-	columnQuery := "SELECT COUNT(*) FROM pragma_table_info('telegram_chats') WHERE name = 'is_current_dialog'"
-	if db.IsPostgres() {
-		columnQuery = "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'telegram_chats' AND column_name = 'is_current_dialog'"
-	}
-	var columns int
-	if err := db.QueryRow(columnQuery).Scan(&columns); err != nil || columns > 0 {
+	if _, err := conn.ExecContext(ctx, "ALTER TABLE telegram_chats ADD COLUMN is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE"); err != nil {
 		return err
 	}
-	if _, err := db.Exec("ALTER TABLE telegram_chats ADD COLUMN is_current_dialog BOOLEAN NOT NULL DEFAULT FALSE"); err != nil {
-		return fmt.Errorf("add dialog membership: %w", err)
-	}
-	_, err := db.Exec("UPDATE telegram_chats SET is_current_dialog = TRUE")
+	_, err := conn.ExecContext(ctx, "UPDATE telegram_chats SET is_current_dialog = TRUE")
 	return err
 }

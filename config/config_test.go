@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -891,6 +892,96 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if loaded.WhatsApp.Storage.DSN != "postgres://test" {
 		t.Fatalf("expected custom DSN after reload, got %q", loaded.WhatsApp.Storage.DSN)
+	}
+}
+
+func whatsAppRoles(cfg *Config) map[string]string {
+	roles := map[string]string{}
+	for _, e := range cfg.WhatsAppAccountList() {
+		roles[e.Label] = e.Role + " " + e.OwnerJID
+	}
+	return roles
+}
+
+func register(t *testing.T, cfg *Config, label, role, owner string) bool {
+	t.Helper()
+	acct, err := cfg.ResolveWhatsAppAccount(label, role, owner)
+	if err != nil {
+		t.Fatalf("resolve %q: %v", label, err)
+	}
+	if acct != nil {
+		cfg.SetWhatsAppAccount(label, *acct)
+	}
+	return acct != nil
+}
+
+func TestWhatsAppAccountRegistrationKeepsImplicitDefault(t *testing.T) {
+	cfg := Default()
+	if !register(t, cfg, "work", "", "") {
+		t.Fatal("new account not registered")
+	}
+	want := map[string]string{"default": "source ", "work": "source "}
+	if got := whatsAppRoles(cfg); !reflect.DeepEqual(got, want) {
+		t.Fatalf("accounts = %v, want %v", got, want)
+	}
+}
+
+func TestWhatsAppAccountRegistrationLeavesExistingEntries(t *testing.T) {
+	cfg := Default()
+	cfg.WhatsApp.Accounts = map[string]*WhatsAppAccount{"assistant": {Role: "channel", OwnerJID: "919876543210@s.whatsapp.net"}}
+	register(t, cfg, "work", "", "")
+	want := map[string]string{"assistant": "channel 919876543210@s.whatsapp.net", "work": "source "}
+	if got := whatsAppRoles(cfg); !reflect.DeepEqual(got, want) {
+		t.Fatalf("accounts = %v, want %v", got, want)
+	}
+}
+
+func TestWhatsAppAccountRelogin(t *testing.T) {
+	cfg := Default()
+	if register(t, cfg, "default", "", "") || cfg.WhatsApp.Accounts != nil {
+		t.Fatalf("relogin of implicit default wrote accounts: %v", cfg.WhatsApp.Accounts)
+	}
+	cfg.WhatsApp.Accounts = map[string]*WhatsAppAccount{"bot": {Role: "channel", OwnerJID: "919876543210@s.whatsapp.net"}}
+	if register(t, cfg, "bot", "", "") {
+		t.Fatal("relogin without flags changed config")
+	}
+	if !register(t, cfg, "bot", "both", "") {
+		t.Fatal("role change not registered")
+	}
+	if got := whatsAppRoles(cfg)["bot"]; got != "both 919876543210@s.whatsapp.net" {
+		t.Fatalf("bot after role change = %q, want owner kept", got)
+	}
+}
+
+func TestResolveWhatsAppAccountRejectsInvalidInput(t *testing.T) {
+	cases := []struct{ label, role, owner string }{
+		{"../escape", "", ""},
+		{"", "", ""},
+		{"work account", "", ""},
+		{"work", "reader", ""},
+		{"bot", "channel", ""},
+		{"bot", "both", ""},
+	}
+	for _, c := range cases {
+		if _, err := Default().ResolveWhatsAppAccount(c.label, c.role, c.owner); err == nil {
+			t.Errorf("ResolveWhatsAppAccount(%q, %q, %q) succeeded", c.label, c.role, c.owner)
+		}
+	}
+}
+
+func TestWhatsAppAccountRegistrationSurvivesSaveAndLoad(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Default()
+	register(t, cfg, "bot", "channel", "919876543210@s.whatsapp.net")
+	if err := cfg.SaveTo(path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := LoadFrom(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got, want := whatsAppRoles(loaded), whatsAppRoles(cfg); !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded accounts = %v, want %v", got, want)
 	}
 }
 

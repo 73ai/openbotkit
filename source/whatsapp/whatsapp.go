@@ -24,24 +24,26 @@ func (w *WhatsApp) Name() string {
 }
 
 func (w *WhatsApp) Status(ctx context.Context, db *store.DB) (*source.Status, error) {
-	client, err := NewClient(ctx, w.cfg.SessionDBPath)
-	if err != nil {
-		return &source.Status{Connected: false}, nil
-	}
-	defer client.Disconnect()
-
-	authenticated := client.IsAuthenticated()
-
 	var accounts []string
-	if authenticated {
-		accounts = []string{client.WM().Store.ID.User}
+	for _, path := range w.cfg.SessionDBPaths {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		client, err := NewClient(ctx, path)
+		if err != nil {
+			continue
+		}
+		if client.IsAuthenticated() {
+			accounts = append(accounts, client.WM().Store.ID.User)
+		}
+		client.Disconnect()
 	}
 
 	count, _ := CountMessages(db, "")
 	lastSync, _ := LastSyncTime(db)
 
 	return &source.Status{
-		Connected:    authenticated,
+		Connected:    len(accounts) > 0,
 		Accounts:     accounts,
 		ItemCount:    count,
 		LastSyncedAt: lastSync,
@@ -61,7 +63,7 @@ func (w *WhatsApp) Login(ctx context.Context) error {
 
 	var dataDB *store.DB
 	if w.cfg.DataDSN != "" {
-		dataDB, err = store.Open(store.Config{Driver: "sqlite", DSN: w.cfg.DataDSN})
+		dataDB, err = store.Open(store.Config{Driver: w.cfg.DataDriver, DSN: w.cfg.DataDSN})
 		if err != nil {
 			slog.Warn("whatsapp login: could not open data db for history backfill", "error", err)
 		} else {
@@ -73,7 +75,7 @@ func (w *WhatsApp) Login(ctx context.Context) error {
 		}
 	}
 
-	return ServeQR(ctx, client, "127.0.0.1:8085", dataDB)
+	return ServeQR(ctx, client, "127.0.0.1:8085", dataDB, w.cfg.Account)
 }
 
 func (w *WhatsApp) Logout(ctx context.Context) error {

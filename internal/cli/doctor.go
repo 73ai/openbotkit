@@ -107,11 +107,17 @@ func checkGoogleOAuth(cfg *config.Config) []checkResult {
 }
 
 func checkWhatsAppSession(cfg *config.Config) []checkResult {
-	path := cfg.WhatsAppSessionDBPath()
-	if _, err := os.Stat(path); err != nil {
-		return []checkResult{{"WhatsApp session", "WARN", "no session DB"}}
+	var results []checkResult
+	for _, acct := range cfg.WhatsAppAccountList() {
+		name := fmt.Sprintf("WhatsApp session (%s)", acct.Label)
+		path := cfg.WhatsAppAccountSessionDBPath(acct.Label)
+		if _, err := os.Stat(path); err != nil {
+			results = append(results, checkResult{name, "WARN", "no session DB"})
+			continue
+		}
+		results = append(results, checkResult{name, "OK", path})
 	}
-	return []checkResult{{"WhatsApp session", "OK", path}}
+	return results
 }
 
 func checkTelegramSession(cfg *config.Config) []checkResult {

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/73ai/openbotkit/config"
@@ -114,6 +115,31 @@ func TestCheckWhatsAppSession_Missing(t *testing.T) {
 	results := checkWhatsAppSession(cfg)
 	if len(results) != 1 || results[0].Status != "WARN" {
 		t.Fatalf("expected WARN, got %v", results)
+	}
+}
+
+func TestCheckWhatsAppSession_EachAccount(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OBK_CONFIG_DIR", dir)
+	cfg := config.Default()
+	cfg.WhatsApp.Accounts = map[string]*config.WhatsAppAccount{
+		"work":    {Role: "source"},
+		"default": {Role: "source"},
+	}
+	workSession := filepath.Join(dir, "whatsapp", "work", "session.db")
+	if err := os.MkdirAll(filepath.Dir(workSession), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workSession, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []checkResult{
+		{"WhatsApp session (default)", "WARN", "no session DB"},
+		{"WhatsApp session (work)", "OK", workSession},
+	}
+	if got := checkWhatsAppSession(cfg); !reflect.DeepEqual(got, want) {
+		t.Fatalf("results = %v, want %v", got, want)
 	}
 }
 

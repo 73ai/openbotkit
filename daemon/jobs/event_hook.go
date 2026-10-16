@@ -49,14 +49,14 @@ func (w *EventHookWorker) Work(ctx context.Context, job *river.Job[EventHookArgs
 		return nil
 	}
 
+	pusher, err := w.ChanReg.Get(hook.Channel)
+	if err != nil {
+		return river.JobCancel(fmt.Errorf("get pusher: %w", err))
+	}
+
 	p, model, err := w.resolveProvider(hook.ModelTier)
 	if err != nil {
 		return fmt.Errorf("resolve provider: %w", err)
-	}
-
-	pusher, err := w.ChanReg.Get(hook.Channel)
-	if err != nil {
-		return fmt.Errorf("get pusher: %w", err)
 	}
 
 	var lastErr string

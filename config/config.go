@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -211,7 +213,55 @@ func (c *Config) WhatsAppAccountList() []WhatsAppAccountEntry {
 			OwnerJID: acct.OwnerJID,
 		})
 	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 	return entries
+}
+
+var whatsAppLabelPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// ResolveWhatsAppAccount returns the validated entry to store for a login,
+// or nil when the account exists and role and ownerJID are empty.
+func (c *Config) ResolveWhatsAppAccount(label, role, ownerJID string) (*WhatsAppAccount, error) {
+	acct, found := WhatsAppAccount{Role: "source"}, false
+	for _, e := range c.WhatsAppAccountList() {
+		if e.Label == label {
+			acct, found = WhatsAppAccount{Role: e.Role, OwnerJID: e.OwnerJID}, true
+		}
+	}
+	if found && role == "" && ownerJID == "" {
+		return nil, nil
+	}
+	if role != "" {
+		acct.Role = role
+	}
+	if ownerJID != "" {
+		acct.OwnerJID = ownerJID
+	}
+	if !whatsAppLabelPattern.MatchString(label) {
+		return nil, fmt.Errorf("invalid account label %q: use letters, digits, '-' or '_'", label)
+	}
+	switch acct.Role {
+	case "source":
+	case "channel", "both":
+		if acct.OwnerJID == "" {
+			return nil, fmt.Errorf("role %q needs an owner JID", acct.Role)
+		}
+	default:
+		return nil, fmt.Errorf("invalid role %q (valid: source, channel, both)", acct.Role)
+	}
+	return &acct, nil
+}
+
+// SetWhatsAppAccount stores an entry. The first explicit entry also records
+// the implicit "default" account so it keeps syncing.
+func (c *Config) SetWhatsAppAccount(label string, acct WhatsAppAccount) {
+	if c.WhatsApp == nil {
+		c.WhatsApp = &WhatsAppConfig{}
+	}
+	if len(c.WhatsApp.Accounts) == 0 {
+		c.WhatsApp.Accounts = map[string]*WhatsAppAccount{"default": {Role: "source"}}
+	}
+	c.WhatsApp.Accounts[label] = &acct
 }
 
 // WhatsAppAccountDir returns the directory for an account's state files.

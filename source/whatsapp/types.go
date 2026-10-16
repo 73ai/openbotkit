@@ -2,7 +2,10 @@ package whatsapp
 
 import "time"
 
+const DefaultAccount = "default"
+
 type Message struct {
+	Account    string
 	MessageID  string
 	ChatJID    string
 	SenderJID  string
@@ -17,6 +20,7 @@ type Message struct {
 }
 
 type Chat struct {
+	Account       string
 	JID           string
 	Name          string
 	IsGroup       bool
@@ -24,6 +28,7 @@ type Chat struct {
 }
 
 type Contact struct {
+	Account      string
 	JID          string
 	Phone        string
 	FirstName    string
@@ -33,12 +38,16 @@ type Contact struct {
 }
 
 type Config struct {
-	SessionDBPath string
-	DataDSN       string
+	Account        string
+	SessionDBPath  string
+	SessionDBPaths []string
+	DataDriver     string
+	DataDSN        string
 }
 
 type SyncOptions struct {
-	Follow bool
+	Account string
+	Follow  bool
 }
 
 type SyncResult struct {
@@ -48,6 +57,7 @@ type SyncResult struct {
 }
 
 type SendInput struct {
+	Account string
 	ChatJID string
 	Text    string
 }
@@ -58,6 +68,7 @@ type SendResult struct {
 }
 
 type ListOptions struct {
+	Account string
 	ChatJID string
 	After   string // YYYY-MM-DD
 	Before  string // YYYY-MM-DD

@@ -35,6 +35,10 @@ var builtinSkills = map[string]SkillMeta{
 	"x-post":          {RequiresAuth: "x", Write: true},
 	"applenotes-read": {RequiresAuth: "applenotes"},
 	"contacts-search": {},
+	"finance-read":    {},
+	"memory-read":     {},
+	"schedule-task":   {},
+	"web-news":        {},
 	"skill-creator":   {},
 	"config-manage":   {},
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/73ai/openbotkit/config"
@@ -40,8 +41,10 @@ var messagesListCmd = &cobra.Command{
 		before, _ := cmd.Flags().GetString("before")
 		limit, _ := cmd.Flags().GetInt("limit")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
 		messages, err := wasrc.ListMessages(db, wasrc.ListOptions{
+			Account: account,
 			ChatJID: chat,
 			After:   after,
 			Before:  before,
@@ -61,9 +64,9 @@ var messagesListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "TIMESTAMP\tCHAT\tSENDER\tTEXT")
+		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
-			text := m.Text
+			text := strings.Join(strings.Fields(m.Text), " ")
 			if len(text) > 60 {
 				text = text[:57] + "..."
 			}
@@ -78,8 +81,8 @@ var messagesListCmd = &cobra.Command{
 			if len(chat) > 30 {
 				chat = chat[:27] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				m.Timestamp.Format("2006-01-02 15:04"), chat, sender, text)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				m.Account, m.Timestamp.Format("2006-01-02 15:04"), chat, sender, text)
 		}
 		return w.Flush()
 	},
@@ -105,8 +108,9 @@ var messagesSearchCmd = &cobra.Command{
 
 		jsonOut, _ := cmd.Flags().GetBool("json")
 		limit, _ := cmd.Flags().GetInt("limit")
+		account, _ := cmd.Flags().GetString("account")
 
-		messages, err := wasrc.SearchMessages(db, args[0], limit)
+		messages, err := wasrc.SearchMessages(db, account, args[0], limit)
 		if err != nil {
 			return fmt.Errorf("search messages: %w", err)
 		}
@@ -121,9 +125,9 @@ var messagesSearchCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "TIMESTAMP\tCHAT\tSENDER\tTEXT")
+		fmt.Fprintln(w, "ACCOUNT\tTIMESTAMP\tCHAT\tSENDER\tTEXT")
 		for _, m := range messages {
-			text := m.Text
+			text := strings.Join(strings.Fields(m.Text), " ")
 			if len(text) > 60 {
 				text = text[:57] + "..."
 			}
@@ -131,8 +135,8 @@ var messagesSearchCmd = &cobra.Command{
 			if sender == "" {
 				sender = m.SenderJID
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				m.Timestamp.Format("2006-01-02 15:04"), m.ChatJID, sender, text)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				m.Account, m.Timestamp.Format("2006-01-02 15:04"), m.ChatJID, sender, text)
 		}
 		return w.Flush()
 	},
@@ -161,8 +165,9 @@ var chatsListCmd = &cobra.Command{
 		defer db.Close()
 
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
-		chats, err := wasrc.ListChats(db)
+		chats, err := wasrc.ListChats(db, account)
 		if err != nil {
 			return fmt.Errorf("list chats: %w", err)
 		}
@@ -177,7 +182,7 @@ var chatsListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "JID\tNAME\tGROUP\tLAST MESSAGE")
+		fmt.Fprintln(w, "ACCOUNT\tJID\tNAME\tGROUP\tLAST MESSAGE")
 		for _, c := range chats {
 			group := "no"
 			if c.IsGroup {
@@ -195,7 +200,7 @@ var chatsListCmd = &cobra.Command{
 			if len(jid) > 30 {
 				jid = jid[:27] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", jid, name, group, lastMsg)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Account, jid, name, group, lastMsg)
 		}
 		return w.Flush()
 	},
@@ -207,15 +212,18 @@ func init() {
 	messagesListCmd.Flags().String("before", "", "Messages on or before this date (YYYY-MM-DD)")
 	messagesListCmd.Flags().Int("limit", 50, "Maximum number of results")
 	messagesListCmd.Flags().Bool("json", false, "Output as JSON")
+	messagesListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	messagesSearchCmd.Flags().Bool("json", false, "Output as JSON")
 	messagesSearchCmd.Flags().Int("limit", 50, "Maximum number of results")
+	messagesSearchCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	messagesCmd.AddCommand(messagesListCmd)
 	messagesCmd.AddCommand(messagesSearchCmd)
 	messagesCmd.AddCommand(messagesSendCmd)
 
 	chatsListCmd.Flags().Bool("json", false, "Output as JSON")
+	chatsListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 	chatsCmd.AddCommand(chatsListCmd)
 }
 

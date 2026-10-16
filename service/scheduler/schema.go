@@ -1,6 +1,11 @@
 package scheduler
 
-import "github.com/73ai/openbotkit/store"
+import (
+	"context"
+	"database/sql"
+
+	"github.com/73ai/openbotkit/store"
+)
 
 const schemaSQLite = `
 CREATE TABLE IF NOT EXISTS schedules (
@@ -44,24 +49,32 @@ CREATE INDEX IF NOT EXISTS idx_schedules_enabled ON schedules(enabled);
 CREATE INDEX IF NOT EXISTS idx_schedules_type ON schedules(type);
 `
 
+var migrations = []store.Migration{
+	{Version: 1, SQLite: schemaSQLite, Postgres: schemaPostgres},
+	{Version: 2, Func: addTriggerColumns},
+}
+
 func Migrate(db *store.DB) error {
-	schema := schemaSQLite
-	if db.IsPostgres() {
-		schema = schemaPostgres
-	}
-	if _, err := db.Exec(schema); err != nil {
-		return err
-	}
-	// Best-effort ALTER TABLE for existing databases.
-	// SQLite: duplicate column errors are safe to ignore.
-	for _, stmt := range []string{
-		"ALTER TABLE schedules ADD COLUMN model_tier TEXT DEFAULT 'fast'",
-		"ALTER TABLE schedules ADD COLUMN max_budget_usd REAL DEFAULT 0",
-		"ALTER TABLE schedules ADD COLUMN trigger_source TEXT",
-		"ALTER TABLE schedules ADD COLUMN trigger_query TEXT",
-		"ALTER TABLE schedules ADD COLUMN last_trigger_id INTEGER DEFAULT 0",
+	return db.Migrate("scheduler", migrations)
+}
+
+func addTriggerColumns(ctx context.Context, conn *sql.Conn, db *store.DB) error {
+	for _, c := range []struct{ name, def string }{
+		{"model_tier", "TEXT DEFAULT 'fast'"},
+		{"max_budget_usd", "REAL DEFAULT 0"},
+		{"trigger_source", "TEXT"},
+		{"trigger_query", "TEXT"},
+		{"last_trigger_id", "INTEGER DEFAULT 0"},
 	} {
-		db.Exec(stmt) // ignore "duplicate column" errors
+		ok, err := store.HasColumn(ctx, conn, db, "schedules", c.name)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if _, err := conn.ExecContext(ctx, "ALTER TABLE schedules ADD COLUMN "+c.name+" "+c.def); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

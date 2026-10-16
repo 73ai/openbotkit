@@ -12,6 +12,7 @@ func TestSaveMessage(t *testing.T) {
 	}
 
 	msg := &Message{
+		Account:    DefaultAccount,
 		MessageID:  "msg-001",
 		ChatJID:    "123@s.whatsapp.net",
 		SenderJID:  "456@s.whatsapp.net",
@@ -27,7 +28,7 @@ func TestSaveMessage(t *testing.T) {
 	}
 
 	// Verify it was inserted.
-	exists, err := MessageExists(db, "msg-001", "123@s.whatsapp.net")
+	exists, err := MessageExists(db, DefaultAccount, "msg-001", "123@s.whatsapp.net")
 	if err != nil {
 		t.Fatalf("message exists: %v", err)
 	}
@@ -43,6 +44,7 @@ func TestSaveMessageUpsert(t *testing.T) {
 	}
 
 	msg := &Message{
+		Account:    DefaultAccount,
 		MessageID:  "msg-001",
 		ChatJID:    "123@s.whatsapp.net",
 		SenderJID:  "456@s.whatsapp.net",
@@ -89,11 +91,11 @@ func TestUpsertChat(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := UpsertChat(db, "123@g.us", "Test Group", true); err != nil {
+	if err := UpsertChat(db, DefaultAccount, "123@g.us", "Test Group", true); err != nil {
 		t.Fatalf("upsert chat: %v", err)
 	}
 
-	chats, err := ListChats(db)
+	chats, err := ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list chats: %v", err)
 	}
@@ -111,10 +113,10 @@ func TestUpsertChat(t *testing.T) {
 	}
 
 	// Upsert again — should not duplicate.
-	if err := UpsertChat(db, "123@g.us", "Renamed Group", true); err != nil {
+	if err := UpsertChat(db, DefaultAccount, "123@g.us", "Renamed Group", true); err != nil {
 		t.Fatalf("upsert chat again: %v", err)
 	}
-	chats, err = ListChats(db)
+	chats, err = ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list chats: %v", err)
 	}
@@ -132,15 +134,15 @@ func TestUpsertChatPreservesNameWhenEmpty(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if err := UpsertChat(db, "123@g.us", "Test Group", true); err != nil {
+	if err := UpsertChat(db, DefaultAccount, "123@g.us", "Test Group", true); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
 	// Upsert with empty name should preserve existing.
-	if err := UpsertChat(db, "123@g.us", "", true); err != nil {
+	if err := UpsertChat(db, DefaultAccount, "123@g.us", "", true); err != nil {
 		t.Fatalf("upsert empty name: %v", err)
 	}
-	chats, err := ListChats(db)
+	chats, err := ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list chats: %v", err)
 	}
@@ -155,7 +157,7 @@ func TestMessageExists(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	exists, err := MessageExists(db, "nonexistent", "chat1")
+	exists, err := MessageExists(db, DefaultAccount, "nonexistent", "chat1")
 	if err != nil {
 		t.Fatalf("check: %v", err)
 	}
@@ -164,13 +166,14 @@ func TestMessageExists(t *testing.T) {
 	}
 
 	msg := &Message{
+		Account:   DefaultAccount,
 		MessageID: "msg-001",
 		ChatJID:   "chat1",
 		Timestamp: time.Now(),
 	}
 	SaveMessage(db, msg)
 
-	exists, err = MessageExists(db, "msg-001", "chat1")
+	exists, err = MessageExists(db, DefaultAccount, "msg-001", "chat1")
 	if err != nil {
 		t.Fatalf("check: %v", err)
 	}
@@ -186,9 +189,9 @@ func TestListMessagesWithFilters(t *testing.T) {
 	}
 
 	msgs := []*Message{
-		{MessageID: "m1", ChatJID: "chat-a", Text: "hello", Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
-		{MessageID: "m2", ChatJID: "chat-a", Text: "world", Timestamp: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
-		{MessageID: "m3", ChatJID: "chat-b", Text: "foo", Timestamp: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)},
+		{Account: DefaultAccount, MessageID: "m1", ChatJID: "chat-a", Text: "hello", Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{Account: DefaultAccount, MessageID: "m2", ChatJID: "chat-a", Text: "world", Timestamp: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
+		{Account: DefaultAccount, MessageID: "m3", ChatJID: "chat-b", Text: "foo", Timestamp: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)},
 	}
 	for _, m := range msgs {
 		if err := SaveMessage(db, m); err != nil {
@@ -233,6 +236,7 @@ func TestListMessagesBeforeIncludesTheWholeDay(t *testing.T) {
 	}
 
 	msg := &Message{
+		Account:   DefaultAccount,
 		MessageID: "m1", ChatJID: "chat-a", Text: "noon",
 		Timestamp: time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC),
 	}
@@ -268,16 +272,16 @@ func TestSearchMessages(t *testing.T) {
 	}
 
 	msgs := []*Message{
-		{MessageID: "m1", ChatJID: "c1", Text: "hello world", Timestamp: time.Now()},
-		{MessageID: "m2", ChatJID: "c1", Text: "goodbye moon", Timestamp: time.Now()},
-		{MessageID: "m3", ChatJID: "c1", Text: "Hello Again", Timestamp: time.Now()},
+		{Account: DefaultAccount, MessageID: "m1", ChatJID: "c1", Text: "hello world", Timestamp: time.Now()},
+		{Account: DefaultAccount, MessageID: "m2", ChatJID: "c1", Text: "goodbye moon", Timestamp: time.Now()},
+		{Account: DefaultAccount, MessageID: "m3", ChatJID: "c1", Text: "Hello Again", Timestamp: time.Now()},
 	}
 	for _, m := range msgs {
 		SaveMessage(db, m)
 	}
 
 	// Case-insensitive search.
-	results, err := SearchMessages(db, "hello", 10)
+	results, err := SearchMessages(db, "", "hello", 10)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -286,7 +290,7 @@ func TestSearchMessages(t *testing.T) {
 	}
 
 	// No match.
-	results, err = SearchMessages(db, "nonexistent", 10)
+	results, err = SearchMessages(db, "", "nonexistent", 10)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -310,8 +314,8 @@ func TestCountMessages(t *testing.T) {
 		t.Fatalf("expected 0, got %d", count)
 	}
 
-	SaveMessage(db, &Message{MessageID: "m1", ChatJID: "c1", Timestamp: time.Now()})
-	SaveMessage(db, &Message{MessageID: "m2", ChatJID: "c2", Timestamp: time.Now()})
+	SaveMessage(db, &Message{Account: DefaultAccount, MessageID: "m1", ChatJID: "c1", Timestamp: time.Now()})
+	SaveMessage(db, &Message{Account: DefaultAccount, MessageID: "m2", ChatJID: "c2", Timestamp: time.Now()})
 
 	// Total count.
 	count, err = CountMessages(db, "")
@@ -348,7 +352,7 @@ func TestLastSyncTime(t *testing.T) {
 	}
 
 	// Add a message and check.
-	SaveMessage(db, &Message{MessageID: "m1", ChatJID: "c1", Timestamp: time.Now()})
+	SaveMessage(db, &Message{Account: DefaultAccount, MessageID: "m1", ChatJID: "c1", Timestamp: time.Now()})
 
 	ts, err = LastSyncTime(db)
 	if err != nil {
@@ -365,7 +369,7 @@ func TestListChatsEmpty(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	chats, err := ListChats(db)
+	chats, err := ListChats(db, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -381,6 +385,7 @@ func TestSaveContact(t *testing.T) {
 	}
 
 	c := &Contact{
+		Account:   DefaultAccount,
 		JID:       "919876543210@s.whatsapp.net",
 		Phone:     "919876543210",
 		FirstName: "John",
@@ -392,7 +397,7 @@ func TestSaveContact(t *testing.T) {
 		t.Fatalf("save contact: %v", err)
 	}
 
-	got, err := GetContact(db, "919876543210@s.whatsapp.net")
+	got, err := GetContact(db, DefaultAccount, "919876543210@s.whatsapp.net")
 	if err != nil {
 		t.Fatalf("get contact: %v", err)
 	}
@@ -414,6 +419,7 @@ func TestSaveContactUpsert(t *testing.T) {
 	}
 
 	c := &Contact{
+		Account:  DefaultAccount,
 		JID:      "919876543210@s.whatsapp.net",
 		Phone:    "919876543210",
 		FullName: "John Doe",
@@ -427,7 +433,7 @@ func TestSaveContactUpsert(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	got, _ := GetContact(db, "919876543210@s.whatsapp.net")
+	got, _ := GetContact(db, DefaultAccount, "919876543210@s.whatsapp.net")
 	if got.PushName != "Johnny" {
 		t.Fatalf("expected 'Johnny', got %q", got.PushName)
 	}
@@ -440,6 +446,7 @@ func TestSaveContactPreservesNonEmptyFields(t *testing.T) {
 	}
 
 	SaveContact(db, &Contact{
+		Account:  DefaultAccount,
 		JID:      "123@s.whatsapp.net",
 		Phone:    "123",
 		FullName: "Alice",
@@ -448,13 +455,14 @@ func TestSaveContactPreservesNonEmptyFields(t *testing.T) {
 
 	// Upsert with empty full_name — should preserve existing.
 	SaveContact(db, &Contact{
+		Account:  DefaultAccount,
 		JID:      "123@s.whatsapp.net",
 		Phone:    "123",
 		FullName: "",
 		PushName: "Ali2",
 	})
 
-	got, _ := GetContact(db, "123@s.whatsapp.net")
+	got, _ := GetContact(db, DefaultAccount, "123@s.whatsapp.net")
 	if got.FullName != "Alice" {
 		t.Fatalf("expected preserved 'Alice', got %q", got.FullName)
 	}
@@ -469,7 +477,7 @@ func TestGetContactNotFound(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	got, err := GetContact(db, "nonexistent@s.whatsapp.net")
+	got, err := GetContact(db, DefaultAccount, "nonexistent@s.whatsapp.net")
 	if err != nil {
 		t.Fatalf("get contact: %v", err)
 	}
@@ -485,16 +493,16 @@ func TestListContacts(t *testing.T) {
 	}
 
 	contacts := []*Contact{
-		{JID: "1@s.whatsapp.net", Phone: "1", FullName: "Alice Smith", PushName: "Ali"},
-		{JID: "2@s.whatsapp.net", Phone: "2", FullName: "Bob Jones", PushName: "Bobby"},
-		{JID: "3@s.whatsapp.net", Phone: "3", FullName: "Charlie Brown", PushName: "Chuck"},
+		{Account: DefaultAccount, JID: "1@s.whatsapp.net", Phone: "1", FullName: "Alice Smith", PushName: "Ali"},
+		{Account: DefaultAccount, JID: "2@s.whatsapp.net", Phone: "2", FullName: "Bob Jones", PushName: "Bobby"},
+		{Account: DefaultAccount, JID: "3@s.whatsapp.net", Phone: "3", FullName: "Charlie Brown", PushName: "Chuck"},
 	}
 	for _, c := range contacts {
 		SaveContact(db, c)
 	}
 
 	// List all.
-	results, err := ListContacts(db, "", 50)
+	results, err := ListContacts(db, "", "", 50)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -503,7 +511,7 @@ func TestListContacts(t *testing.T) {
 	}
 
 	// Limit.
-	results, err = ListContacts(db, "", 2)
+	results, err = ListContacts(db, "", "", 2)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -519,16 +527,16 @@ func TestListContactsSearch(t *testing.T) {
 	}
 
 	contacts := []*Contact{
-		{JID: "1@s.whatsapp.net", Phone: "919876543210", FullName: "Alice Smith", PushName: "Ali"},
-		{JID: "2@s.whatsapp.net", Phone: "919999000111", FullName: "Bob Jones", PushName: "Bobby"},
-		{JID: "3@s.whatsapp.net", Phone: "918888777666", FullName: "Charlie Brown", PushName: "Chuck"},
+		{Account: DefaultAccount, JID: "1@s.whatsapp.net", Phone: "919876543210", FullName: "Alice Smith", PushName: "Ali"},
+		{Account: DefaultAccount, JID: "2@s.whatsapp.net", Phone: "919999000111", FullName: "Bob Jones", PushName: "Bobby"},
+		{Account: DefaultAccount, JID: "3@s.whatsapp.net", Phone: "918888777666", FullName: "Charlie Brown", PushName: "Chuck"},
 	}
 	for _, c := range contacts {
 		SaveContact(db, c)
 	}
 
 	// Search by full name.
-	results, err := ListContacts(db, "alice", 50)
+	results, err := ListContacts(db, "", "alice", 50)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -540,7 +548,7 @@ func TestListContactsSearch(t *testing.T) {
 	}
 
 	// Search by push name.
-	results, err = ListContacts(db, "bobby", 50)
+	results, err = ListContacts(db, "", "bobby", 50)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -549,7 +557,7 @@ func TestListContactsSearch(t *testing.T) {
 	}
 
 	// Search by phone.
-	results, err = ListContacts(db, "919876", 50)
+	results, err = ListContacts(db, "", "919876", 50)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -558,7 +566,7 @@ func TestListContactsSearch(t *testing.T) {
 	}
 
 	// No match.
-	results, err = ListContacts(db, "nonexistent", 50)
+	results, err = ListContacts(db, "", "nonexistent", 50)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}

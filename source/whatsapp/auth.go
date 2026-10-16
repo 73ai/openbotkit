@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,6 +84,7 @@ var qrEl=document.getElementById("qr"),statusEl=document.getElementById("status"
     mainEl=document.getElementById("main"),linkingEl=document.getElementById("linking"),
     syncingEl=document.getElementById("syncing"),doneEl=document.getElementById("done"),qrCode=null,hasQR=false;
 function poll(){fetch("/api/qr").then(function(r){return r.json()}).then(function(d){
+  if(d.error){mainEl.style.display="block";linkingEl.style.display="none";syncingEl.style.display="none";statusEl.textContent="Login failed: "+d.error;statusEl.className="";qrEl.innerHTML="";return}
   if(d.authenticated){mainEl.style.display="none";linkingEl.style.display="none";syncingEl.style.display="none";doneEl.style.display="block";return}
   if(d.syncing){mainEl.style.display="none";linkingEl.style.display="none";syncingEl.style.display="block";setTimeout(poll,2000);return}
   if(d.linking){mainEl.style.display="none";linkingEl.style.display="block";setTimeout(poll,2000);return}
@@ -131,7 +131,7 @@ func AuthPage() string {
 // WaitForSync blocks until either the quiet period elapses after the
 // last sync signal, or maxWait is reached. If dataDB is non-nil,
 // incoming HistorySync messages are saved to the database.
-func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int, dataDB ...*store.DB) {
+func WaitForSync(client *Client, account string, maxWaitSec, quietPeriodSec int, dataDB ...*store.DB) {
 	var db *store.DB
 	if len(dataDB) > 0 {
 		db = dataDB[0]
@@ -150,28 +150,8 @@ func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int, dataDB ...*stor
 		if db == nil {
 			return
 		}
-		for _, conv := range evt.Data.GetConversations() {
-			chatJID := conv.GetID()
-			displayName := conv.GetDisplayName()
-			if displayName == "" {
-				displayName = conv.GetName()
-			}
-			isGroup := strings.HasSuffix(chatJID, "@g.us")
-			UpsertChat(db, chatJID, displayName, isGroup)
-			for _, hMsg := range conv.GetMessages() {
-				msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
-				if msg == nil {
-					continue
-				}
-				if msg.SenderName == "" && !isGroup {
-					msg.SenderName = displayName
-				}
-				if err := SaveMessage(db, msg); err != nil {
-					continue
-				}
-				saved.Add(1)
-			}
-		}
+		n, _ := saveHistorySync(db, account, evt)
+		saved.Add(int64(n))
 	})
 	defer client.WM().RemoveEventHandler(handlerID)
 
@@ -184,7 +164,7 @@ func WaitForSync(client *Client, maxWaitSec, quietPeriodSec int, dataDB ...*stor
 	}
 }
 
-func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB) error {
+func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB, account string) error {
 	if addr == "" {
 		// Loopback only: the QR page is for this machine, not the LAN.
 		addr = "127.0.0.1:8085"
@@ -266,32 +246,15 @@ func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB)
 		if dataDB == nil {
 			return
 		}
-		for _, conv := range evt.Data.GetConversations() {
-			chatJID := conv.GetID()
-			chatDisplayName := conv.GetDisplayName()
-			if chatDisplayName == "" {
-				chatDisplayName = conv.GetName()
-			}
-			isGroup := strings.HasSuffix(chatJID, "@g.us")
-			UpsertChat(dataDB, chatJID, chatDisplayName, isGroup)
-
-			for _, hMsg := range conv.GetMessages() {
-				msg := parseHistoryMessage(hMsg.GetMessage(), chatJID, isGroup)
-				if msg == nil {
-					continue
-				}
-				if msg.SenderName == "" && !isGroup {
-					msg.SenderName = chatDisplayName
-				}
-				if err := SaveMessage(dataDB, msg); err != nil {
-					continue
-				}
-				historyMsgs.Add(1)
-			}
-		}
+		n, _ := saveHistorySync(dataDB, account, evt)
+		historyMsgs.Add(int64(n))
 	})
 
-	connectErr := client.ConnectWithQR(ctx, qrChan)
+	if err := client.ConnectWithQR(ctx, qrChan); err != nil {
+		client.WM().RemoveEventHandler(handlerID)
+		server.Shutdown(context.Background())
+		return err
+	}
 
 	// Transition from linking → syncing and wait for initial history sync.
 	mu.Lock()
@@ -322,5 +285,5 @@ func ServeQR(ctx context.Context, client *Client, addr string, dataDB *store.DB)
 	default:
 	}
 
-	return connectErr
+	return nil
 }

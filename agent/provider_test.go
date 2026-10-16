@@ -30,14 +30,14 @@ func availableProviders(t *testing.T) []providerTestCase {
 	testutil.LoadEnv(t)
 	var providers []providerTestCase
 
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" && testutil.ProviderEnabled("anthropic") {
 		providers = append(providers, providerTestCase{
 			name:     "anthropic",
 			provider: anthropic.New(key),
 			model:    "claude-sonnet-4-6",
 		})
 	}
-	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" && testutil.ProviderEnabled("anthropic-vertex") {
 		region := os.Getenv("GOOGLE_CLOUD_REGION")
 		if region == "" {
 			region = "us-east5"
@@ -53,21 +53,21 @@ func availableProviders(t *testing.T) []providerTestCase {
 			model:    model,
 		})
 	}
-	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" && testutil.ProviderEnabled("openai") {
 		providers = append(providers, providerTestCase{
 			name:     "openai",
 			provider: openai.New(key),
 			model:    "gpt-4o-mini",
 		})
 	}
-	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" && testutil.ProviderEnabled("gemini") {
 		providers = append(providers, providerTestCase{
 			name:     "gemini",
 			provider: gemini.New(key),
 			model:    "gemini-2.5-flash",
 		})
 	}
-	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" && testutil.ProviderEnabled("gemini-vertex") {
 		region := os.Getenv("GOOGLE_CLOUD_REGION")
 		if region == "" {
 			region = "us-east5"

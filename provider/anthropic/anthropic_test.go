@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/73ai/openbotkit/internal/testutil"
+
 	"github.com/73ai/openbotkit/provider"
 )
 
@@ -436,8 +438,8 @@ func TestChat_CacheUsage(t *testing.T) {
 
 func TestAnthropicIntegration(t *testing.T) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		t.Skip("ANTHROPIC_API_KEY not set")
+	if apiKey == "" || !testutil.ProviderEnabled("anthropic") {
+		t.Skip("ANTHROPIC_API_KEY not set or anthropic not in OBK_TEST_PROVIDERS")
 	}
 
 	p := New(apiKey)

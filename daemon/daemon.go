@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/riverqueue/river"
 
 	"github.com/73ai/openbotkit/channel"
 	"github.com/73ai/openbotkit/config"
+	"github.com/73ai/openbotkit/provider"
 	"github.com/73ai/openbotkit/service/hooks"
 	"github.com/73ai/openbotkit/store"
 )
@@ -76,7 +78,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	notifier := NewSyncNotifier()
 
-	chanReg := channel.NewRegistry()
+	chanReg := newChannelRegistry(d.cfg, provider.LoadCredential)
 	hooksDB, err := d.openHooksDB()
 	if err != nil {
 		return fmt.Errorf("open hooks db: %w", err)
@@ -106,14 +108,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 
-	var waErrChs []<-chan error
+	var waDone <-chan struct{}
 	if !d.skipWhatsApp {
-		for _, acct := range d.cfg.WhatsAppAccountList() {
-			if acct.Role == "source" || acct.Role == "both" {
-				ch := runWhatsAppSyncForAccount(ctx, d.cfg, acct.Label, notifier)
-				waErrChs = append(waErrChs, ch)
-			}
-		}
+		waDone = watchWhatsAppAccounts(ctx, 30*time.Second, func(ctx context.Context, cfg *config.Config, label string) <-chan error {
+			return runWhatsAppSyncForAccount(ctx, cfg, label, notifier)
+		})
 	}
 	var anErrCh, imErrCh, ctErrCh, tgErrCh <-chan error
 	if !d.skipTelegram {
@@ -134,10 +133,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	slog.Info("shutting down daemon")
 
 	// Drain sync errors.
-	for _, waErrCh := range waErrChs {
-		if err := <-waErrCh; err != nil {
-			slog.Error("whatsapp error during shutdown", "error", err)
-		}
+	if waDone != nil {
+		<-waDone
 	}
 	if tgErrCh != nil {
 		if err := <-tgErrCh; err != nil {
@@ -184,4 +181,19 @@ func (d *Daemon) openHooksDB() (*store.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func newChannelRegistry(cfg *config.Config, resolve func(string) (string, error)) *channel.Registry {
+	reg := channel.NewRegistry()
+	if cfg.Channels != nil && cfg.Channels.Telegram != nil && cfg.Channels.Telegram.HasBotToken() {
+		tg := *cfg.Channels.Telegram
+		reg.Register("telegram", channel.NewLazyPusher(func() (channel.Pusher, error) {
+			token, err := tg.ResolvedBotToken(resolve)
+			if err != nil {
+				return nil, err
+			}
+			return channel.NewTelegramPusher(token, tg.OwnerID)
+		}))
+	}
+	return reg
 }

@@ -37,8 +37,9 @@ var contactsListCmd = &cobra.Command{
 		query, _ := cmd.Flags().GetString("query")
 		limit, _ := cmd.Flags().GetInt("limit")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		account, _ := cmd.Flags().GetString("account")
 
-		contacts, err := wasrc.ListContacts(db, query, limit)
+		contacts, err := wasrc.ListContacts(db, account, query, limit)
 		if err != nil {
 			return fmt.Errorf("list contacts: %w", err)
 		}
@@ -53,13 +54,13 @@ var contactsListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "PHONE\tNAME\tPUSH NAME\tBUSINESS")
+		fmt.Fprintln(w, "ACCOUNT\tPHONE\tNAME\tPUSH NAME\tBUSINESS")
 		for _, c := range contacts {
 			name := c.FullName
 			if name == "" {
 				name = c.FirstName
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", c.Phone, name, c.PushName, c.BusinessName)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Account, c.Phone, name, c.PushName, c.BusinessName)
 		}
 		return w.Flush()
 	},
@@ -69,6 +70,7 @@ func init() {
 	contactsListCmd.Flags().String("query", "", "Search contacts by name or phone")
 	contactsListCmd.Flags().Int("limit", 50, "Maximum number of results")
 	contactsListCmd.Flags().Bool("json", false, "Output as JSON")
+	contactsListCmd.Flags().String("account", "", "Filter by account label (default: all accounts)")
 
 	contactsCmd.AddCommand(contactsListCmd)
 }

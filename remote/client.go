@@ -188,15 +188,19 @@ func (c *Client) MemoryExtract(last int) (*MemoryExtractResult, error) {
 
 // WaitWhatsAppAuth polls the WhatsApp auth endpoint until authentication
 // completes. Returns nil when authenticated, or an error on timeout (5 min).
-func (c *Client) WaitWhatsAppAuth() error {
+func (c *Client) WaitWhatsAppAuth(account string) error {
 	deadline := time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
 		var resp struct {
-			Authenticated bool `json:"authenticated"`
+			Authenticated bool   `json:"authenticated"`
+			Error         string `json:"error"`
 		}
-		if err := c.get("/auth/whatsapp/api/qr", &resp); err != nil {
+		if err := c.get("/auth/whatsapp/api/qr?account="+url.QueryEscape(account), &resp); err != nil {
 			time.Sleep(3 * time.Second)
 			continue
+		}
+		if resp.Error != "" {
+			return fmt.Errorf("whatsapp login failed: %s", resp.Error)
 		}
 		if resp.Authenticated {
 			return nil
@@ -207,8 +211,8 @@ func (c *Client) WaitWhatsAppAuth() error {
 }
 
 // WhatsAppSend sends a WhatsApp message via the remote server.
-func (c *Client) WhatsAppSend(to, text string) (*WhatsAppSendResult, error) {
-	req := map[string]string{"to": to, "text": text}
+func (c *Client) WhatsAppSend(account, to, text string) (*WhatsAppSendResult, error) {
+	req := map[string]string{"account": account, "to": to, "text": text}
 	var resp WhatsAppSendResult
 	if err := c.post("/api/whatsapp/send", req, &resp); err != nil {
 		return nil, err

@@ -43,8 +43,15 @@ type Server struct {
 	addr string
 	ctx  context.Context
 
+	cfgMu  sync.Mutex
 	waMu   sync.Mutex
-	waAuth *whatsAppAuth
+	waAuth map[string]*whatsAppAuth
+
+	chMu       sync.Mutex
+	chProvider provider.Provider
+	chName     string
+	chModel    string
+	chStarted  map[string]bool
 
 	scopeWaiter *google.ScopeWaiter
 	google      *google.Google
@@ -206,76 +213,98 @@ func (s *Server) startWhatsAppChannels(ctx context.Context) {
 		slog.Warn("whatsapp channel: provider not found", "provider", providerName)
 		return
 	}
+	s.chMu.Lock()
+	s.chProvider, s.chName, s.chModel = p, providerName, modelName
+	s.chMu.Unlock()
 
 	for _, acct := range s.cfg.WhatsAppAccountList() {
-		if acct.Role != "channel" && acct.Role != "both" {
-			continue
-		}
-		if acct.OwnerJID == "" {
-			slog.Warn("whatsapp channel: no owner_jid configured", "account", acct.Label)
-			continue
-		}
-		if !config.IsWhatsAppAccountLinked(acct.Label) {
-			slog.Info("whatsapp channel: not linked, skipping", "account", acct.Label)
-			continue
-		}
-
-		sessionDBPath := s.cfg.WhatsAppAccountSessionDBPath(acct.Label)
-		client, err := wasrc.NewClient(ctx, sessionDBPath)
-		if err != nil {
-			slog.Warn("whatsapp channel: create client", "account", acct.Label, "error", err)
-			continue
-		}
-		if !client.IsAuthenticated() {
-			slog.Warn("whatsapp channel: not authenticated", "account", acct.Label)
-			continue
-		}
-		if err := client.Connect(ctx); err != nil {
-			slog.Warn("whatsapp channel: connect", "account", acct.Label, "error", err)
-			continue
-		}
-
-		db, err := store.Open(store.Config{
-			Driver: s.cfg.WhatsApp.Storage.Driver,
-			DSN:    s.cfg.WhatsAppDataDSN(),
-		})
-		if err != nil {
-			slog.Warn("whatsapp channel: open data db", "account", acct.Label, "error", err)
-			continue
-		}
-
-		sender := &whatsAppSender{client: client, db: db}
-		ch := wachannel.NewChannel(sender, acct.OwnerJID)
-
-		interactor := channel.NewInteractor(ch)
-		account := s.resolveAccount()
-		bridge := tools.NewTokenBridge(s.google, account)
-
-		sm := wachannel.NewSessionManager(s.cfg, ch, p, providerName, modelName, wachannel.SessionManagerDeps{
-			Interactor:   interactor,
-			ScopeWaiter:  s.scopeWaiter,
-			TokenBridge:  bridge,
-			GoogleAuth:   s.google,
-			Account:      account,
-			AccountLabel: acct.Label,
-			OwnerJID:     acct.OwnerJID,
-		})
-
-		wachannel.RegisterEventHandler(client.WM(), ch, acct.OwnerJID)
-		go sm.Run(ctx)
-
-		slog.Info("whatsapp channel started", "account", acct.Label, "owner_jid", acct.OwnerJID)
+		s.startWhatsAppChannel(ctx, acct)
 	}
+}
+
+func (s *Server) startWhatsAppChannel(ctx context.Context, acct config.WhatsAppAccountEntry) {
+	if acct.Role != "channel" && acct.Role != "both" {
+		return
+	}
+	s.chMu.Lock()
+	defer s.chMu.Unlock()
+	p, providerName, modelName := s.chProvider, s.chName, s.chModel
+	if p == nil || s.chStarted[acct.Label] {
+		return
+	}
+	if acct.OwnerJID == "" {
+		slog.Warn("whatsapp channel: no owner_jid configured", "account", acct.Label)
+		return
+	}
+	if !config.IsWhatsAppAccountLinked(acct.Label) {
+		slog.Info("whatsapp channel: not linked, skipping", "account", acct.Label)
+		return
+	}
+
+	sessionDBPath := s.cfg.WhatsAppAccountSessionDBPath(acct.Label)
+	client, err := wasrc.NewClient(ctx, sessionDBPath)
+	if err != nil {
+		slog.Warn("whatsapp channel: create client", "account", acct.Label, "error", err)
+		return
+	}
+	if !client.IsAuthenticated() {
+		slog.Warn("whatsapp channel: not authenticated", "account", acct.Label)
+		client.Disconnect()
+		return
+	}
+	if err := client.Connect(ctx); err != nil {
+		slog.Warn("whatsapp channel: connect", "account", acct.Label, "error", err)
+		client.Disconnect()
+		return
+	}
+
+	db, err := store.Open(store.Config{
+		Driver: s.cfg.WhatsApp.Storage.Driver,
+		DSN:    s.cfg.WhatsAppDataDSN(),
+	})
+	if err != nil {
+		slog.Warn("whatsapp channel: open data db", "account", acct.Label, "error", err)
+		client.Disconnect()
+		return
+	}
+
+	sender := &whatsAppSender{client: client, db: db, account: acct.Label}
+	ch := wachannel.NewChannel(sender, acct.OwnerJID)
+
+	interactor := channel.NewInteractor(ch)
+	account := s.resolveAccount()
+	bridge := tools.NewTokenBridge(s.google, account)
+
+	sm := wachannel.NewSessionManager(s.cfg, ch, p, providerName, modelName, wachannel.SessionManagerDeps{
+		Interactor:   interactor,
+		ScopeWaiter:  s.scopeWaiter,
+		TokenBridge:  bridge,
+		GoogleAuth:   s.google,
+		Account:      account,
+		AccountLabel: acct.Label,
+		OwnerJID:     acct.OwnerJID,
+	})
+
+	wachannel.RegisterEventHandler(client.WM(), ch, acct.OwnerJID)
+	go sm.Run(ctx)
+	if s.chStarted == nil {
+		s.chStarted = map[string]bool{}
+	}
+	s.chStarted[acct.Label] = true
+
+	slog.Info("whatsapp channel started", "account", acct.Label, "owner_jid", acct.OwnerJID)
 }
 
 // whatsAppSender implements wachannel.messageSender using the real whatsmeow client.
 type whatsAppSender struct {
-	client *wasrc.Client
-	db     *store.DB
+	client  *wasrc.Client
+	db      *store.DB
+	account string
 }
 
 func (s *whatsAppSender) SendText(ctx context.Context, jid, text string) error {
 	_, err := wasrc.SendText(ctx, s.client, s.db, wasrc.SendInput{
+		Account: s.account,
 		ChatJID: jid,
 		Text:    text,
 	})

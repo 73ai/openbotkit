@@ -57,7 +57,7 @@ var syncCmd = &cobra.Command{
 
 		fmt.Printf("Starting WhatsApp sync (account: %s, Ctrl+C to stop)...\n", account)
 
-		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{Follow: true})
+		result, err := wasrc.Sync(ctx, client, db, wasrc.SyncOptions{Account: account, Follow: true})
 		if err != nil {
 			return fmt.Errorf("sync failed: %w", err)
 		}
