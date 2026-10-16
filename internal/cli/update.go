@@ -20,7 +20,9 @@ var updateCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		if !updateSkillsOnly {
+		if exe, err := runningBinaryPath(); !updateSkillsOnly && err == nil && nixManaged(exe) {
+			fmt.Println("obk is installed by Nix; update it through your flake or profile")
+		} else if !updateSkillsOnly {
 			fmt.Println("Updating obk binary...")
 			tag, err := selfUpdate()
 			if err != nil {
