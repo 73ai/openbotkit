@@ -3,6 +3,12 @@
 All notable changes to OpenBotKit are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.1] (2026-10-17)
+
+### Fixed
+
+- **service**: Refuse to manage services when obk is nix-managed (#188)
+
 ## [0.17.0] (2026-10-16)
 
 ## [0.16.0] (2026-10-16)
