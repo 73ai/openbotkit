@@ -18,6 +18,13 @@ import (
 
 var allServices = []string{"daemon", "server"}
 
+func refuseIfNixManaged() error {
+	if exe, err := runningBinaryPath(); err == nil && nixManaged(exe) {
+		return fmt.Errorf("obk is managed by Nix; its services are declared by the home-manager module (services.obk), change them there")
+	}
+	return nil
+}
+
 func resolveServices(args []string) ([]string, error) {
 	if len(args) == 0 {
 		return allServices, nil
@@ -89,6 +96,9 @@ var serviceInstallCmd = &cobra.Command{
 	Args:      cobra.MaximumNArgs(1),
 	ValidArgs: []string{"daemon", "server"},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := refuseIfNixManaged(); err != nil {
+			return err
+		}
 		names, err := resolveServices(args)
 		if err != nil {
 			return err
@@ -118,6 +128,9 @@ var serviceUninstallCmd = &cobra.Command{
 	Args:      cobra.MaximumNArgs(1),
 	ValidArgs: []string{"daemon", "server"},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := refuseIfNixManaged(); err != nil {
+			return err
+		}
 		names, err := resolveServices(args)
 		if err != nil {
 			return err
