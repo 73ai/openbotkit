@@ -30,10 +30,11 @@
         default = pkgs.mkShell { packages = [ pkgs.go_1_26 pkgs.gopls ]; };
       });
 
-      homeManagerModules.default = { config, lib, pkgs, ... }:
+      homeManagerModules.default = { config, lib, pkgs, osConfig ? null, ... }:
         let
           cfg = config.services.obk;
           home = config.home.homeDirectory;
+          launchdFromDarwin = osConfig.services.obk.agentsFromHome or false;
           env = { HOME = home; PATH = "${cfg.package}/bin:/usr/bin:/bin"; };
           args = name: [ "${cfg.package}/bin/obk" "service" "run" name ] ++ cfg.${name}.extraArgs;
           mkService = name: lib.mkIf cfg.${name}.enable {
@@ -47,7 +48,7 @@
               };
               Install.WantedBy = [ "default.target" ];
             };
-            launchd.agents."obk-${name}" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+            launchd.agents."obk-${name}" = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && !launchdFromDarwin) {
               enable = true;
               config = {
                 Label = "com.openbotkit.obk.${name}";
@@ -79,6 +80,35 @@
             (mkService "daemon")
             (mkService "server")
           ];
+        };
+
+      darwinModules.default = { config, lib, ... }:
+        let
+          agentsFor = user: hm:
+            let
+              cfg = hm.services.obk;
+              home = hm.home.homeDirectory;
+              agent = name: lib.optionalAttrs cfg.${name}.enable {
+                "obk-${name}".serviceConfig = {
+                  Label = "com.openbotkit.obk.${name}";
+                  ProgramArguments = [ "${cfg.package}/bin/obk" "service" "run" name ] ++ cfg.${name}.extraArgs;
+                  EnvironmentVariables = { HOME = home; PATH = "${cfg.package}/bin:/usr/bin:/bin"; };
+                  RunAtLoad = true;
+                  KeepAlive = true;
+                  StandardOutPath = "${home}/.obk/${name}.log";
+                  StandardErrorPath = "${home}/.obk/${name}.log";
+                };
+              };
+            in
+            lib.optionalAttrs (hm.services ? obk) (agent "daemon" // agent "server");
+        in
+        {
+          options.services.obk.agentsFromHome = lib.mkEnableOption
+            "launchd user agents for each home-manager user's obk services, run without a shell wrapper";
+
+          config = lib.mkIf config.services.obk.agentsFromHome {
+            launchd.user.agents = lib.mkMerge (lib.mapAttrsToList agentsFor (config.home-manager.users or { }));
+          };
         };
     };
 }
